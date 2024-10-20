@@ -479,6 +479,7 @@ public class Modules extends System<Modules> {
         add(new BoatFly());
         add(new ClickTP());
         add(new ElytraBoost());
+        add(new ElytraSpeed());
         add(new ElytraFly());
         add(new EntityControl());
         add(new EntitySpeed());
