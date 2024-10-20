@@ -23,7 +23,7 @@ import meteordevelopment.meteorclient.utils.world.Dimension;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
-import net.minecraft.registry.Registries;
+import net.minecraft.block.Blocks;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.Heightmap;
@@ -51,9 +51,9 @@ public class NewChunks extends Module {
             if (isActive() && Utils.canUpdate()) onActivate();
         })
         .defaultValue(
-            Registries.BLOCK.get(new Identifier("minecraft:copper_ore")),
-            Registries.BLOCK.get(new Identifier("minecraft:kelp")),
-            Registries.BLOCK.get(new Identifier("minecraft:kelp_plant"))
+            Blocks.COPPER_ORE,
+            Blocks.KELP,
+            Blocks.KELP_PLANT
         )
         .build()
     );
@@ -65,8 +65,8 @@ public class NewChunks extends Module {
             if (isActive() && Utils.canUpdate()) onActivate();
         })
         .defaultValue(
-            Registries.BLOCK.get(new Identifier("minecraft:ancient_debris")),
-            Registries.BLOCK.get(new Identifier("minecraft:nether_gold_ore"))
+            Blocks.ANCIENT_DEBRIS,
+            Blocks.NETHER_GOLD_ORE
         )
         .build()
     );

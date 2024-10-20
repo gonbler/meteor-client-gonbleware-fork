@@ -6,6 +6,7 @@
 package meteordevelopment.meteorclient.systems.modules.world;
 
 import net.minecraft.item.SpawnEggItem;
+import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
@@ -19,6 +20,9 @@ import net.minecraft.item.BlockItem;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 
 public class AirPlace extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -85,9 +89,27 @@ public class AirPlace extends Module {
         hitResult = mc.getCameraEntity().raycast(r, 0, false);
 
         if (!(hitResult instanceof BlockHitResult blockHitResult) || !(mc.player.getMainHandStack().getItem() instanceof BlockItem) && !(mc.player.getMainHandStack().getItem() instanceof SpawnEggItem)) return;
+        boolean main = true;
 
         if (mc.options.useKey.isPressed()) {
-            BlockUtils.place(blockHitResult.getBlockPos(), Hand.MAIN_HAND, mc.player.getInventory().selectedSlot, false, 0, true, true, false);
+            mc.getNetworkHandler().sendPacket(
+                    new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
+                            new BlockPos(0, 0, 0),
+                            Direction.UP
+                    )
+            );
+            Hand hand = main ? Hand.MAIN_HAND : Hand.OFF_HAND;
+            hand = (hand == Hand.MAIN_HAND) ? Hand.OFF_HAND : Hand.MAIN_HAND;
+
+            BlockUtils.place(blockHitResult.getBlockPos(), hand, mc.player.getInventory().selectedSlot, false, 0, true, true, false);
+            mc.getNetworkHandler().sendPacket(
+                    new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
+                            new BlockPos(0, 0, 0),
+                            Direction.UP
+                    )
+            );
         }
     }
 
