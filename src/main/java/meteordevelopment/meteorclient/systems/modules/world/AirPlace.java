@@ -99,6 +99,7 @@ public class AirPlace extends Module {
                                 PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
                                 new BlockPos(0, 0, 0),
                                 Direction.DOWN));
+                hand = Hand.OFF_HAND;
             }
 
             BlockUtils.place(blockHitResult.getBlockPos(), hand, mc.player.getInventory().selectedSlot, false,

@@ -123,7 +123,7 @@ public class ElytraSpeed extends Module {
             }
         }
 
-        // mc.player.setVelocity(lastMovement.subtract(newMovement));
+        mc.player.setVelocity(newMovement);
         ((IVec3d) event.movement).set(newMovement.x, newMovement.y, newMovement.z);
         lastMovement = newMovement;
 
