@@ -22,6 +22,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
+import net.minecraft.util.math.Vec3d;
 
 public class Bounce extends ElytraFlightMode {
 
@@ -55,6 +56,18 @@ public class Bounce extends ElytraFlightMode {
                 // Sprinting all the time (when not on ground) makes it rubberband on certain anticheats.
                 if (mc.player.isFallFlying()) mc.player.setSprinting(mc.player.isOnGround());
                 else mc.player.setSprinting(true);
+            }
+
+            if (elytraFly.enableExtraMaxSpeed.get() && (mc.player.isOnGround() || (mc.player.getVelocity().length() * 20) > 120.0)) {
+                double yawRad = Math.toRadians(getYawDirection());
+
+                // Slow down acceleration, so we don't go try to speed up too fast
+                double speedFactor = Math.max(0.1,
+                    Math.min(1.0, ((500) / 20.0 - mc.player.getVelocity().length()) / ((500 / 20.0))));
+
+                Vec3d dir = new Vec3d(-Math.sin(yawRad), 0, Math.cos(yawRad));
+
+                mc.player.addVelocity(dir.multiply(((elytraFly.extraMaxSpeed.get() / 200.0) / speedFactor)));
             }
 
             // Rubberbanding

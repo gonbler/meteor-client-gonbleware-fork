@@ -252,6 +252,24 @@ public class ElytraFly extends Module {
         .build()
     );
 
+    public final Setting<Boolean> enableExtraMaxSpeed = sgGeneral.add(new BoolSetting.Builder()
+        .name("extra-max-speed-active")
+        .description("Increases the maximum speed you can go.")
+        .defaultValue(true)
+        .visible(() -> flightMode.get() == ElytraFlightModes.Bounce)
+        .build()
+    );
+
+    public final Setting<Double> extraMaxSpeed = sgGeneral.add(new DoubleSetting.Builder()
+        .name("extra-max-speed")
+        .description("The scale of the extra max speed you can go.")
+        .defaultValue(80)
+        .min(0)
+        .sliderMax(160)
+        .visible(() -> flightMode.get() == ElytraFlightModes.Bounce && enableExtraMaxSpeed.get())
+        .build()
+    );
+
     // Inventory
 
     public final Setting<Boolean> replace = sgInventory.add(new BoolSetting.Builder()
