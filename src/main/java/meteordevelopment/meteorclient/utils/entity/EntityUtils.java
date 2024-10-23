@@ -126,7 +126,15 @@ public class EntityUtils {
 
             Block block = mc.world.getBlockState(testPos).getBlock();
             if (block != Blocks.OBSIDIAN && block != Blocks.NETHERITE_BLOCK && block != Blocks.CRYING_OBSIDIAN
-                && block != Blocks.RESPAWN_ANCHOR && block != Blocks.ANCIENT_DEBRIS) continue;
+                && block != Blocks.RESPAWN_ANCHOR && block != Blocks.ANCIENT_DEBRIS)
+            {
+                if (block == Blocks.AIR && mc.world.getBlockState(player.getBlockPos()).getBlock() == Blocks.OBSIDIAN)
+                {
+                    return player.getBlockPos();
+                }
+
+                continue;
+            }
 
             double testDistanceSquared = PlayerUtils.squaredDistanceTo(testPos);
             if (testDistanceSquared < bestDistanceSquared) {
