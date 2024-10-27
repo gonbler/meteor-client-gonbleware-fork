@@ -58,7 +58,7 @@ public class Bounce extends ElytraFlightMode {
                 else mc.player.setSprinting(true);
             }
 
-            if (elytraFly.enableExtraMaxSpeed.get() && (mc.player.isOnGround() || (mc.player.getVelocity().length() * 20) > 120.0)) {
+            if (elytraFly.enableExtraMaxSpeed.get() && mc.player.isOnGround()) {
                 double yawRad = Math.toRadians(getYawDirection());
 
                 // Slow down acceleration, so we don't go try to speed up too fast
@@ -67,7 +67,11 @@ public class Bounce extends ElytraFlightMode {
 
                 Vec3d dir = new Vec3d(-Math.sin(yawRad), 0, Math.cos(yawRad));
 
-                mc.player.addVelocity(dir.multiply(((elytraFly.extraMaxSpeed.get() / 200.0) / speedFactor)));
+                if (mc.player.getVelocity().length() < elytraFly.extraMaxSpeed.get()) {
+                    mc.player.addVelocity(dir.multiply(((elytraFly.extraMaxSpeed.get() / 200.0) / speedFactor)));
+                } else {
+                    mc.player.setVelocity(dir.multiply((elytraFly.extraMaxSpeed.get())));
+                }
             }
 
             // Rubberbanding

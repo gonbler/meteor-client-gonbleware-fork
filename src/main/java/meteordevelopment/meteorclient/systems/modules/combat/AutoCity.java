@@ -66,6 +66,13 @@ public class AutoCity extends Module {
         .build()
     );
 
+    private final Setting<Boolean> rebreak = sgGeneral.add(new BoolSetting.Builder()
+        .name("rebreak")
+        .description("Rebreaks the block instantly after it's broken.")
+        .defaultValue(true)
+        .build()
+    );
+
     private final Setting<Double> placeRange = sgGeneral.add(new DoubleSetting.Builder()
         .name("place-range")
         .description("How far away to try and place a block.")
@@ -134,6 +141,7 @@ public class AutoCity extends Module {
     private BlockPos targetPos;
     private FindItemResult pick;
     private float progress;
+    private boolean rebreakCitied;
 
     public AutoCity() {
         super(Categories.Combat, "auto-city", "Automatically mine blocks next to someone's feet.");
@@ -141,12 +149,14 @@ public class AutoCity extends Module {
 
     @Override
     public void onActivate() {
+        rebreakCitied = false;
         target = TargetUtils.getPlayerTarget(targetRange.get(), SortPriority.ClosestAngle);
         if (TargetUtils.isBadTarget(target, targetRange.get())) {
             if (chatInfo.get()) error("Couldn't find a target, disabling.");
             toggle();
             return;
         }
+
 
         targetPos = EntityUtils.getCityBlock(target);
         if (targetPos == null || PlayerUtils.squaredDistanceTo(targetPos) > Math.pow(breakRange.get(), 2)) {
@@ -181,6 +191,14 @@ public class AutoCity extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
+        if (rebreakCitied) {
+            if (rebreak.get()) {
+                InvUtils.swap(pick.slot(), switchMode.get() == SwitchMode.Silent);
+                sendRebreakPacket(BlockUtils.getDirection(targetPos));
+                if (switchMode.get() == SwitchMode.Silent) InvUtils.swapBack();
+            }
+        }
+
         if (TargetUtils.isBadTarget(target, targetRange.get())) {
             toggle();
             return;
@@ -200,11 +218,34 @@ public class AutoCity extends Module {
                 return;
             }
             progress += BlockUtils.getBreakDelta(pick.slot(), mc.world.getBlockState(targetPos));
+
+            if (rebreak.get()) {
+                sendRebreakPacket(BlockUtils.getDirection(targetPos));
+            }
+
             if (progress < 1.0f) return;
         }
 
         mine(true);
-        toggle();
+
+        if (rebreak.get() && mc.world.getBlockState(targetPos).isReplaceable()) {
+            if (support.get()) {
+                BlockPos supportPos = targetPos.down();
+                if (!(PlayerUtils.squaredDistanceTo(supportPos) > Math.pow(placeRange.get(), 2))) {
+                    BlockUtils.place(supportPos, InvUtils.findInHotbar(Items.OBSIDIAN), rotate.get(), 0, true);
+                }
+            }
+    
+            pick = InvUtils.find(itemStack -> itemStack.getItem() == Items.DIAMOND_PICKAXE || itemStack.getItem() == Items.NETHERITE_PICKAXE);
+            if (!pick.isHotbar()) {
+                error("No pickaxe found... disabling.");
+                toggle();
+                return;
+            }
+    
+            progress = 0.0f;
+            rebreakCitied = true;
+        }
     }
 
     public void mine(boolean done) {
@@ -219,6 +260,10 @@ public class AutoCity extends Module {
         else mc.getNetworkHandler().sendPacket(new HandSwingC2SPacket(Hand.MAIN_HAND));
 
         if (switchMode.get() == SwitchMode.Silent) InvUtils.swapBack();
+    }
+
+    public void sendRebreakPacket(Direction direction) {
+        mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, targetPos, direction == null ? Direction.UP : direction));
     }
 
     @EventHandler

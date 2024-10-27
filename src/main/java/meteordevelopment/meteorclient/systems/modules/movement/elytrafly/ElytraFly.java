@@ -263,9 +263,9 @@ public class ElytraFly extends Module {
     public final Setting<Double> extraMaxSpeed = sgGeneral.add(new DoubleSetting.Builder()
         .name("extra-max-speed")
         .description("The scale of the extra max speed you can go.")
-        .defaultValue(80)
+        .defaultValue(7)
         .min(0)
-        .sliderMax(160)
+        .sliderMax(20)
         .visible(() -> flightMode.get() == ElytraFlightModes.Bounce && enableExtraMaxSpeed.get())
         .build()
     );
