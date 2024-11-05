@@ -9,5 +9,6 @@ public enum ElytraFlightModes {
     Vanilla,
     Packet,
     Pitch40,
-    Bounce
+    Bounce,
+    Slide
 }

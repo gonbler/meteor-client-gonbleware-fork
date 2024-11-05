@@ -90,7 +90,7 @@ public class AirPlace extends Module {
         if (!(hitResult instanceof BlockHitResult blockHitResult) || !(mc.player.getMainHandStack().getItem() instanceof BlockItem) && !(mc.player.getMainHandStack().getItem() instanceof SpawnEggItem))
             return;
 
-        if (mc.options.useKey.isPressed()) {
+        if (mc.options.useKey.isPressed() && BlockUtils.canPlace(blockHitResult.getBlockPos())) {
             Hand hand = Hand.MAIN_HAND;
 
             if (grimBypass.get()) {

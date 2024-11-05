@@ -5,12 +5,15 @@
 
 package meteordevelopment.meteorclient.systems.modules.combat;
 
+import meteordevelopment.meteorclient.events.entity.player.StartBreakingBlockEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.player.FastRebreak;
 import meteordevelopment.meteorclient.utils.entity.EntityUtils;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
@@ -157,8 +160,7 @@ public class AutoCity extends Module {
             return;
         }
 
-
-        targetPos = EntityUtils.getCityBlock(target);
+        targetPos = EntityUtils.getCityBlock(mc.player, target, null);
         if (targetPos == null || PlayerUtils.squaredDistanceTo(targetPos) > Math.pow(breakRange.get(), 2)) {
             if (chatInfo.get()) error("Couldn't find a good block, disabling.");
             toggle();
@@ -179,8 +181,18 @@ public class AutoCity extends Module {
             return;
         }
 
-        progress = 0.0f;
-        mine(false);
+        FastRebreak fastRebreak = Modules.get().get(FastRebreak.class);
+
+        if (rebreak.get() && fastRebreak.isActive()) {
+            StartBreakingBlockEvent be = new StartBreakingBlockEvent();
+            be.blockPos = targetPos;
+            be.direction = BlockUtils.getDirection(targetPos);
+            fastRebreak.onStartBreakingBlock(be);
+            return;
+        }
+
+        //progress = 0.0f;
+        //mine(false);
     }
 
     @Override
@@ -191,6 +203,12 @@ public class AutoCity extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
+        FastRebreak fastRebreak = Modules.get().get(FastRebreak.class);
+
+        if (rebreak.get() && fastRebreak.isActive()) {
+            return;
+        }
+
         if (rebreakCitied) {
             if (rebreak.get()) {
                 InvUtils.swap(pick.slot(), switchMode.get() == SwitchMode.Silent);

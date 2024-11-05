@@ -568,6 +568,7 @@ public class Modules extends System<Modules> {
         add(new NoGhostBlocks());
         add(new Nuker());
         add(new PacketMine());
+        add(new FastRebreak());
         add(new StashFinder());
         add(new SpawnProofer());
         add(new Timer());
