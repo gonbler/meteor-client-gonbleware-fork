@@ -13,7 +13,7 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
-import meteordevelopment.meteorclient.systems.modules.player.FastRebreak;
+import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
 import meteordevelopment.meteorclient.utils.entity.EntityUtils;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
@@ -181,7 +181,7 @@ public class AutoCity extends Module {
             return;
         }
 
-        FastRebreak fastRebreak = Modules.get().get(FastRebreak.class);
+        SilentMine fastRebreak = Modules.get().get(SilentMine.class);
 
         if (rebreak.get() && fastRebreak.isActive()) {
             StartBreakingBlockEvent be = new StartBreakingBlockEvent();
@@ -203,7 +203,7 @@ public class AutoCity extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        FastRebreak fastRebreak = Modules.get().get(FastRebreak.class);
+        SilentMine fastRebreak = Modules.get().get(SilentMine.class);
 
         if (rebreak.get() && fastRebreak.isActive()) {
             return;
