@@ -84,14 +84,19 @@ public class ElytraSpeed extends Module {
 
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
+        ElytraFly eFly = (ElytraFly) Modules.get().get(ElytraFly.class);
+        GrimFakeFly geFly = (GrimFakeFly) Modules.get().get(GrimFakeFly.class);
+
+        if (!rubberband && (!using || !mc.player.isFallFlying() || eFly.isActive() || geFly.isActive())) {
+            lastMovement = event.movement;
+            return;
+        }
+
         if (!isActive())
             return;
 
-        ElytraFly eFly = (ElytraFly) Modules.get().get(ElytraFly.class);
-
-        if (!rubberband && (!using || !mc.player.isFallFlying() || eFly.isActive())) {
-            lastMovement = event.movement;
-            return;
+        if (lastMovement == null) {
+            lastMovement = event.movement;   
         }
 
         Vec3d direction = new Vec3d(-Math.sin(yaw) * Math.cos(pitch), -Math.sin(pitch),

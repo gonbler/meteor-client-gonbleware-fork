@@ -5,8 +5,6 @@
 
 package meteordevelopment.meteorclient.systems.modules.player;
 
-import java.util.ArrayList;
-import java.util.List;
 import meteordevelopment.meteorclient.events.entity.player.StartBreakingBlockEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
@@ -41,10 +39,6 @@ public class SilentMine extends Module {
             .name("auto-switch").description("Automatically switches to the best tool.")
             .defaultValue(true).build());
 
-    private final Setting<Boolean> doubleMine = sgGeneral.add(new BoolSetting.Builder()
-            .name("double-mine").description("Allows you to mine 2 blocks at once.")
-            .defaultValue(true).build());
-
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("do-render")
             .description("Renders the blocks in queue to be broken.").defaultValue(true).build());
 
@@ -66,7 +60,8 @@ public class SilentMine extends Module {
             .defaultValue(new SettingColor(225, 0, 0, 255))
             .visible(() -> renderBlock.get() && shapeMode.get().lines()).build());
 
-    public final List<FastRebreakBlock> blockQueue = new ArrayList<>();
+    private FastRebreakBlock primaryBlock = null;
+    private FastRebreakBlock doubleMineBlock = null;
 
     public SilentMine() {
         super(Categories.Player, "silent-mine",
@@ -75,7 +70,8 @@ public class SilentMine extends Module {
 
     @Override
     public void onDeactivate() {
-        blockQueue.clear();
+        primaryBlock = null;
+        doubleMineBlock = null;
     }
 
     int swapBackTimeout = 0;
@@ -83,75 +79,69 @@ public class SilentMine extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        blockQueue.removeIf(x -> {
+
+        if (primaryBlock != null) {
+            if (mc.world.getBlockState(primaryBlock.blockPos).isAir()) {
+                primaryBlock.beenAir = true;
+            }
+
             boolean outOfRange = Utils.distance(mc.player.getX() - 0.5,
                     mc.player.getY() + mc.player.getEyeHeight(mc.player.getPose()),
-                    mc.player.getZ() - 0.5, x.blockPos.getX() + x.breakDreiction.getOffsetX(),
-                    x.blockPos.getY() + x.breakDreiction.getOffsetY(),
-                    x.blockPos.getZ() + x.breakDreiction.getOffsetZ()) > mc.player
-                            .getBlockInteractionRange();
-
-            if (mc.world.getBlockState(x.blockPos).isAir()) {
-                x.beenAir = true;
-            }
-
-            if ((mc.world.getBlockState(x.blockPos).isAir())
-                    && blockQueue.indexOf(x) != blockQueue.size() - 1) {
-
-                x.cancelBreaking();
-
-                return true;
-            }
-
-            if (x.timesBroken > 40 && !x.beenAir) {
-                return true;
-            }
+                    mc.player.getZ() - 0.5,
+                    primaryBlock.blockPos.getX() + primaryBlock.breakDreiction.getOffsetX(),
+                    primaryBlock.blockPos.getY() + primaryBlock.breakDreiction.getOffsetY(),
+                    primaryBlock.blockPos.getZ()
+                            + primaryBlock.breakDreiction.getOffsetZ()) > mc.player
+                                    .getBlockInteractionRange();
 
             if (outOfRange) {
-                return true;
+                primaryBlock.cancelBreaking();
+                primaryBlock = null;
             }
 
-            return false;
-        });
+            
+        }
 
-        for (FastRebreakBlock block : blockQueue) {
-            BlockState blockState = mc.world.getBlockState(block.blockPos);
+        if (doubleMineBlock != null && mc.world.getBlockState(doubleMineBlock.blockPos).isAir()) {
+            doubleMineBlock = null;
+        }
 
-            if (blockState.isAir()) {
-                continue;
-            }
+        if (primaryBlock != null) {
+            BlockState blockState = mc.world.getBlockState(primaryBlock.blockPos);
 
-            // TODO: This?
-            /*
-             * if (!block.started) { if (block.breakTimeout <= 0) { block.startBreaking(); } else {
-             * block.breakTimeout--; } continue; }
-             */
+            if (!blockState.isAir()) {
+                FindItemResult slot = InvUtils.findFastestTool(blockState);
 
-            FindItemResult slot = InvUtils.findFastestTool(blockState);
+                double breakingSpeed = BlockUtils.getBlockBreakingSpeed(
+                        slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot,
+                        blockState);
 
-            double breakingSpeed = BlockUtils.getBlockBreakingSpeed(
-                    slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot, blockState);
+                primaryBlock.progress += BlockUtils.getBreakDelta(breakingSpeed, blockState);
+                
+                if (doubleMineBlock != null) {
+                    doubleMineBlock.progress = primaryBlock.progress;
+                }
 
-            block.progress += BlockUtils.getBreakDelta(breakingSpeed, blockState);
+                if (primaryBlock.isReady()) {
+                    if (autoSwitch.get() && slot.found()
+                            && mc.player.getInventory().selectedSlot != slot.slot()) {
 
-            if (block.isReady()) {
-                if (autoSwitch.get() && !needSwapBack) {
-                    if (slot.found() && mc.player.getInventory().selectedSlot != slot.slot()) {
                         mc.player.networkHandler
                                 .sendPacket(new UpdateSelectedSlotC2SPacket(slot.slot()));
 
-                        swapBackTimeout = 5;
+                        if (doubleMineBlock != null) {
+                            swapBackTimeout = 3;
+                        }
+
                         needSwapBack = true;
                     }
-                }
 
-                if (block.needBroken) {
-                    block.tryBreak();
+                    primaryBlock.tryBreak();
                 }
             }
         }
 
-        if (needSwapBack && (swapBackTimeout-- <= 0 || blockQueue.size() > 1)) {
+        if (needSwapBack && (swapBackTimeout-- <= 0 || doubleMineBlock == null)) {
             mc.player.networkHandler.sendPacket(
                     new UpdateSelectedSlotC2SPacket(mc.player.getInventory().selectedSlot));
             needSwapBack = false;
@@ -163,41 +153,38 @@ public class SilentMine extends Module {
         if (!BlockUtils.canBreak(event.blockPos))
             return;
 
-        for (FastRebreakBlock block : blockQueue) {
-            if (event.blockPos.equals(block.blockPos)) {
-                return;
+        event.cancel();
+
+        if ((primaryBlock != null && event.blockPos.equals(primaryBlock.blockPos))
+                || (doubleMineBlock != null && event.blockPos.equals(doubleMineBlock.blockPos))) {
+            return;
+        }
+
+        if (primaryBlock != null) {
+            if (doubleMineBlock != null) {
+                primaryBlock.cancelBreaking();
+                primaryBlock = null;
+            } else {
+                doubleMineBlock = primaryBlock;
+                doubleMineBlock.cancelBreaking();
+                primaryBlock = null;
             }
         }
 
-        event.cancel();
+        if (primaryBlock == null) {
+            primaryBlock = new FastRebreakBlock(event);
 
-        // Clear and stop breaking every block in the queue
-        blockQueue.removeIf(x -> {
-            x.cancelBreaking();
-
-            if (doubleMine.get()) {
-                if (blockQueue.indexOf(x) != blockQueue.size() - 1) {
-                    x.needBroken = false;
-                    return false;
-                }
-            }
-
-            return true;
-        });
-
-        FastRebreakBlock block = new FastRebreakBlock(event);
-
-        blockQueue.add(block);
-
-        block.startBreaking();
+            primaryBlock.startBreaking();
+        }
     }
 
     @EventHandler
     private void onRender(Render3DEvent event) {
         if (render.get()) {
-            for (FastRebreakBlock block : blockQueue) {
-                block.render(event);
-            }
+            if (primaryBlock != null)
+                primaryBlock.render(event);
+            if (doubleMineBlock != null)
+                doubleMineBlock.render(event);
         }
     }
 
@@ -228,6 +215,8 @@ public class SilentMine extends Module {
         public boolean beenAir = false;
 
         public boolean needBroken = true;
+
+        public boolean wasRemoved = false;
 
         public boolean isReady() {
             return progress >= 1.0 || timesBroken > 0;
@@ -266,6 +255,9 @@ public class SilentMine extends Module {
 
             mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                     PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, breakDreiction));
+
+            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
 
             started = true;
 

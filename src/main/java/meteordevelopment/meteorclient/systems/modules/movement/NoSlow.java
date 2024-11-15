@@ -139,6 +139,10 @@ public class NoSlow extends Module {
         return isActive() && web.get() == WebMode.Vanilla;
     }
 
+    public boolean cobwebGrim() {
+        return isActive() && web.get() == WebMode.Grim;
+    }
+
     public boolean berryBush() {
         return isActive() && berryBush.get();
     }
@@ -170,11 +174,18 @@ public class NoSlow extends Module {
                 resetTimer = true;
             }
         }
+
+        if (web.get() == WebMode.Grim) {
+            if (mc.world.getBlockState(mc.player.getBlockPos()).getBlock().equals(Blocks.COBWEB) && !mc.player.isOnGround()) {
+                mc.player.setSprinting(false);
+            }
+        }
     }
 
     public enum WebMode {
         Vanilla,
         Timer,
+        Grim,
         None
     }
 }
