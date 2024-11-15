@@ -25,7 +25,8 @@ public abstract class ChunkAwareBlockCollisionSweeperMixin {
     private VoxelShape onComputeNextCollisionBox(BlockState state, BlockView world, BlockPos pos, ShapeContext context) {
         VoxelShape shape = state.getCollisionShape(world, pos, context);
 
-        if (world != MinecraftClient.getInstance().world)
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (world != client.world)
             return shape;
 
         CollisionShapeEvent event = MeteorClient.EVENT_BUS.post(CollisionShapeEvent.get(state, pos, shape));

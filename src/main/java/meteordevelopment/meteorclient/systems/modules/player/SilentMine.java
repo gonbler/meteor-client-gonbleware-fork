@@ -79,7 +79,6 @@ public class SilentMine extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-
         if (primaryBlock != null) {
             if (mc.world.getBlockState(primaryBlock.blockPos).isAir()) {
                 primaryBlock.beenAir = true;
@@ -98,14 +97,17 @@ public class SilentMine extends Module {
                 primaryBlock.cancelBreaking();
                 primaryBlock = null;
             }
-
-            
         }
 
-        if (doubleMineBlock != null && mc.world.getBlockState(doubleMineBlock.blockPos).isAir()) {
-            doubleMineBlock = null;
+        if (isDoublemining() && mc.world.getBlockState(doubleMineBlock.blockPos).isAir()) {
+            stopDoublemining(false);
         }
 
+        if (isDoublemining() && doubleMineBlock.timesBroken > 5) {
+            stopDoublemining(true);
+        }
+
+        // Update our primary mine block
         if (primaryBlock != null) {
             BlockState blockState = mc.world.getBlockState(primaryBlock.blockPos);
 
@@ -117,26 +119,50 @@ public class SilentMine extends Module {
                         blockState);
 
                 primaryBlock.progress += BlockUtils.getBreakDelta(breakingSpeed, blockState);
-                
-                if (doubleMineBlock != null) {
-                    doubleMineBlock.progress = primaryBlock.progress;
-                }
 
                 if (primaryBlock.isReady()) {
                     if (autoSwitch.get() && slot.found()
-                            && mc.player.getInventory().selectedSlot != slot.slot()) {
+                            && mc.player.getInventory().selectedSlot != slot.slot()
+                            && !needSwapBack) {
 
                         mc.player.networkHandler
                                 .sendPacket(new UpdateSelectedSlotC2SPacket(slot.slot()));
-
-                        if (doubleMineBlock != null) {
-                            swapBackTimeout = 3;
-                        }
 
                         needSwapBack = true;
                     }
 
                     primaryBlock.tryBreak();
+                }
+            }
+        }
+
+        // Update our doublemine block
+        if (isDoublemining()) {
+            BlockState blockState = mc.world.getBlockState(doubleMineBlock.blockPos);
+
+            if (!blockState.isAir()) {
+                FindItemResult slot = InvUtils.findFastestTool(blockState);
+
+                double breakingSpeed = BlockUtils.getBlockBreakingSpeed(
+                        slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot,
+                        blockState);
+
+                doubleMineBlock.progress += BlockUtils.getBreakDelta(breakingSpeed, blockState);
+
+                if (doubleMineBlock.isReady()) {
+                    if (autoSwitch.get() && slot.found()
+                            && mc.player.getInventory().selectedSlot != slot.slot()
+                            && !needSwapBack) {
+
+                        mc.player.networkHandler
+                                .sendPacket(new UpdateSelectedSlotC2SPacket(slot.slot()));
+
+                        swapBackTimeout = 3;
+
+                        doubleMineBlock.timesBroken++;
+
+                        needSwapBack = true;
+                    }
                 }
             }
         }
@@ -178,6 +204,35 @@ public class SilentMine extends Module {
         }
     }
 
+    public boolean isDoublemining() {
+        return doubleMineBlock != null;
+    }
+
+    public void stopDoublemining(boolean sendAbort) {
+        if (isDoublemining()) {
+            if (sendAbort) {
+                doubleMineBlock.cancelBreaking();
+            }
+            doubleMineBlock = null;
+        }
+    }
+
+    public BlockPos getPrimaryBlockPos() {
+        if (primaryBlock == null) {
+            return null;
+        }
+
+        return primaryBlock.blockPos;
+    }
+
+    public boolean canRebreakPrimaryBlock() {
+        if (primaryBlock == null) {
+            return false;
+        }
+
+        return primaryBlock.beenAir;
+    }
+
     @EventHandler
     private void onRender(Render3DEvent event) {
         if (render.get()) {
@@ -213,10 +268,6 @@ public class SilentMine extends Module {
         public int timesBroken = 0;
 
         public boolean beenAir = false;
-
-        public boolean needBroken = true;
-
-        public boolean wasRemoved = false;
 
         public boolean isReady() {
             return progress >= 1.0 || timesBroken > 0;
