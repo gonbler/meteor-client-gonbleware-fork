@@ -185,11 +185,9 @@ public class SilentMine extends Module {
 
         if (primaryBlock != null) {
             if (doubleMineBlock != null) {
-                primaryBlock.cancelBreaking();
                 primaryBlock = null;
             } else {
                 doubleMineBlock = primaryBlock;
-                doubleMineBlock.cancelBreaking();
                 primaryBlock = null;
             }
         }
@@ -303,6 +301,9 @@ public class SilentMine extends Module {
 
             mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                     PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, breakDreiction));
+
+            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
 
             started = true;
 
