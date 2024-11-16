@@ -86,12 +86,9 @@ public class SilentMine extends Module {
 
             boolean outOfRange = Utils.distance(mc.player.getX() - 0.5,
                     mc.player.getY() + mc.player.getEyeHeight(mc.player.getPose()),
-                    mc.player.getZ() - 0.5,
-                    primaryBlock.blockPos.getX() + primaryBlock.breakDreiction.getOffsetX(),
-                    primaryBlock.blockPos.getY() + primaryBlock.breakDreiction.getOffsetY(),
-                    primaryBlock.blockPos.getZ()
-                            + primaryBlock.breakDreiction.getOffsetZ()) > mc.player
-                                    .getBlockInteractionRange();
+                    mc.player.getZ() - 0.5, primaryBlock.blockPos.getX(),
+                    primaryBlock.blockPos.getY(),
+                    primaryBlock.blockPos.getZ()) > mc.player.getBlockInteractionRange() + 1.0;
 
             if (outOfRange) {
                 primaryBlock.cancelBreaking();
@@ -307,9 +304,6 @@ public class SilentMine extends Module {
             mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                     PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, breakDreiction));
 
-            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
-
             started = true;
 
             if (needSwapBack) {
@@ -320,6 +314,9 @@ public class SilentMine extends Module {
         public void tryBreak() {
             mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                     PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, breakDreiction));
+
+            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
 
             timesBroken++;
         }

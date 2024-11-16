@@ -1,6 +1,6 @@
 /*
- * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/meteor-client).
- * Copyright (c) Meteor Development.
+ * This file is part of the Meteor Client distribution
+ * (https://github.com/MeteorDevelopment/meteor-client). Copyright (c) Meteor Development.
  */
 
 package meteordevelopment.meteorclient.systems.modules.combat;
@@ -23,10 +23,13 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
+import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
-
+import net.minecraft.util.math.Direction;
 import java.util.ArrayList;
 import java.util.List;
+import de.florianmichael.viafabricplus.util.ItemUtil;
 
 public class AutoTrap extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -34,105 +37,64 @@ public class AutoTrap extends Module {
 
     // General
 
-    private final Setting<List<Block>> blocks = sgGeneral.add(new BlockListSetting.Builder()
-        .name("whitelist")
-        .description("Which blocks to use.")
-        .defaultValue(Blocks.OBSIDIAN, Blocks.NETHERITE_BLOCK)
-        .build()
-    );
+    private final Setting<List<Block>> blocks = sgGeneral.add(
+            new BlockListSetting.Builder().name("whitelist").description("Which blocks to use.")
+                    .defaultValue(Blocks.OBSIDIAN, Blocks.NETHERITE_BLOCK).build());
 
-    private final Setting<Integer> range = sgGeneral.add(new IntSetting.Builder()
-        .name("target-range")
-        .description("The range players can be targeted.")
-        .defaultValue(4)
-        .build()
-    );
+    private final Setting<Integer> range =
+            sgGeneral.add(new IntSetting.Builder().name("target-range")
+                    .description("The range players can be targeted.").defaultValue(4).build());
 
-    private final Setting<SortPriority> priority = sgGeneral.add(new EnumSetting.Builder<SortPriority>()
-        .name("target-priority")
-        .description("How to select the player to target.")
-        .defaultValue(SortPriority.LowestHealth)
-        .build()
-    );
+    private final Setting<SortPriority> priority =
+            sgGeneral.add(new EnumSetting.Builder<SortPriority>().name("target-priority")
+                    .description("How to select the player to target.")
+                    .defaultValue(SortPriority.LowestHealth).build());
 
     private final Setting<Integer> delay = sgGeneral.add(new IntSetting.Builder()
-        .name("place-delay")
-        .description("How many ticks between block placements.")
-        .defaultValue(1)
-        .build()
-    );
+            .name("place-delay").description("How many ticks between block placements.")
+            .defaultValue(1).build());
 
     private final Setting<TopMode> topPlacement = sgGeneral.add(new EnumSetting.Builder<TopMode>()
-        .name("top-blocks")
-        .description("Which blocks to place on the top half of the target.")
-        .defaultValue(TopMode.Full)
-        .build()
-    );
+            .name("top-blocks").description("Which blocks to place on the top half of the target.")
+            .defaultValue(TopMode.Full).build());
 
-    private final Setting<BottomMode> bottomPlacement = sgGeneral.add(new EnumSetting.Builder<BottomMode>()
-        .name("bottom-blocks")
-        .description("Which blocks to place on the bottom half of the target.")
-        .defaultValue(BottomMode.Platform)
-        .build()
-    );
+    private final Setting<BottomMode> bottomPlacement =
+            sgGeneral.add(new EnumSetting.Builder<BottomMode>().name("bottom-blocks")
+                    .description("Which blocks to place on the bottom half of the target.")
+                    .defaultValue(BottomMode.Platform).build());
 
-    private final Setting<Boolean> selfToggle = sgGeneral.add(new BoolSetting.Builder()
-        .name("self-toggle")
-        .description("Turns off after placing all blocks.")
-        .defaultValue(true)
-        .build()
-    );
+    private final Setting<Boolean> selfToggle =
+            sgGeneral.add(new BoolSetting.Builder().name("self-toggle")
+                    .description("Turns off after placing all blocks.").defaultValue(true).build());
 
-    private final Setting<Boolean> rotate = sgGeneral.add(new BoolSetting.Builder()
-        .name("rotate")
-        .description("Rotates towards blocks when placing.")
-        .defaultValue(true)
-        .build()
-    );
+    private final Setting<Boolean> rotate = sgGeneral.add(new BoolSetting.Builder().name("rotate")
+            .description("Rotates towards blocks when placing.").defaultValue(true).build());
 
     // Render
 
-    private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder()
-        .name("render")
-        .description("Renders an overlay where blocks will be placed.")
-        .defaultValue(true)
-        .build()
-    );
+    private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("render")
+            .description("Renders an overlay where blocks will be placed.").defaultValue(true)
+            .build());
 
     private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builder<ShapeMode>()
-        .name("shape-mode")
-        .description("How the shapes are rendered.")
-        .defaultValue(ShapeMode.Both)
-        .build()
-    );
+            .name("shape-mode").description("How the shapes are rendered.")
+            .defaultValue(ShapeMode.Both).build());
 
     private final Setting<SettingColor> sideColor = sgRender.add(new ColorSetting.Builder()
-        .name("side-color")
-        .description("The side color of the target block rendering.")
-        .defaultValue(new SettingColor(197, 137, 232, 10))
-        .build()
-    );
+            .name("side-color").description("The side color of the target block rendering.")
+            .defaultValue(new SettingColor(197, 137, 232, 10)).build());
 
     private final Setting<SettingColor> lineColor = sgRender.add(new ColorSetting.Builder()
-        .name("line-color")
-        .description("The line color of the target block rendering.")
-        .defaultValue(new SettingColor(197, 137, 232))
-        .build()
-    );
+            .name("line-color").description("The line color of the target block rendering.")
+            .defaultValue(new SettingColor(197, 137, 232)).build());
 
     private final Setting<SettingColor> nextSideColor = sgRender.add(new ColorSetting.Builder()
-        .name("next-side-color")
-        .description("The side color of the next block to be placed.")
-        .defaultValue(new SettingColor(227, 196, 245, 10))
-        .build()
-    );
+            .name("next-side-color").description("The side color of the next block to be placed.")
+            .defaultValue(new SettingColor(227, 196, 245, 10)).build());
 
     private final Setting<SettingColor> nextLineColor = sgRender.add(new ColorSetting.Builder()
-        .name("next-line-color")
-        .description("The line color of the next block to be placed.")
-        .defaultValue(new SettingColor(227, 196, 245))
-        .build()
-    );
+            .name("next-line-color").description("The line color of the next block to be placed.")
+            .defaultValue(new SettingColor(227, 196, 245)).build());
 
     private final List<BlockPos> placePositions = new ArrayList<>();
     private PlayerEntity target;
@@ -175,7 +137,8 @@ public class AutoTrap extends Module {
 
             if (TargetUtils.isBadTarget(target, range.get())) {
                 target = TargetUtils.getPlayerTarget(range.get(), priority.get());
-                if (TargetUtils.isBadTarget(target, range.get())) return;
+                if (TargetUtils.isBadTarget(target, range.get()))
+                    return;
             }
 
             fillPlaceArray(target);
@@ -183,10 +146,29 @@ public class AutoTrap extends Module {
             if (timer >= delay.get() && !placePositions.isEmpty()) {
                 BlockPos blockPos = placePositions.getLast();
 
-                if (BlockUtils.place(blockPos, itemResult, rotate.get(), 50, true)) {
+                InvUtils.swap(itemResult.slot(), true);
+
+                Hand obbyHand = Hand.MAIN_HAND;
+
+                mc.getNetworkHandler()
+                        .sendPacket(new PlayerActionC2SPacket(
+                                PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
+                                new BlockPos(0, 0, 0), Direction.DOWN));
+                obbyHand = Hand.OFF_HAND;
+
+                if (BlockUtils.place(blockPos, obbyHand, mc.player.getInventory().selectedSlot, false, 0, false, true, false)) {
                     placePositions.remove(blockPos);
                     placed = true;
                 }
+
+                mc.world.setBlockState(blockPos, Blocks.OBSIDIAN.getDefaultState());
+
+                mc.getNetworkHandler()
+                        .sendPacket(new PlayerActionC2SPacket(
+                                PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
+                                new BlockPos(0, 0, 0), Direction.DOWN));
+
+                InvUtils.swapBack();
 
                 timer = 0;
             } else {
@@ -198,7 +180,8 @@ public class AutoTrap extends Module {
 
     @EventHandler
     private void onRender(Render3DEvent event) {
-        if (!render.get() || placePositions.isEmpty()) return;
+        if (!render.get() || placePositions.isEmpty())
+            return;
 
         for (BlockPos pos : placePositions) {
             boolean isFirst = pos.equals(placePositions.getLast());
@@ -251,7 +234,8 @@ public class AutoTrap extends Module {
 
 
     private void add(BlockPos blockPos) {
-        if (!placePositions.contains(blockPos) && BlockUtils.canPlace(blockPos)) placePositions.add(blockPos);
+        if (!placePositions.contains(blockPos) && BlockUtils.canPlace(blockPos))
+            placePositions.add(blockPos);
     }
 
     @Override
@@ -260,16 +244,10 @@ public class AutoTrap extends Module {
     }
 
     public enum TopMode {
-        Full,
-        Top,
-        Face,
-        None
+        Full, Top, Face, None
     }
 
     public enum BottomMode {
-        Single,
-        Platform,
-        Full,
-        None
+        Single, Platform, Full, None
     }
 }
