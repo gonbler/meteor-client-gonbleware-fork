@@ -20,6 +20,7 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
+import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
@@ -76,6 +77,8 @@ public class SilentMine extends Module {
 
     int swapBackTimeout = 0;
     boolean needSwapBack = false;
+    boolean lastPrimaryNull = false;
+    boolean lastDoublemineNull = false;
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
@@ -104,6 +107,38 @@ public class SilentMine extends Module {
             stopDoublemining(true);
         }
 
+        // Update our doublemine block
+        if (isDoublemining()) {
+            BlockState blockState = mc.world.getBlockState(doubleMineBlock.blockPos);
+
+            if (!blockState.isAir()) {
+                FindItemResult slot = InvUtils.findFastestTool(blockState);
+
+                double breakingSpeed = BlockUtils.getBlockBreakingSpeed(
+                        slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot,
+                        blockState);
+
+                doubleMineBlock.progress += BlockUtils.getBreakDelta(breakingSpeed, blockState);
+
+                if (doubleMineBlock.isReady()) {
+                    if (autoSwitch.get() && slot.found()
+                            && mc.player.getInventory().selectedSlot != slot.slot()
+                            && swapBackTimeout <= 0) {
+
+                        // mc.player.networkHandler
+                        // .sendPacket(new UpdateSelectedSlotC2SPacket(slot.slot()));
+                        InvUtils.swap(slot.slot(), true);
+
+                        swapBackTimeout = 3;
+
+                        doubleMineBlock.timesBroken++;
+
+                        needSwapBack = true;
+                    }
+                }
+            }
+        }
+
         // Update our primary mine block
         if (primaryBlock != null) {
             BlockState blockState = mc.world.getBlockState(primaryBlock.blockPos);
@@ -122,8 +157,7 @@ public class SilentMine extends Module {
                             && mc.player.getInventory().selectedSlot != slot.slot()
                             && !needSwapBack) {
 
-                        mc.player.networkHandler
-                                .sendPacket(new UpdateSelectedSlotC2SPacket(slot.slot()));
+                        InvUtils.swap(slot.slot(), true);
 
                         needSwapBack = true;
                     }
@@ -133,42 +167,22 @@ public class SilentMine extends Module {
             }
         }
 
-        // Update our doublemine block
-        if (isDoublemining()) {
-            BlockState blockState = mc.world.getBlockState(doubleMineBlock.blockPos);
-
-            if (!blockState.isAir()) {
-                FindItemResult slot = InvUtils.findFastestTool(blockState);
-
-                double breakingSpeed = BlockUtils.getBlockBreakingSpeed(
-                        slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot,
-                        blockState);
-
-                doubleMineBlock.progress += BlockUtils.getBreakDelta(breakingSpeed, blockState);
-
-                if (doubleMineBlock.isReady()) {
-                    if (autoSwitch.get() && slot.found()
-                            && mc.player.getInventory().selectedSlot != slot.slot()
-                            && !needSwapBack) {
-
-                        mc.player.networkHandler
-                                .sendPacket(new UpdateSelectedSlotC2SPacket(slot.slot()));
-
-                        swapBackTimeout = 3;
-
-                        doubleMineBlock.timesBroken++;
-
-                        needSwapBack = true;
-                    }
-                }
-            }
+        if (swapBackTimeout >= 0) {
+            swapBackTimeout--;
         }
 
-        if (needSwapBack && (swapBackTimeout-- <= 0 || doubleMineBlock == null)) {
-            mc.player.networkHandler.sendPacket(
-                    new UpdateSelectedSlotC2SPacket(mc.player.getInventory().selectedSlot));
+        if (needSwapBack && (swapBackTimeout <= 0 || doubleMineBlock == null)) {
+            InvUtils.swapBack();
             needSwapBack = false;
         }
+
+        if (!lastPrimaryNull && !lastDoublemineNull && primaryBlock != null
+                && doubleMineBlock == null) {
+            primaryBlock.forcedPrimary = true;
+        }
+
+        lastPrimaryNull = primaryBlock == null;
+        lastDoublemineNull = doubleMineBlock == null;
     }
 
     @EventHandler
@@ -187,8 +201,15 @@ public class SilentMine extends Module {
             if (doubleMineBlock != null) {
                 primaryBlock = null;
             } else {
-                doubleMineBlock = primaryBlock;
-                primaryBlock = null;
+                if (primaryBlock.forcedPrimary) {
+                    doubleMineBlock = new FastRebreakBlock(event);
+
+                    doubleMineBlock.startBreaking();
+                    primaryBlock.startBreaking();
+                } else {
+                    doubleMineBlock = primaryBlock;
+                    primaryBlock = null;
+                }
             }
         }
 
@@ -197,6 +218,7 @@ public class SilentMine extends Module {
 
             primaryBlock.startBreaking();
         }
+
     }
 
     public boolean isDoublemining() {
@@ -212,12 +234,36 @@ public class SilentMine extends Module {
         }
     }
 
+    public BlockPos getDoublemineBlockPos() {
+        if (doubleMineBlock == null) {
+            return null;
+        }
+
+        return doubleMineBlock.blockPos;
+    }
+
+    public double getDoublemineBlockProgress() {
+        if (doubleMineBlock == null) {
+            return 0;
+        }
+
+        return doubleMineBlock.progress;
+    }
+
     public BlockPos getPrimaryBlockPos() {
         if (primaryBlock == null) {
             return null;
         }
 
         return primaryBlock.blockPos;
+    }
+
+    public double getPrimaryBlockProgress() {
+        if (primaryBlock == null) {
+            return 0;
+        }
+
+        return primaryBlock.progress;
     }
 
     public boolean canRebreakPrimaryBlock() {
@@ -228,11 +274,14 @@ public class SilentMine extends Module {
         return primaryBlock.beenAir;
     }
 
+    
+
     @EventHandler
     private void onRender(Render3DEvent event) {
         if (render.get()) {
             if (primaryBlock != null)
                 primaryBlock.render(event);
+
             if (doubleMineBlock != null)
                 doubleMineBlock.render(event);
         }
@@ -260,9 +309,13 @@ public class SilentMine extends Module {
 
         public double progress = 0.0;
 
+        public double previousProgress = 0.0;
+
         public int timesBroken = 0;
 
         public boolean beenAir = false;
+
+        public boolean forcedPrimary = false;
 
         public boolean isReady() {
             return progress >= 1.0 || timesBroken > 0;
@@ -289,6 +342,7 @@ public class SilentMine extends Module {
                     slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot,
                     mc.world.getBlockState(blockPos));
 
+            progress = 0;
             progress += BlockUtils.getBreakDelta(breakingSpeed, mc.world.getBlockState(blockPos));
 
             int s = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
@@ -336,8 +390,8 @@ public class SilentMine extends Module {
 
             Box orig = shape.getBoundingBox();
 
-            double progressNormalised = progress > 1 ? 1 : progress;
-            double shrinkFactor = 1d - progressNormalised;
+            double interpolatedProgress = Math.min(1, previousProgress + (progress - previousProgress) * event.tickDelta);
+            double shrinkFactor = 1d - interpolatedProgress;
             BlockPos pos = blockPos;
 
 
@@ -355,8 +409,9 @@ public class SilentMine extends Module {
             double y2 = pos.getY() + box.maxY + yShrink;
             double z2 = pos.getZ() + box.maxZ + zShrink;
 
-            event.renderer.box(x1, y1, z1, x2, y2, z2, sideColor.get(), lineColor.get(),
-                    shapeMode.get(), 0);
+            event.renderer.box(x1, y1, z1, x2, y2, z2, sideColor.get(), lineColor.get(), shapeMode.get(), 0);
+        
+            previousProgress = progress;
         }
     }
 }
