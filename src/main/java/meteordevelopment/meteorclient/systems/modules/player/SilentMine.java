@@ -284,6 +284,7 @@ public class SilentMine extends Module {
 
             if (doubleMineBlock != null)
                 doubleMineBlock.render(event);
+                
         }
     }
 
