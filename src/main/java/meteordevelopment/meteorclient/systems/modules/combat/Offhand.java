@@ -1,25 +1,33 @@
 /*
- * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/meteor-client).
- * Copyright (c) Meteor Development.
+ * This file is part of the Meteor Client distribution
+ * (https://github.com/MeteorDevelopment/meteor-client). Copyright (c) Meteor Development.
  */
 
 package meteordevelopment.meteorclient.systems.modules.combat;
 
 import meteordevelopment.meteorclient.events.meteor.MouseButtonEvent;
+import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.render.PopChams;
 import meteordevelopment.meteorclient.utils.misc.input.KeyAction;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.component.DataComponentTypes;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.*;
-
+import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
+import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
+import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import static meteordevelopment.orbit.EventPriority.HIGHEST;
 import static org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_RIGHT;
 
@@ -27,101 +35,68 @@ public class Offhand extends Module {
     private final SettingGroup sgCombat = settings.createGroup("Combat");
     private final SettingGroup sgTotem = settings.createGroup("Totem");
 
-    //Combat
+    // Combat
 
     private final Setting<Integer> delayTicks = sgCombat.add(new IntSetting.Builder()
-        .name("item-switch-delay")
-        .description("The delay in ticks between slot movements.")
-        .defaultValue(0)
-        .min(0)
-        .sliderMax(20)
-        .build()
-    );
+            .name("item-switch-delay").description("The delay in ticks between slot movements.")
+            .defaultValue(0).min(0).sliderMax(20).build());
     private final Setting<Item> preferreditem = sgCombat.add(new EnumSetting.Builder<Item>()
-        .name("item")
-        .description("Which item to hold in your offhand.")
-        .defaultValue(Item.Crystal)
-        .build()
-    );
+            .name("item").description("Which item to hold in your offhand.")
+            .defaultValue(Item.Crystal).build());
 
-    private final Setting<Boolean> hotbar = sgCombat.add(new BoolSetting.Builder()
-        .name("hotbar")
-        .description("Whether to use items from your hotbar.")
-        .defaultValue(false)
-        .build()
-    );
+    private final Setting<Boolean> hotbar = sgCombat.add(new BoolSetting.Builder().name("hotbar")
+            .description("Whether to use items from your hotbar.").defaultValue(false).build());
 
     private final Setting<Boolean> rightgapple = sgCombat.add(new BoolSetting.Builder()
-        .name("right-gapple")
-        .description("Will switch to a gapple when holding right click.(DO NOT USE WITH POTION ON)")
-        .defaultValue(false)
-        .build()
-    );
+            .name("right-gapple")
+            .description(
+                    "Will switch to a gapple when holding right click.(DO NOT USE WITH POTION ON)")
+            .defaultValue(false).build());
 
 
-    private final Setting<Boolean> SwordGap = sgCombat.add(new BoolSetting.Builder()
-        .name("sword-gapple")
-        .description("Will switch to a gapple when holding a sword and right click.")
-        .defaultValue(false)
-        .visible(rightgapple::get)
-        .build()
-    );
+    private final Setting<Boolean> SwordGap =
+            sgCombat.add(new BoolSetting.Builder().name("sword-gapple")
+                    .description("Will switch to a gapple when holding a sword and right click.")
+                    .defaultValue(false).visible(rightgapple::get).build());
 
-    private final Setting<Boolean> alwaysSwordGap = sgCombat.add(new BoolSetting.Builder()
-        .name("always-gap-on-sword")
-        .description("Holds an Enchanted Golden Apple when you are holding a sword.")
-        .defaultValue(false)
-        .visible(() -> !rightgapple.get())
-        .build()
-    );
+    private final Setting<Boolean> alwaysSwordGap =
+            sgCombat.add(new BoolSetting.Builder().name("always-gap-on-sword")
+                    .description("Holds an Enchanted Golden Apple when you are holding a sword.")
+                    .defaultValue(false).visible(() -> !rightgapple.get()).build());
 
 
-    private final Setting<Boolean> alwaysPot = sgCombat.add(new BoolSetting.Builder()
-        .name("always-pot-on-sword")
-        .description("Will switch to a potion when holding a sword")
-        .defaultValue(false)
-        .visible(() -> !rightgapple.get() && !alwaysSwordGap.get())
-        .build()
-    );
-    private final Setting<Boolean> potionClick = sgCombat.add(new BoolSetting.Builder()
-        .name("sword-pot")
-        .description("Will switch to a potion when holding a sword and right click.")
-        .defaultValue(false)
-        .visible(() -> !rightgapple.get() && !alwaysPot.get() && !alwaysSwordGap.get() )
-        .build()
-    );
+    private final Setting<Boolean> alwaysPot =
+            sgCombat.add(new BoolSetting.Builder().name("always-pot-on-sword")
+                    .description("Will switch to a potion when holding a sword").defaultValue(false)
+                    .visible(() -> !rightgapple.get() && !alwaysSwordGap.get()).build());
+    private final Setting<Boolean> potionClick =
+            sgCombat.add(new BoolSetting.Builder().name("sword-pot")
+                    .description("Will switch to a potion when holding a sword and right click.")
+                    .defaultValue(false)
+                    .visible(() -> !rightgapple.get() && !alwaysPot.get() && !alwaysSwordGap.get())
+                    .build());
 
-    //Totem
+    // Totem
+
+    private final Setting<Boolean> antiTfail = sgTotem.add(new BoolSetting.Builder().name("totem")
+            .description("Uses a hotbar method to prevent tfails").defaultValue(true).build());
 
     private final Setting<Double> minHealth = sgTotem.add(new DoubleSetting.Builder()
-        .name("min-health")
-        .description("Will hold a totem when below this amount of health.")
-        .defaultValue(10)
-        .range(0,36)
-        .sliderRange(0,36)
-        .build()
-    );
+            .name("min-health").description("Will hold a totem when below this amount of health.")
+            .defaultValue(10).range(0, 36).sliderRange(0, 36).build());
 
-    private final Setting<Boolean> elytra = sgTotem.add(new BoolSetting.Builder()
-        .name("elytra")
-        .description("Will always hold a totem while flying with an elytra.")
-        .defaultValue(false)
-        .build()
-    );
+    private final Setting<Boolean> elytra = sgTotem.add(new BoolSetting.Builder().name("elytra")
+            .description("Will always hold a totem while flying with an elytra.")
+            .defaultValue(false).build());
 
-    private final Setting<Boolean> falling = sgTotem.add(new BoolSetting.Builder()
-        .name("falling")
-        .description("Will hold a totem if fall damage could kill you.")
-        .defaultValue(false)
-        .build()
-    );
+    private final Setting<Boolean> falling = sgTotem.add(new BoolSetting.Builder().name("falling")
+            .description("Will hold a totem if fall damage could kill you.").defaultValue(false)
+            .build());
 
-    private final Setting<Boolean> explosion = sgTotem.add(new BoolSetting.Builder()
-        .name("explosion")
-        .description("Will hold a totem when explosion damage could kill you.")
-        .defaultValue(true)
-        .build()
-    );
+    private final Setting<Boolean> explosion =
+            sgTotem.add(new BoolSetting.Builder().name("explosion")
+                    .description("Will hold a totem when explosion damage could kill you.")
+                    .defaultValue(true).build());
 
 
     private boolean isClicking;
@@ -149,17 +124,22 @@ public class Offhand extends Module {
         FindItemResult result = InvUtils.find(Items.TOTEM_OF_UNDYING);
         totems = result.count();
 
-        if (totems <= 0) locked = false;
+        if (totems <= 0)
+            locked = false;
         else if (ticks > delayTicks.get()) {
-            boolean low = mc.player.getHealth() + mc.player.getAbsorptionAmount() - PlayerUtils.possibleHealthReductions(explosion.get(), falling.get()) <= minHealth.get();
-            boolean ely = elytra.get() && mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem() == Items.ELYTRA && mc.player.isFallFlying();
-            FindItemResult item = InvUtils.find(itemStack -> itemStack.getItem() == currentItem.item, 0, 35);
+            boolean low = mc.player.getHealth() + mc.player.getAbsorptionAmount() - PlayerUtils
+                    .possibleHealthReductions(explosion.get(), falling.get()) <= minHealth.get();
+            boolean ely = elytra.get()
+                    && mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem() == Items.ELYTRA
+                    && mc.player.isFallFlying();
+            FindItemResult item =
+                    InvUtils.find(itemStack -> itemStack.getItem() == currentItem.item, 0, 35);
 
             // Calculates Damage from Falling, Explosions + Elyta
             locked = (low || ely);
 
             if (locked && mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
-                InvUtils.move().from(result.slot()).toOffhand();
+                //InvUtils.move().from(result.slot()).toOffhand();
             }
 
             ticks = 0;
@@ -189,9 +169,12 @@ public class Offhand extends Module {
         }
 
         // Always Gap
-        else if ((mc.player.getMainHandStack().getItem() instanceof SwordItem || mc.player.getMainHandStack().getItem() instanceof AxeItem) && alwaysSwordGap.get()) currentItem = Item.EGap;
+        else if ((mc.player.getMainHandStack().getItem() instanceof SwordItem
+                || mc.player.getMainHandStack().getItem() instanceof AxeItem)
+                && alwaysSwordGap.get())
+            currentItem = Item.EGap;
 
-            // Potion Click
+        // Potion Click
         else if (potionClick.get()) {
             if (!locked) {
                 if (mc.player.getMainHandStack().getItem() instanceof SwordItem) {
@@ -203,16 +186,21 @@ public class Offhand extends Module {
         }
 
         // Always Pot
-        else if ((mc.player.getMainHandStack().getItem() instanceof SwordItem || mc.player.getMainHandStack().getItem() instanceof AxeItem) && alwaysPot.get()) currentItem = Item.Potion;
+        else if ((mc.player.getMainHandStack().getItem() instanceof SwordItem
+                || mc.player.getMainHandStack().getItem() instanceof AxeItem) && alwaysPot.get())
+            currentItem = Item.Potion;
 
 
-        else currentItem = preferreditem.get();
+        else
+            currentItem = preferreditem.get();
 
         // Checking offhand item
         if (mc.player.getOffHandStack().getItem() != currentItem.item) {
             if (ticks >= delayTicks.get()) {
                 if (!locked) {
-                    FindItemResult item = InvUtils.find(itemStack -> itemStack.getItem() == currentItem.item, hotbar.get() ? 0 : 9, 35);
+                    FindItemResult item =
+                            InvUtils.find(itemStack -> itemStack.getItem() == currentItem.item,
+                                    hotbar.get() ? 0 : 9, 35);
 
                     // No offhand item
                     if (!item.found()) {
@@ -238,15 +226,67 @@ public class Offhand extends Module {
     @EventHandler
     private void onMouseButton(MouseButtonEvent event) {
         // Detects if the User is right-clicking
-        isClicking = mc.currentScreen == null && !Modules.get().get(AutoTotem.class).isLocked() && !usableItem() && !mc.player.isUsingItem() && event.action == KeyAction.Press && event.button == GLFW_MOUSE_BUTTON_RIGHT;
+        isClicking = mc.currentScreen == null && !Modules.get().get(AutoTotem.class).isLocked()
+                && !usableItem() && !mc.player.isUsingItem() && event.action == KeyAction.Press
+                && event.button == GLFW_MOUSE_BUTTON_RIGHT;
+    }
+
+    @EventHandler
+    private void onPacketReceive(PacketEvent.Receive event) {
+        if (!antiTfail.get()) {
+            return;
+        }
+
+        if (!(event.packet instanceof EntityStatusS2CPacket packet))
+            return;
+        if (packet.getStatus() != 35)
+            return;
+
+        Entity entity = packet.getEntity(mc.world);
+        if (!(entity instanceof PlayerEntity player) || entity != mc.player)
+            return;
+
+        FindItemResult result = InvUtils.find(x -> {
+            if (x.getItem().equals(Items.TOTEM_OF_UNDYING)) {
+                return true;
+            }
+
+            return false;
+        }, 0, 8);
+
+        if (result.found()) {
+            InvUtils.swap(result.slot(), true);
+
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
+                            new BlockPos(0, 0, 0), Direction.DOWN));
+
+            InvUtils.swapBack();
+
+            FindItemResult inventoryResult = InvUtils.find(x -> {
+                if (x.getItem().equals(Items.TOTEM_OF_UNDYING)) {
+                    return true;
+                }
+
+                return false;
+            }, 9, 35);
+
+            if (inventoryResult.found()) {
+                InvUtils.move().from(inventoryResult.slot()).to(result.slot());
+            }
+
+            return;
+        }
     }
 
     private boolean usableItem() {
         // What counts as a Usable Item
         return mc.player.getMainHandStack().getItem() == Items.BOW
-            || mc.player.getMainHandStack().getItem() == Items.TRIDENT
-            || mc.player.getMainHandStack().getItem() == Items.CROSSBOW
-            || mc.player.getMainHandStack().getItem().getComponents().contains(DataComponentTypes.FOOD);
+                || mc.player.getMainHandStack().getItem() == Items.TRIDENT
+                || mc.player.getMainHandStack().getItem() == Items.CROSSBOW
+                || mc.player.getMainHandStack().getItem().getComponents()
+                        .contains(DataComponentTypes.FOOD);
     }
 
     @Override
@@ -256,13 +296,12 @@ public class Offhand extends Module {
 
     public enum Item {
         // Items the module could put on your offhand
-        EGap(Items.ENCHANTED_GOLDEN_APPLE),
-        Gap(Items.GOLDEN_APPLE),
-        Crystal(Items.END_CRYSTAL),
-        Totem(Items.TOTEM_OF_UNDYING),
-        Shield(Items.SHIELD),
-        Potion(Items.POTION);
+        EGap(Items.ENCHANTED_GOLDEN_APPLE), Gap(Items.GOLDEN_APPLE), Crystal(
+                Items.END_CRYSTAL), Totem(
+                        Items.TOTEM_OF_UNDYING), Shield(Items.SHIELD), Potion(Items.POTION);
+
         final net.minecraft.item.Item item;
+
         Item(net.minecraft.item.Item item) {
             this.item = item;
         }

@@ -69,6 +69,10 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
         if (Modules.get().get(NoSlow.class).sneaking()) {
             info.setReturnValue(isCrawling());
         }
+
+        if (isCrawling() && Modules.get().get(NoSlow.class).crawling()) {
+            info.setReturnValue(false);
+        }
     }
 
     @Inject(method = "pushOutOfBlocks", at = @At("HEAD"), cancellable = true)

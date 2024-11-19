@@ -77,8 +77,6 @@ public class SilentMine extends Module {
 
     int swapBackTimeout = 0;
     boolean needSwapBack = false;
-    boolean lastPrimaryNull = false;
-    boolean lastDoublemineNull = false;
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
@@ -107,6 +105,12 @@ public class SilentMine extends Module {
             stopDoublemining(true);
         }
 
+        if (primaryBlock != null && primaryBlock.timesBroken > 10) {
+            primaryBlock.cancelBreaking();
+            primaryBlock.fixBreak();
+            primaryBlock = null;
+        }
+
         // Update our doublemine block
         if (isDoublemining()) {
             BlockState blockState = mc.world.getBlockState(doubleMineBlock.blockPos);
@@ -120,13 +124,10 @@ public class SilentMine extends Module {
 
                 doubleMineBlock.progress += BlockUtils.getBreakDelta(breakingSpeed, blockState);
 
-                if (doubleMineBlock.isReady()) {
+                if (doubleMineBlock.isReady() && !mc.player.isUsingItem()) {
                     if (autoSwitch.get() && slot.found()
                             && mc.player.getInventory().selectedSlot != slot.slot()
                             && swapBackTimeout <= 0) {
-
-                        // mc.player.networkHandler
-                        // .sendPacket(new UpdateSelectedSlotC2SPacket(slot.slot()));
                         InvUtils.swap(slot.slot(), true);
 
                         swapBackTimeout = 3;
@@ -152,11 +153,10 @@ public class SilentMine extends Module {
 
                 primaryBlock.progress += BlockUtils.getBreakDelta(breakingSpeed, blockState);
 
-                if (primaryBlock.isReady()) {
+                if (primaryBlock.isReady() && !mc.player.isUsingItem()) {
                     if (autoSwitch.get() && slot.found()
                             && mc.player.getInventory().selectedSlot != slot.slot()
                             && !needSwapBack) {
-
                         InvUtils.swap(slot.slot(), true);
 
                         needSwapBack = true;
@@ -167,6 +167,7 @@ public class SilentMine extends Module {
             }
         }
 
+
         if (swapBackTimeout >= 0) {
             swapBackTimeout--;
         }
@@ -175,14 +176,6 @@ public class SilentMine extends Module {
             InvUtils.swapBack();
             needSwapBack = false;
         }
-
-        if (!lastPrimaryNull && !lastDoublemineNull && primaryBlock != null
-                && doubleMineBlock == null) {
-            primaryBlock.forcedPrimary = true;
-        }
-
-        lastPrimaryNull = primaryBlock == null;
-        lastDoublemineNull = doubleMineBlock == null;
     }
 
     @EventHandler
@@ -201,15 +194,8 @@ public class SilentMine extends Module {
             if (doubleMineBlock != null) {
                 primaryBlock = null;
             } else {
-                if (primaryBlock.forcedPrimary) {
-                    doubleMineBlock = new FastRebreakBlock(event);
-
-                    doubleMineBlock.startBreaking();
-                    primaryBlock.startBreaking();
-                } else {
-                    doubleMineBlock = primaryBlock;
-                    primaryBlock = null;
-                }
+                doubleMineBlock = primaryBlock;
+                primaryBlock = null;
             }
         }
 
@@ -274,7 +260,7 @@ public class SilentMine extends Module {
         return primaryBlock.beenAir;
     }
 
-    
+
 
     @EventHandler
     private void onRender(Render3DEvent event) {
@@ -284,7 +270,7 @@ public class SilentMine extends Module {
 
             if (doubleMineBlock != null)
                 doubleMineBlock.render(event);
-                
+
         }
     }
 
@@ -316,8 +302,6 @@ public class SilentMine extends Module {
 
         public boolean beenAir = false;
 
-        public boolean forcedPrimary = false;
-
         public boolean isReady() {
             return progress >= 1.0 || timesBroken > 0;
         }
@@ -348,14 +332,33 @@ public class SilentMine extends Module {
 
             int s = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
 
-            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                    PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, breakDreiction));
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos,
+                            breakDreiction, s++));
+
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, blockPos,
+                            breakDreiction, s++));
+
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos,
+                            breakDreiction, s++));
+
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos,
+                            breakDreiction, s++));
+
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, blockPos,
+                            breakDreiction, s++));
 
             mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                    PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, blockPos, breakDreiction, s));
-
-            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                    PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, breakDreiction));
+                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
 
             mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                     PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
@@ -382,6 +385,16 @@ public class SilentMine extends Module {
                     PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
         }
 
+        public void fixBreak() {
+            int s = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
+
+            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                    PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, blockPos, breakDreiction, s));
+
+            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
+        }
+
         public void render(Render3DEvent event) {
             VoxelShape shape = mc.world.getBlockState(blockPos).getOutlineShape(mc.world, blockPos);
             if (shape == null || shape.isEmpty()) {
@@ -391,7 +404,8 @@ public class SilentMine extends Module {
 
             Box orig = shape.getBoundingBox();
 
-            double interpolatedProgress = Math.min(1, previousProgress + (progress - previousProgress) * event.tickDelta);
+            double interpolatedProgress =
+                    Math.min(1, previousProgress + (progress - previousProgress) * event.tickDelta);
             double shrinkFactor = 1d - interpolatedProgress;
             BlockPos pos = blockPos;
 
@@ -410,8 +424,9 @@ public class SilentMine extends Module {
             double y2 = pos.getY() + box.maxY + yShrink;
             double z2 = pos.getZ() + box.maxZ + zShrink;
 
-            event.renderer.box(x1, y1, z1, x2, y2, z2, sideColor.get(), lineColor.get(), shapeMode.get(), 0);
-        
+            event.renderer.box(x1, y1, z1, x2, y2, z2, sideColor.get(), lineColor.get(),
+                    shapeMode.get(), 0);
+
             previousProgress = progress;
         }
     }

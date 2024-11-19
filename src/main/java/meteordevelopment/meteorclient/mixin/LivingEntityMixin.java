@@ -11,6 +11,7 @@ import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.DamageEvent;
 import meteordevelopment.meteorclient.events.entity.player.CanWalkOnFluidEvent;
 import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.movement.GrimFakeFly;
 import meteordevelopment.meteorclient.systems.modules.movement.Sprint;
 import meteordevelopment.meteorclient.systems.modules.movement.elytrafly.ElytraFlightModes;
 import meteordevelopment.meteorclient.systems.modules.movement.elytrafly.ElytraFly;
@@ -106,7 +107,14 @@ public abstract class LivingEntityMixin extends Entity {
     public void recastOnLand(CallbackInfoReturnable<Boolean> cir) {
         boolean elytra = cir.getReturnValue();
         ElytraFly elytraFly = Modules.get().get(ElytraFly.class);
-        if (previousElytra && !elytra && elytraFly.isActive() && (elytraFly.flightMode.get() == ElytraFlightModes.Bounce || elytraFly.flightMode.get() == ElytraFlightModes.Slide)) {
+        GrimFakeFly fakeFly = Modules.get().get(GrimFakeFly.class);
+        
+        if (fakeFly.isFlying()) {
+            cir.setReturnValue(false);
+            return;
+        }
+
+        if (previousElytra && !elytra && (elytraFly.isActive()) && (elytraFly.flightMode.get() == ElytraFlightModes.Bounce || elytraFly.flightMode.get() == ElytraFlightModes.Slide)) {
             
             if (elytraFly.flightMode.get() == ElytraFlightModes.Bounce)
                 cir.setReturnValue(Bounce.recastElytra(mc.player));
