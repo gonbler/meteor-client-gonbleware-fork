@@ -10,6 +10,7 @@ accessible   class   net/minecraft/client/world/ClientChunkManager$ClientChunkMa
 
 accessible   field   net/minecraft/client/network/AbstractClientPlayerEntity playerListEntry Lnet/minecraft/client/network/PlayerListEntry;
 
+accessible   method  net/minecraft/client/render/entity/EntityRenderDispatcher render (Lnet/minecraft/entity/Entity;DDDFLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;ILnet/minecraft/client/render/entity/EntityRenderer;)V
 accessible   field   net/minecraft/client/model/ModelPart cuboids Ljava/util/List;
 accessible   field   net/minecraft/client/model/ModelPart children Ljava/util/Map;
 accessible   class   net/minecraft/client/model/ModelPart$Quad
@@ -20,6 +21,8 @@ accessible   method  net/minecraft/client/render/entity/LivingEntityRenderer set
 accessible   method  net/minecraft/client/render/entity/LivingEntityRenderer scale (Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/client/util/math/MatrixStack;F)V
 accessible   method  net/minecraft/client/render/entity/LivingEntityRenderer getAnimationProgress (Lnet/minecraft/entity/LivingEntity;F)F
 
+accessible   class   net/minecraft/client/texture/MapTextureManager$MapTexture
+accessible   field   net/minecraft/client/texture/MapTextureManager$MapTexture texture Lnet/minecraft/client/texture/NativeImageBackedTexture;
 accessible   field   net/minecraft/client/render/entity/model/AnimalModel headScaled Z
 accessible   field   net/minecraft/client/render/entity/model/AnimalModel childHeadYOffset F
 accessible   field   net/minecraft/client/render/entity/model/AnimalModel childHeadZOffset F
@@ -78,4 +81,9 @@ accessible   field   net/minecraft/client/render/item/ItemRenderer SPYGLASS Lnet
 
 accessible   class   net/minecraft/entity/effect/StatusEffect$EffectAttributeModifierCreator
 
+accessible   class   net/minecraft/entity/effect/StatusEffect$EffectAttributeModifierCreator
+accessible   class   net/minecraft/client/render/RenderLayer$MultiPhase
+accessible   field   net/minecraft/client/render/RenderPhase ITEM_ENTITY_TARGET Lnet/minecraft/client/render/RenderPhase$Target;
+accessible   class   net/minecraft/client/render/RenderLayer$MultiPhaseParameters
+accessible   class   net/minecraft/client/render/RenderPhase$Target
 accessible   method  net/minecraft/client/world/ClientWorld getPendingUpdateManager ()Lnet/minecraft/client/network/PendingUpdateManager;
