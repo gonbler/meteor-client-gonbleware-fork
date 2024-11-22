@@ -17,6 +17,7 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
+import net.minecraft.registry.tag.DamageTypeTags;
 
 public class Velocity extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -130,6 +131,13 @@ public class Velocity extends Module {
         .name("fishing")
         .description("Prevents you from being pulled by fishing rods.")
         .defaultValue(false)
+        .build()
+    );
+
+    public final Setting<Boolean> livingEntityKnockback = sgGeneral.add(new BoolSetting.Builder()
+        .name("living-entity-knockback")
+        .description("Prevents you from being moved by knockback.")
+        .defaultValue(true)
         .build()
     );
 

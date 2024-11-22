@@ -85,7 +85,7 @@ public class ElytraSpeed extends Module {
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
         ElytraFly eFly = (ElytraFly) Modules.get().get(ElytraFly.class);
-        GrimFakeFly geFly = (GrimFakeFly) Modules.get().get(GrimFakeFly.class);
+        ElytraFakeFly geFly = (ElytraFakeFly) Modules.get().get(ElytraFakeFly.class);
 
         if (!rubberband && (!using || !mc.player.isFallFlying() || eFly.isActive() || geFly.isActive())) {
             lastMovement = event.movement;

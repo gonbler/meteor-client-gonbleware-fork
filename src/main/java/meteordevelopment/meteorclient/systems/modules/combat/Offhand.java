@@ -78,7 +78,7 @@ public class Offhand extends Module {
 
     // Totem
 
-    private final Setting<Boolean> antiTfail = sgTotem.add(new BoolSetting.Builder().name("totem")
+    private final Setting<Boolean> antiTfail = sgTotem.add(new BoolSetting.Builder().name("anti-totem-fail")
             .description("Uses a hotbar method to prevent tfails").defaultValue(true).build());
 
     private final Setting<Double> minHealth = sgTotem.add(new DoubleSetting.Builder()
@@ -139,7 +139,7 @@ public class Offhand extends Module {
             locked = (low || ely);
 
             if (locked && mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
-                //InvUtils.move().from(result.slot()).toOffhand();
+                InvUtils.move().from(result.slot()).toOffhand();
             }
 
             ticks = 0;
@@ -229,55 +229,6 @@ public class Offhand extends Module {
         isClicking = mc.currentScreen == null && !Modules.get().get(AutoTotem.class).isLocked()
                 && !usableItem() && !mc.player.isUsingItem() && event.action == KeyAction.Press
                 && event.button == GLFW_MOUSE_BUTTON_RIGHT;
-    }
-
-    @EventHandler
-    private void onPacketReceive(PacketEvent.Receive event) {
-        if (!antiTfail.get()) {
-            return;
-        }
-
-        if (!(event.packet instanceof EntityStatusS2CPacket packet))
-            return;
-        if (packet.getStatus() != 35)
-            return;
-
-        Entity entity = packet.getEntity(mc.world);
-        if (!(entity instanceof PlayerEntity player) || entity != mc.player)
-            return;
-
-        FindItemResult result = InvUtils.find(x -> {
-            if (x.getItem().equals(Items.TOTEM_OF_UNDYING)) {
-                return true;
-            }
-
-            return false;
-        }, 0, 8);
-
-        if (result.found()) {
-            InvUtils.swap(result.slot(), true);
-
-            mc.getNetworkHandler()
-                    .sendPacket(new PlayerActionC2SPacket(
-                            PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
-                            new BlockPos(0, 0, 0), Direction.DOWN));
-
-            InvUtils.swapBack();
-
-            FindItemResult inventoryResult = InvUtils.find(x -> {
-                if (x.getItem().equals(Items.TOTEM_OF_UNDYING)) {
-                    return true;
-                }
-
-                return false;
-            }, 9, 35);
-
-            if (inventoryResult.found()) {
-                InvUtils.move().from(inventoryResult.slot()).to(result.slot());
-            }
-
-            return;
-        }
     }
 
     private boolean usableItem() {

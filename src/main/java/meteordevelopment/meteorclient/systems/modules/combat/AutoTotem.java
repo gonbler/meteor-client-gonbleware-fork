@@ -17,8 +17,12 @@ import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Items;
+import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 
 public class AutoTotem extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -72,6 +76,13 @@ public class AutoTotem extends Module {
         .build()
     );
 
+    private final Setting<Boolean> antiTFail = sgGeneral.add(new BoolSetting.Builder()
+        .name("anti-totem-fail")
+        .description("Will swap to a totem in your hotbar if you pop")
+        .defaultValue(true)
+        .build()
+    );
+
     public boolean locked;
     private int totems, ticks;
 
@@ -81,6 +92,10 @@ public class AutoTotem extends Module {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     private void onTick(TickEvent.Pre event) {
+        if (mode.get() == Mode.None) {
+            return;
+        }
+
         FindItemResult result = InvUtils.find(Items.TOTEM_OF_UNDYING);
         totems = result.count();
 
@@ -110,8 +125,47 @@ public class AutoTotem extends Module {
         Entity entity = p.getEntity(mc.world);
         if (entity == null || !(entity.equals(mc.player))) return;
 
+        if (!antiTFail.get()) {
+            return;
+        }
+
+        FindItemResult result = InvUtils.find(x -> {
+            if (x.getItem().equals(Items.TOTEM_OF_UNDYING)) {
+                return true;
+            }
+
+            return false;
+        }, 0, 8);
+
+        if (result.found()) {
+            InvUtils.swap(result.slot(), true);
+
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
+                            new BlockPos(0, 0, 0), Direction.DOWN));
+
+            InvUtils.swapBack();
+
+            FindItemResult inventoryResult = InvUtils.find(x -> {
+                if (x.getItem().equals(Items.TOTEM_OF_UNDYING)) {
+                    return true;
+                }
+
+                return false;
+            }, 9, 35);
+
+            if (inventoryResult.found()) {
+                InvUtils.move().from(inventoryResult.slot()).to(result.slot());
+            }
+
+            return;
+        }
+
         ticks = 0;
     }
+
+    
 
     public boolean isLocked() {
         return isActive() && locked;
@@ -124,6 +178,7 @@ public class AutoTotem extends Module {
 
     public enum Mode {
         Smart,
-        Strict
+        Strict,
+        None
     }
 }

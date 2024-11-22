@@ -21,14 +21,19 @@ import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.Item;
+import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import de.florianmichael.viafabricplus.util.ItemUtil;
 
 public class AutoTrap extends Module {
@@ -50,25 +55,12 @@ public class AutoTrap extends Module {
                     .description("How to select the player to target.")
                     .defaultValue(SortPriority.LowestHealth).build());
 
-    private final Setting<Integer> delay = sgGeneral.add(new IntSetting.Builder()
-            .name("place-delay").description("How many ticks between block placements.")
-            .defaultValue(1).build());
+    private final Setting<Integer> places = sgGeneral.add(new IntSetting.Builder().name("places")
+            .description("How many places each tick").defaultValue(1).build());
 
-    private final Setting<TopMode> topPlacement = sgGeneral.add(new EnumSetting.Builder<TopMode>()
-            .name("top-blocks").description("Which blocks to place on the top half of the target.")
-            .defaultValue(TopMode.Full).build());
-
-    private final Setting<BottomMode> bottomPlacement =
-            sgGeneral.add(new EnumSetting.Builder<BottomMode>().name("bottom-blocks")
-                    .description("Which blocks to place on the bottom half of the target.")
-                    .defaultValue(BottomMode.Platform).build());
-
-    private final Setting<Boolean> selfToggle =
-            sgGeneral.add(new BoolSetting.Builder().name("self-toggle")
-                    .description("Turns off after placing all blocks.").defaultValue(true).build());
-
-    private final Setting<Boolean> rotate = sgGeneral.add(new BoolSetting.Builder().name("rotate")
-            .description("Rotates towards blocks when placing.").defaultValue(true).build());
+    private final Setting<Boolean> grimBypass =
+            sgGeneral.add(new BoolSetting.Builder().name("grim-bypass")
+                    .description("Bypasses Grim for airplace.").defaultValue(true).build());
 
     // Render
 
@@ -88,18 +80,7 @@ public class AutoTrap extends Module {
             .name("line-color").description("The line color of the target block rendering.")
             .defaultValue(new SettingColor(197, 137, 232)).build());
 
-    private final Setting<SettingColor> nextSideColor = sgRender.add(new ColorSetting.Builder()
-            .name("next-side-color").description("The side color of the next block to be placed.")
-            .defaultValue(new SettingColor(227, 196, 245, 10)).build());
-
-    private final Setting<SettingColor> nextLineColor = sgRender.add(new ColorSetting.Builder()
-            .name("next-line-color").description("The line color of the next block to be placed.")
-            .defaultValue(new SettingColor(227, 196, 245)).build());
-
-    private final List<BlockPos> placePositions = new ArrayList<>();
     private PlayerEntity target;
-    private boolean placed;
-    private int timer;
 
     public AutoTrap() {
         super(Categories.Combat, "auto-trap", "Traps people in a box to prevent them from moving.");
@@ -108,134 +89,174 @@ public class AutoTrap extends Module {
     @Override
     public void onActivate() {
         target = null;
-        placePositions.clear();
-        timer = 0;
-        placed = false;
     }
 
     @Override
     public void onDeactivate() {
-        placePositions.clear();
+
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (selfToggle.get() && placed && placePositions.isEmpty()) {
-            placed = false;
-            toggle();
+        if (target == null || TargetUtils.isBadTarget(target, range.get())) {
+            target = TargetUtils.getPlayerTarget(range.get(), priority.get());
+            if (TargetUtils.isBadTarget(target, range.get()))
+                return;
+        }
+
+        if (target == null) {
             return;
         }
 
-        for (Block currentBlock : blocks.get()) {
-            FindItemResult itemResult = InvUtils.findInHotbar(currentBlock.asItem());
+        if (!startPlace()) {
+            return;
+        }
 
-            if (!itemResult.isHotbar() && !itemResult.isOffhand()) {
-                placePositions.clear();
-                placed = false;
+        
+
+        int placed = 0;
+
+        
+
+        for (BlockPos pos : getBlockPoses().toList()) {
+            boolean isCrystalBlock = false;
+            for (Direction dir : Direction.Type.HORIZONTAL) {
+                if (pos.equals(target.getBlockPos().offset(dir))) {
+                    isCrystalBlock = true;
+                }
+            }
+
+            if (isCrystalBlock) {
                 continue;
             }
 
-            if (TargetUtils.isBadTarget(target, range.get())) {
-                target = TargetUtils.getPlayerTarget(range.get(), priority.get());
-                if (TargetUtils.isBadTarget(target, range.get()))
-                    return;
+            if (placed > places.get()) {
+                break;
             }
 
-            fillPlaceArray(target);
-
-            if (timer >= delay.get() && !placePositions.isEmpty()) {
-                BlockPos blockPos = placePositions.getLast();
-
-                InvUtils.swap(itemResult.slot(), true);
-
-                Hand obbyHand = Hand.MAIN_HAND;
-
-                mc.getNetworkHandler()
-                        .sendPacket(new PlayerActionC2SPacket(
-                                PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
-                                new BlockPos(0, 0, 0), Direction.DOWN));
-                obbyHand = Hand.OFF_HAND;
-
-                if (BlockUtils.place(blockPos, obbyHand, mc.player.getInventory().selectedSlot, false, 0, false, true, false)) {
-                    placePositions.remove(blockPos);
-                    placed = true;
-                }
-
-                mc.world.setBlockState(blockPos, Blocks.OBSIDIAN.getDefaultState());
-
-                mc.getNetworkHandler()
-                        .sendPacket(new PlayerActionC2SPacket(
-                                PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
-                                new BlockPos(0, 0, 0), Direction.DOWN));
-
-                InvUtils.swapBack();
-
-                timer = 0;
-            } else {
-                timer++;
+            if (place(pos)) {
+                placed++;
             }
-            return;
         }
+
+
+        endPlace();
+    }
+
+    private Stream<BlockPos> getBlockPoses() {
+        Box boundingBox = target.getBoundingBox().shrink(0.05, 0.1, 0.05);
+        double feetY = target.getY();
+
+        Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
+                feetY + 0.1, boundingBox.maxZ);
+
+        Iterable<BlockPos> it = BlockPos.iterate((int) Math.floor(feetBox.minX) - 1,
+                (int) Math.floor(feetBox.minY) - 1, (int) Math.floor(feetBox.minZ) - 1,
+                (int) Math.floor(feetBox.maxX) + 1, (int) Math.floor(feetBox.maxY) + 2,
+                (int) Math.floor(feetBox.maxZ) + 1);
+
+        List<BlockPos> s = new ArrayList<>();
+        it.forEach(s::add);
+
+        return s.stream().sorted((a, b) -> {
+            return Double.compare(a.toCenterPos().distanceTo(target.getPos()), b.toCenterPos().distanceTo(target.getPos()));
+        });
     }
 
     @EventHandler
     private void onRender(Render3DEvent event) {
-        if (!render.get() || placePositions.isEmpty())
+        if (!render.get())
             return;
 
-        for (BlockPos pos : placePositions) {
-            boolean isFirst = pos.equals(placePositions.getLast());
+        if (target == null) {
+            return;
+        }
 
-            Color side = isFirst ? nextSideColor.get() : sideColor.get();
-            Color line = isFirst ? nextLineColor.get() : lineColor.get();
+        Box boundingBox = target.getBoundingBox().shrink(0.05, 0.1, 0.05);
+        double feetY = target.getY();
 
-            event.renderer.box(pos, side, line, shapeMode.get(), 0);
+        Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
+                feetY + 0.1, boundingBox.maxZ);
+
+        int placed = 0;
+
+        for (BlockPos pos : getBlockPoses().toList()) {
+
+            boolean isCrystalBlock = false;
+            for (Direction dir : Direction.Type.HORIZONTAL) {
+                if (pos.equals(target.getBlockPos().offset(dir))) {
+                    isCrystalBlock = true;
+                }
+            }
+
+            if (isCrystalBlock) {
+                continue;
+            }
+
+            if (placed > places.get()) {
+                break;
+            }
+
+            if (BlockUtils.canPlace(pos, true)) {
+                placed++;
+
+                event.renderer.box(pos, sideColor.get(), lineColor.get(), shapeMode.get(), 0);
+            }
         }
     }
 
-    private void fillPlaceArray(PlayerEntity target) {
-        placePositions.clear();
-        BlockPos targetPos = target.getBlockPos();
+    private boolean startPlace() {
+        FindItemResult result = InvUtils.findInHotbar(itemStack -> {
+            for (Block blocks : blocks.get()) {
+                if (blocks.asItem() == itemStack.getItem())
+                    return true;
+            }
+            return false;
+        });
 
-        switch (topPlacement.get()) {
-            case Full -> {
-                add(targetPos.add(0, 2, 0));
-                add(targetPos.add(1, 1, 0));
-                add(targetPos.add(-1, 1, 0));
-                add(targetPos.add(0, 1, 1));
-                add(targetPos.add(0, 1, -1));
-            }
-            case Face -> {
-                add(targetPos.add(1, 1, 0));
-                add(targetPos.add(-1, 1, 0));
-                add(targetPos.add(0, 1, 1));
-                add(targetPos.add(0, 1, -1));
-            }
-            case Top -> add(targetPos.add(0, 2, 0));
+        if (!result.found()) {
+            return false;
         }
 
-        switch (bottomPlacement.get()) {
-            case Platform -> {
-                add(targetPos.add(0, -1, 0));
-                add(targetPos.add(1, -1, 0));
-                add(targetPos.add(-1, -1, 0));
-                add(targetPos.add(0, -1, 1));
-                add(targetPos.add(0, -1, -1));
-            }
-            case Full -> {
-                add(targetPos.add(1, 0, 0));
-                add(targetPos.add(-1, 0, 0));
-                add(targetPos.add(0, 0, -1));
-                add(targetPos.add(0, 0, 1));
-            }
-            case Single -> add(targetPos.add(0, -1, 0));
-        }
+        InvUtils.swap(result.slot(), true);
+
+        return true;
     }
 
+    private boolean place(BlockPos blockPos) {
+        if (!BlockUtils.canPlace(blockPos, true)) {
+            return false;
+        }
 
-    private void add(BlockPos blockPos) {
-        if (!placePositions.contains(blockPos) && BlockUtils.canPlace(blockPos))
-            placePositions.add(blockPos);
+        if (grimBypass.get()) {
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
+                            new BlockPos(0, 0, 0), Direction.DOWN));
+        }
+
+        boolean grr = BlockUtils.place(blockPos, grimBypass.get() ? Hand.OFF_HAND : Hand.MAIN_HAND,
+                mc.player.getInventory().selectedSlot, false, 0, true, true, false);
+
+        if (grimBypass.get()) {
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
+                            new BlockPos(0, 0, 0), Direction.DOWN));
+        }
+
+        if (grr) {
+            mc.world.setBlockState(blockPos,
+                    Block.getBlockFromItem(mc.player.getInventory()
+                            .getStack(mc.player.getInventory().selectedSlot).getItem())
+                            .getDefaultState());
+        }
+
+        return grr;
+    }
+
+    private void endPlace() {
+        InvUtils.swapBack();
     }
 
     @Override

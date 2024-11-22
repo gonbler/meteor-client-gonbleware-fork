@@ -233,7 +233,7 @@ public abstract class EntityMixin {
         if ((Object) this != mc.player)
             return original;
 
-        if (original == EntityPose.FALL_FLYING && Modules.get().get(GrimFakeFly.class).isFlying()) {
+        if (original == EntityPose.FALL_FLYING && Modules.get().get(ElytraFakeFly.class).isFlying()) {
             return EntityPose.STANDING;
         }
 

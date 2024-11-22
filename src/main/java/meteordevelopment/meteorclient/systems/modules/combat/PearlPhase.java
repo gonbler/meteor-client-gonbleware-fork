@@ -15,12 +15,15 @@ import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
+import net.minecraft.block.Block;
+import net.minecraft.block.Blocks;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractItemC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
@@ -53,14 +56,31 @@ public class PearlPhase extends Module {
         if (mc.player == null || mc.world == null)
             return;
 
-        if (!mc.world.isAir(mc.player.getBlockPos())) {
-            return;
+        Box boundingBox = mc.player.getBoundingBox().shrink(0.05, 0.1, 0.05);
+        double feetY = mc.player.getY();
+
+        Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
+                feetY + 0.1, boundingBox.maxZ);
+
+        for (BlockPos pos : BlockPos.iterate((int) Math.floor(feetBox.minX),
+                (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
+                (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
+                (int) Math.floor(feetBox.maxZ))) {
+            Block block = mc.world.getBlockState(pos).getBlock();
+
+            if (block.equals(Blocks.OBSIDIAN) || block.equals(Blocks.BEDROCK)) {
+                toggle();
+                return;
+            }
         }
+
 
         if (switch (switchMode.get()) {
             case Silent -> !InvUtils.findInHotbar(Items.ENDER_PEARL).found();
-        })
+        }) {
+            toggle();
             return;
+        }
 
         switch (switchMode.get()) {
             case Silent -> {
@@ -68,8 +88,10 @@ public class PearlPhase extends Module {
             }
         }
 
-        if (mc.options.sneakKey.isPressed())
+        if (mc.options.sneakKey.isPressed()) {
+            toggle();
             return;
+        }
 
         // Get base pitch from configuration
         double basePitch = pitch.get();

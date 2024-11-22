@@ -5,6 +5,7 @@ import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.mixininterface.IVec3d;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
+import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Categories;
@@ -12,7 +13,7 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.fabricmc.loader.impl.lib.sat4j.core.Vec;
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
@@ -26,10 +27,15 @@ import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.Hand;
 import net.minecraft.util.TypedActionResult;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 
-public class GrimFakeFly extends Module {
+public class ElytraFakeFly extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
+
+    private final Setting<Mode> mode = sgGeneral.add(new EnumSetting.Builder<Mode>().name("mode")
+            .description("Determines how to fake fly").defaultValue(Mode.Chestplate).build());
 
     public final Setting<Double> fireworkDelay =
             sgGeneral.add(new DoubleSetting.Builder().name("firework-delay")
@@ -49,48 +55,53 @@ public class GrimFakeFly extends Module {
                     .defaultValue(0.5).min(0.001).max(2).build());
 
     private int fireworkTicksLeft = 0;
-    private boolean isFlying = false;
     private boolean needsFirework = false;
     private Vec3d lastMovement = Vec3d.ZERO;
     private int moreElytraTicks = 0;
-    private boolean wearingElytra = false;
 
     private Vec3d currentVelocity = Vec3d.ZERO;
-    private boolean rubberband = false;
 
-    public GrimFakeFly() {
+    public ElytraFakeFly() {
         super(Categories.Movement, "elytra-fakefly",
                 "Gives you more control over your elytra but funnier.");
     }
 
     @Override
     public void onActivate() {
-        super.onActivate();
-
         moreElytraTicks = 5;
         needsFirework = true;
         currentVelocity = mc.player.getVelocity();
+
+        mc.player.jump();
+        mc.player.setOnGround(false);
+        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(false));
+    }
+
+    @Override
+    public void onDeactivate() {
+        equipChestplate();
     }
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (wearingElytra) {
-            if (needsFirework && moreElytraTicks <= 2) {
-                if (currentVelocity.length() > 0) {
-                    useFirework();
-                    needsFirework = false;
-                }
-            }
-        }
+        if (mc.player.isOnGround()) {
+            mc.player.jump();
+            mc.player.setOnGround(false);
+            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(false));
 
-        if (!wearingElytra) {
             equipElytra();
 
             mc.player.networkHandler.sendPacket(new ClientCommandC2SPacket(mc.player,
                     ClientCommandC2SPacket.Mode.START_FALL_FLYING));
-
-            wearingElytra = true;
         }
+
+        if (needsFirework && moreElytraTicks <= 2) {
+            if (currentVelocity.length() > 0) {
+                useFirework();
+                needsFirework = false;
+            }
+        }
+
 
 
         Vec3d desiredVelocity = new Vec3d(0, 0, 0);
@@ -131,13 +142,47 @@ public class GrimFakeFly extends Module {
         }
 
         // Accelerate or decelerate toward desired velocity
-        currentVelocity = new Vec3d(mc.player.getVelocity().x, currentVelocity.y, mc.player.getVelocity().z);
+        currentVelocity =
+                new Vec3d(mc.player.getVelocity().x, currentVelocity.y, mc.player.getVelocity().z);
         Vec3d velocityDifference = desiredVelocity.subtract(currentVelocity);
         double maxDelta = (horizontalSpeed.get() / 20) / (accelTime.get() * 20);
         if (velocityDifference.lengthSquared() > maxDelta * maxDelta) {
             velocityDifference = velocityDifference.normalize().multiply(maxDelta);
         }
         currentVelocity = currentVelocity.add(velocityDifference);
+
+        equipElytra();
+
+        Box boundingBox = mc.player.getBoundingBox();
+
+        double playerFeetY = boundingBox.minY;
+
+        Box groundBox = new Box(boundingBox.minX, playerFeetY - 0.1, boundingBox.minZ,
+                boundingBox.maxX, playerFeetY, boundingBox.maxZ);
+
+        for (BlockPos pos : BlockPos.iterate((int) Math.floor(groundBox.minX),
+                (int) Math.floor(groundBox.minY), (int) Math.floor(groundBox.minZ),
+                (int) Math.floor(groundBox.maxX), (int) Math.floor(groundBox.maxY),
+                (int) Math.floor(groundBox.maxZ))) {
+            BlockState blockState = mc.world.getBlockState(pos);
+
+            // Skip air or non-solid blocks
+            if (!blockState.isSolidBlock(mc.world, pos)) {
+                continue;
+            }
+
+            double blockTopY = pos.getY() + 1.0;
+            double distanceToBlock = playerFeetY - blockTopY;
+
+            if (distanceToBlock >= 0 && distanceToBlock < 0.1) {
+                mc.player.jump();
+                mc.player.setOnGround(false);
+                mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(false));
+                if (currentVelocity.y < 0) {
+                    currentVelocity = new Vec3d(currentVelocity.x, 0.1, currentVelocity.z);
+                }
+            }
+        }
 
         boolean using = false;
 
@@ -154,6 +199,9 @@ public class GrimFakeFly extends Module {
             fireworkTicksLeft = 0;
         }
 
+        mc.player.networkHandler.sendPacket(new ClientCommandC2SPacket(mc.player,
+                ClientCommandC2SPacket.Mode.START_FALL_FLYING));
+
         if (fireworkTicksLeft <= 0) {
             if (currentVelocity.length() > 0) {
                 moreElytraTicks = 3;
@@ -165,11 +213,10 @@ public class GrimFakeFly extends Module {
             fireworkTicksLeft--;
         }
 
-        if (moreElytraTicks <= 0) {
-            equipChestplate();
-
-            // mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(true));
-            wearingElytra = false;
+        if (mode.get() == Mode.Chestplate) {
+            if (moreElytraTicks <= 0) {
+                equipChestplate();
+            }
         }
 
         if (moreElytraTicks >= 0) {
@@ -203,7 +250,7 @@ public class GrimFakeFly extends Module {
     @EventHandler
     public void onPacketReceive(PacketEvent.Receive event) {
         if (event.packet instanceof PlayerPositionLookS2CPacket packet) {
-            rubberband = true;
+            // rubberband = true;
         }
     }
 
@@ -310,5 +357,9 @@ public class GrimFakeFly extends Module {
 
             InvUtils.swapBack();
         }
+    }
+
+    public enum Mode {
+        Chestplate, Elytra
     }
 }
