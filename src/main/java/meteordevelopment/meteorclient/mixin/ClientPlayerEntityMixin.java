@@ -9,18 +9,27 @@ import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
 import com.mojang.authlib.GameProfile;
 import meteordevelopment.meteorclient.MeteorClient;
+import meteordevelopment.meteorclient.events.entity.DamageEvent;
 import meteordevelopment.meteorclient.events.entity.DropItemsEvent;
 import meteordevelopment.meteorclient.events.entity.player.PlayerTickMovementEvent;
 import meteordevelopment.meteorclient.events.entity.player.SendMovementPacketsEvent;
 import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.combat.AutoCrystal;
 import meteordevelopment.meteorclient.systems.modules.movement.*;
 import meteordevelopment.meteorclient.systems.modules.player.Portals;
+import meteordevelopment.meteorclient.utils.Utils;
+import meteordevelopment.meteorclient.utils.player.RotationManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.input.Input;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
+import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.network.packet.Packet;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -33,6 +42,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity {
     @Shadow
     public Input input;
+
+    @Shadow
+    @Final
+    public ClientPlayNetworkHandler networkHandler;
 
     public ClientPlayerEntityMixin(ClientWorld world, GameProfile profile) {
         super(world, profile);
@@ -78,6 +91,11 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
         if (velocity.isActive() && velocity.blocks.get()) {
             info.cancel();
         }
+    }
+
+    @Inject(method = "damage", at = @At("HEAD"))
+    private void onDamage(DamageSource source, float amount, CallbackInfoReturnable<Boolean> info) {
+        if (Utils.canUpdate() && getWorld().isClient && canTakeDamage()) MeteorClient.EVENT_BUS.post(DamageEvent.get(this, source));
     }
 
     @ModifyExpressionValue(method = "canSprint", at = @At(value = "CONSTANT", args = "floatValue=6.0f"))
@@ -140,5 +158,32 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
     @Inject(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V", ordinal = 1, shift = At.Shift.AFTER))
     private void onTickHasVehicleAfterSendPackets(CallbackInfo info) {
         MeteorClient.EVENT_BUS.post(SendMovementPacketsEvent.Post.get());
+    }
+
+
+    @Redirect(method = "sendMovementPackets", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V", ordinal = 2))
+    private void sendPacketFull(ClientPlayNetworkHandler instance, Packet<?> packet) {
+        networkHandler.sendPacket(MeteorClient.EVENT_BUS.post(new SendMovementPacketsEvent.Packet((PlayerMoveC2SPacket.Full) packet)).packet);
+
+    }
+
+    @Redirect(method = "sendMovementPackets", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V", ordinal = 3))
+    private void sendPacketPosGround(ClientPlayNetworkHandler instance, Packet<?> packet) {
+        networkHandler.sendPacket(MeteorClient.EVENT_BUS.post(new SendMovementPacketsEvent.Packet((PlayerMoveC2SPacket.PositionAndOnGround) packet)).packet);
+    }
+
+    @Redirect(method = "sendMovementPackets", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V", ordinal = 4))
+    private void sendPacketLookGround(ClientPlayNetworkHandler instance, Packet<?> packet) {
+        PlayerMoveC2SPacket toSend = MeteorClient.EVENT_BUS.post(new SendMovementPacketsEvent.Packet((PlayerMoveC2SPacket.LookAndOnGround) packet)).packet;
+
+        if (toSend != null) {
+            networkHandler.sendPacket(toSend);
+        }
+    }
+
+    @Redirect(method = "sendMovementPackets", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V", ordinal = 5))
+    private void sendPacketGround(ClientPlayNetworkHandler instance, Packet<?> packet) {
+        networkHandler.sendPacket(MeteorClient.EVENT_BUS.post(new SendMovementPacketsEvent.Packet((PlayerMoveC2SPacket.OnGroundOnly) packet)).packet);
+
     }
 }

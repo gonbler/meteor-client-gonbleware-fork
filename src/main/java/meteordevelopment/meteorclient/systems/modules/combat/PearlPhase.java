@@ -1,8 +1,10 @@
 package meteordevelopment.meteorclient.systems.modules.combat;
 
 import org.jetbrains.annotations.NotNull;
-import baritone.api.utils.RotationUtils;
+import meteordevelopment.meteorclient.MeteorClient;
+import meteordevelopment.meteorclient.events.entity.player.LookAtEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
+import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
@@ -48,6 +50,10 @@ public class PearlPhase extends Module {
 
     private final double[] diagonalAngles = {45, 135, 225, 315};
 
+    private boolean needRotation = false;
+    private float rotYaw = 0;
+    private float rotPitch = 0;
+
     public PearlPhase() {
         super(Categories.Combat, "pearl-phase", "Phases into walls using pearls");
     }
@@ -82,10 +88,75 @@ public class PearlPhase extends Module {
             return;
         }
 
-        switch (switchMode.get()) {
-            case Silent -> {
-                InvUtils.swap(InvUtils.findInHotbar(Items.ENDER_PEARL).slot(), true);
+        if (mc.options.sneakKey.isPressed()) {
+            toggle();
+            return;
+        }
+
+        // Get base pitch from configuration
+        double basePitch = pitch.get();
+        double throwYaw = getYaw();
+
+        // Calculate the direction vector for the throw
+        double throwDirectionX = -Math.sin(Math.toRadians(throwYaw));
+        double throwDirectionZ = Math.cos(Math.toRadians(throwYaw));
+
+        // Player's velocity vector
+        Vec3d playerVelocity = mc.player.getVelocity();
+        double velocityX = playerVelocity.x;
+        double velocityZ = playerVelocity.z;
+
+        // Normalize velocity vector for dot product calculation
+        double velocityMagnitude = Math.sqrt(velocityX * velocityX + velocityZ * velocityZ);
+        if (velocityMagnitude > 0) { // Avoid division by zero
+            velocityX /= velocityMagnitude;
+            velocityZ /= velocityMagnitude;
+        }
+
+        double dotProduct = (velocityX * throwDirectionX) + (velocityZ * throwDirectionZ);
+
+        double phasePitch = basePitch + dotProduct * pitchVelocityScaling.get();
+
+        needRotation = true;
+
+        rotYaw = (float)throwYaw;
+        rotPitch = (float)phasePitch;
+
+        MeteorClient.ROTATION.snapAt(rotYaw, rotPitch, true);
+    }
+
+    @EventHandler
+    private void onTick(TickEvent.Pre event) {
+        if (needRotation) {
+            MeteorClient.ROTATION.snapAt(rotYaw, rotPitch, true);
+        }
+    }
+
+    private void update() {
+        Box boundingBox = mc.player.getBoundingBox().shrink(0.05, 0.1, 0.05);
+        double feetY = mc.player.getY();
+
+        Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
+                feetY + 0.1, boundingBox.maxZ);
+
+        for (BlockPos pos : BlockPos.iterate((int) Math.floor(feetBox.minX),
+                (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
+                (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
+                (int) Math.floor(feetBox.maxZ))) {
+            Block block = mc.world.getBlockState(pos).getBlock();
+
+            if (block.equals(Blocks.OBSIDIAN) || block.equals(Blocks.BEDROCK)) {
+                toggle();
+                return;
             }
+        }
+
+
+        if (switch (switchMode.get()) {
+            case Silent -> !InvUtils.findInHotbar(Items.ENDER_PEARL).found();
+        }) {
+            toggle();
+            return;
         }
 
         if (mc.options.sneakKey.isPressed()) {
@@ -117,9 +188,19 @@ public class PearlPhase extends Module {
 
         double phasePitch = basePitch + dotProduct * pitchVelocityScaling.get();
 
-        if (instaRot.get()) {
-            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(
-                    (float) throwYaw, (float) phasePitch, mc.player.isOnGround()));
+        rotYaw = (float)throwYaw;
+        rotPitch = (float)phasePitch;
+
+        if (MeteorClient.ROTATION.inFov((float)throwYaw, (float)phasePitch, 3f)) {
+            throwPearl(throwYaw, phasePitch);
+        }
+    }
+
+    private void throwPearl(double throwYaw, double phasePitch) {
+        switch (switchMode.get()) {
+            case Silent -> {
+                InvUtils.swap(InvUtils.findInHotbar(Items.ENDER_PEARL).slot(), true);
+            }
         }
 
         int sequence = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
@@ -127,10 +208,7 @@ public class PearlPhase extends Module {
         mc.getNetworkHandler().sendPacket(new PlayerInteractItemC2SPacket(Hand.MAIN_HAND, sequence,
                 (float) throwYaw, (float) phasePitch));
 
-        if (instaRot.get()) {
-            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(
-                    mc.player.getYaw(), mc.player.getPitch(), mc.player.isOnGround()));
-        }
+        needRotation = false;
 
         toggle();
 
@@ -139,9 +217,21 @@ public class PearlPhase extends Module {
         }
     }
 
+    @EventHandler()
+    public void onRotate(LookAtEvent event) {
+        if (!isActive()) {
+            return;
+        }
+
+        if (needRotation) {
+            event.setRotation(rotYaw, rotPitch, 180, 20);
+        }
+    }
+
+
     @EventHandler(priority = EventPriority.HIGHEST)
     private void onRender(Render3DEvent event) {
-
+        update();
     }
 
     private double getYaw() {

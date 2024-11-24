@@ -7,9 +7,16 @@ package meteordevelopment.meteorclient.utils.entity;
 
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import meteordevelopment.meteorclient.MeteorClient;
+import meteordevelopment.meteorclient.events.game.GameJoinedEvent;
+import meteordevelopment.meteorclient.mixininterface.IExplosion;
+import meteordevelopment.meteorclient.mixininterface.IRaycastContext;
+import meteordevelopment.meteorclient.mixininterface.IVec3d;
+import meteordevelopment.meteorclient.utils.PreInit;
 import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.entity.fakeplayer.FakePlayerEntity;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
+import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.component.DataComponentTypes;
@@ -30,6 +37,8 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.*;
+import net.minecraft.util.shape.VoxelShape;
+import net.minecraft.util.shape.VoxelShapes;
 import net.minecraft.world.BlockView;
 import net.minecraft.world.GameMode;
 import net.minecraft.world.Heightmap;
@@ -42,7 +51,27 @@ import java.util.function.BiFunction;
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 
 public class DamageUtils {
+    // Damage calc vec3d
+    private static final Vec3d vec3d = new Vec3d(0, 0, 0);
+
+    private static Explosion explosion;
+    public static RaycastContext raycastContext;
+    public static RaycastContext bedRaycast;
+
     private DamageUtils() {
+
+    }
+
+    @PreInit
+    public static void init() {
+        MeteorClient.EVENT_BUS.subscribe(DamageUtils.class);
+    }
+
+    @EventHandler
+    private static void onGameJoined(GameJoinedEvent event) {
+        explosion = new Explosion(mc.world, null, 0, 0, 0, 6, false, Explosion.DestructionType.DESTROY);
+        raycastContext = new RaycastContext(null, null, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.ANY, mc.player);
+        bedRaycast = new RaycastContext(null, null, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.ANY, mc.player);
     }
 
     // Explosion damage
@@ -136,6 +165,151 @@ public class DamageUtils {
 
             return blockState.getCollisionShape(mc.world, blockPos).raycast(context.start(), context.end(), blockPos);
         };
+    }
+
+    public static double newCrystalDamage(PlayerEntity player, Box boundingBox, Vec3d crystal, BlockPos ignorePos) {
+        if (player == null) return 0;
+        if (EntityUtils.getGameMode(player) == GameMode.CREATIVE && !(player instanceof FakePlayerEntity)) return 0;
+
+        ((IVec3d) vec3d).set((boundingBox.minX + boundingBox.maxX) / 2, boundingBox.minY, (boundingBox.minZ + boundingBox.maxZ) / 2);
+
+        double modDistance = Math.sqrt(vec3d.squaredDistanceTo(crystal));
+        if (modDistance > 12) return 0;
+
+        double exposure = getExposure(crystal, player, boundingBox, raycastContext, ignorePos);
+        double impact = (1 - (modDistance / 12)) * exposure;
+        double damage = ((impact * impact + impact) / 2 * 7 * (6 * 2) + 1);
+
+        damage = getDamageForDifficulty(damage);
+        damage = DamageUtil.getDamageLeft(player, (float) damage, mc.world.getDamageSources().explosion(null), (float) player.getArmor(), (float) player.getAttributeInstance(EntityAttributes.GENERIC_ARMOR_TOUGHNESS).getValue());
+        damage = resistanceReduction(player, damage);
+
+        ((IExplosion) explosion).set(crystal, 6, false);
+        damage = blastProtReduction(player, damage, explosion);
+
+        return damage < 0 ? 0 : damage;
+    }
+
+    public static double getExposure(Vec3d source, Entity entity, Box box, RaycastContext raycastContext, BlockPos ignore) {
+        double d = 1 / ((box.maxX - box.minX) * 2 + 1);
+        double e = 1 / ((box.maxY - box.minY) * 2 + 1);
+        double f = 1 / ((box.maxZ - box.minZ) * 2 + 1);
+        double g = (1 - Math.floor(1 / d) * d) / 2;
+        double h = (1 - Math.floor(1 / f) * f) / 2;
+    
+        if (!(d < 0) && !(e < 0) && !(f < 0)) {
+            int i = 0;
+            int j = 0;
+    
+            Vec3d vec3d = new Vec3d(0, 0, 0); // Reuse a single Vec3d instance
+    
+            for (double k = 0; k <= 1; k += d) {
+                for (double l = 0; l <= 1; l += e) {
+                    for (double m = 0; m <= 1; m += f) {
+                        double n = MathHelper.lerp(k, box.minX, box.maxX);
+                        double o = MathHelper.lerp(l, box.minY, box.maxY);
+                        double p = MathHelper.lerp(m, box.minZ, box.maxZ);
+    
+                        ((IVec3d) vec3d).set(n + g, o, p + h);
+                        ((IRaycastContext) raycastContext).set(vec3d, source, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, entity);
+    
+                        if (raycast(raycastContext, ignore).getType() == HitResult.Type.MISS) i++;
+    
+                        j++;
+                    }
+                }
+            }
+    
+            return (double) i / j;
+        }
+    
+        return 0;
+    }
+    
+    public static BlockHitResult raycast(RaycastContext context) {
+        return BlockView.raycast(context.getStart(), context.getEnd(), context, (raycastContext, blockPos) -> {
+            BlockState blockState = mc.world.getBlockState(blockPos);
+            VoxelShape voxelShape = raycastContext.getBlockShape(blockState, mc.world, blockPos);
+    
+            BlockHitResult blockHitResult = mc.world.raycastBlock(raycastContext.getStart(), raycastContext.getEnd(), blockPos, voxelShape, blockState);
+    
+            // Return early if blockHitResult is non-null to save calculations
+            if (blockHitResult != null) {
+                return blockHitResult;
+            }
+    
+            // Check against an empty voxel shape as fallback
+            VoxelShape voxelShape2 = VoxelShapes.empty();
+            BlockHitResult blockHitResult2 = voxelShape2.raycast(raycastContext.getStart(), raycastContext.getEnd(), blockPos);
+    
+            return blockHitResult2 != null ? blockHitResult2 : BlockHitResult.createMissed(
+                raycastContext.getEnd(),
+                Direction.getFacing(raycastContext.getStart().subtract(raycastContext.getEnd())),
+                BlockPos.ofFloored(raycastContext.getEnd())
+            );
+        }, (raycastContext) -> {
+            Vec3d vec3d = raycastContext.getStart().subtract(raycastContext.getEnd());
+            return BlockHitResult.createMissed(raycastContext.getEnd(), Direction.getFacing(vec3d.x, vec3d.y, vec3d.z), BlockPos.ofFloored(raycastContext.getEnd()));
+        });
+    }    
+
+    private static BlockHitResult raycast(RaycastContext context, BlockPos ignore) {
+        return BlockView.raycast(context.getStart(), context.getEnd(), context, (raycastContext, blockPos) -> {
+            BlockState blockState;
+            if (blockPos.equals(ignore)) blockState = Blocks.AIR.getDefaultState();
+            else {
+                blockState = mc.world.getBlockState(blockPos);
+            }
+
+            Vec3d vec3d = raycastContext.getStart();
+            Vec3d vec3d2 = raycastContext.getEnd();
+
+            VoxelShape voxelShape = raycastContext.getBlockShape(blockState, mc.world, blockPos);
+            BlockHitResult blockHitResult = mc.world.raycastBlock(vec3d, vec3d2, blockPos, voxelShape, blockState);
+            VoxelShape voxelShape2 = VoxelShapes.empty();
+            BlockHitResult blockHitResult2 = voxelShape2.raycast(vec3d, vec3d2, blockPos);
+
+            double d = blockHitResult == null ? Double.MAX_VALUE : raycastContext.getStart().squaredDistanceTo(blockHitResult.getPos());
+            double e = blockHitResult2 == null ? Double.MAX_VALUE : raycastContext.getStart().squaredDistanceTo(blockHitResult2.getPos());
+
+            return d <= e ? blockHitResult : blockHitResult2;
+        }, (raycastContext) -> {
+            Vec3d vec3d = raycastContext.getStart().subtract(raycastContext.getEnd());
+            return BlockHitResult.createMissed(raycastContext.getEnd(), Direction.getFacing(vec3d.x, vec3d.y, vec3d.z), BlockPos.ofFloored(raycastContext.getEnd()));
+        });
+    }
+
+    private static double getDamageForDifficulty(double damage) {
+        return switch (mc.world.getDifficulty()) {
+            case EASY -> Math.min(damage / 2 + 1, damage);
+            case HARD, PEACEFUL -> damage * 3 / 2;
+            default -> damage;
+        };
+    }
+
+    private static double normalProtReduction(LivingEntity player, double damage) {
+        int protLevel = 10;
+        if (protLevel > 20) protLevel = 20;
+
+        damage *= 1 - (protLevel / 25.0);
+        return damage < 0 ? 0 : damage;
+    }
+
+    private static double blastProtReduction(LivingEntity player, double damage, Explosion explosion) {
+        int protLevel = 10;
+        if (protLevel > 20) protLevel = 20;
+
+        damage *= (1 - (protLevel / 25.0));
+        return damage < 0 ? 0 : damage;
+    }
+
+    private static double resistanceReduction(LivingEntity player, double damage) {
+        if (player.hasStatusEffect(StatusEffects.RESISTANCE)) {
+            int lvl = (player.getStatusEffect(StatusEffects.RESISTANCE).getAmplifier() + 1);
+            damage *= (1 - (lvl * 0.2));
+        }
+
+        return damage < 0 ? 0 : damage;
     }
 
     // Sword damage

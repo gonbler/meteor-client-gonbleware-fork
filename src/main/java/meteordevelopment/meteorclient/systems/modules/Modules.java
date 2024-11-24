@@ -430,6 +430,9 @@ public class Modules extends System<Modules> {
         add(new SelfTrap());
         add(new SelfWeb());
         add(new Surround());
+
+        add(new AutoCrystal());
+        add(new AutoMine());
     }
 
     private void initPlayer() {

@@ -27,6 +27,7 @@ import meteordevelopment.meteorclient.utils.misc.Version;
 import meteordevelopment.meteorclient.utils.misc.input.KeyAction;
 import meteordevelopment.meteorclient.utils.misc.input.KeyBinds;
 import meteordevelopment.meteorclient.utils.network.OnlinePlayers;
+import meteordevelopment.meteorclient.utils.player.RotationManager;
 import meteordevelopment.orbit.EventBus;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
@@ -57,6 +58,8 @@ public class MeteorClient implements ClientModInitializer {
     public static final IEventBus EVENT_BUS = new EventBus();
     public static final File FOLDER = FabricLoader.getInstance().getGameDir().resolve(MOD_ID).toFile();
     public static final Logger LOG;
+
+    public static RotationManager ROTATION;
 
     static {
         MOD_META = FabricLoader.getInstance().getModContainer(MOD_ID).orElseThrow().getMetadata();
@@ -138,6 +141,8 @@ public class MeteorClient implements ClientModInitializer {
             Systems.save();
             GuiThemes.save();
         }));
+
+        ROTATION = new RotationManager();
     }
 
     @EventHandler
