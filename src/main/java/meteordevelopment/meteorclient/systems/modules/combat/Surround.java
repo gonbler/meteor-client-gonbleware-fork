@@ -9,7 +9,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Predicate;
+import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
+import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.ColorSetting;
@@ -123,9 +125,20 @@ public class Surround extends Module {
 
     private List<BlockPos> placePoses = new ArrayList<>();
 
+    private Vec3d snapPos = null;
+
     public Surround() {
         super(Categories.Combat, "surround",
                 "Surrounds you in blocks to prevent massive crystal damage.");
+    }
+
+    @EventHandler
+    private void onTick(TickEvent.Pre event) {
+        if (snapPos != null) {
+            MeteorClient.ROTATION.snapAt(snapPos, true);
+
+            snapPos = null;
+        }
     }
 
     // Render
@@ -227,15 +240,19 @@ public class Surround extends Module {
                 Box box = new Box(placePos.getX() - 1, placePos.getY() - 1, placePos.getZ() - 1,
                         placePos.getX() + 1, placePos.getY() + 1, placePos.getZ() + 1);
 
-                Predicate<Entity> entityPredicate = entity -> entity instanceof EndCrystalEntity
-                        && DamageUtils.crystalDamage(mc.player, entity.getPos()) < PlayerUtils
-                                .getTotalHealth();
+                Predicate<Entity> entityPredicate = entity -> entity instanceof EndCrystalEntity;
 
                 for (Entity crystal : mc.world.getOtherEntities(null, box, entityPredicate)) {
-                    if (autoCrystal.breakCrystal(crystal)) {
+                    MeteorClient.ROTATION.snapAt(crystal.getPos(), true);
+
+                    if (autoCrystal.breakCrystal(crystal, true)) {
                         crystal.discard();
                     }
                 }
+            }
+
+            if (!BlockUtils.canPlace(placePos, true)) {
+                continue;
             }
 
             FindItemResult result = InvUtils.findInHotbar(Items.OBSIDIAN);
@@ -263,11 +280,24 @@ public class Surround extends Module {
             return false;
         }
 
-        if (grimBypass.get()) {
+        Direction dir = null;
+        for (Direction test : Direction.values()) {
+            Direction placeOnDir = AutoCrystal.getPlaceOnDirection(blockPos.offset(test));
+            if (placeOnDir != null && blockPos.offset(test).offset(placeOnDir).equals(blockPos)) {
+                dir = placeOnDir;
+                break;
+            }
+        }
+
+        Hand hand = Hand.MAIN_HAND;
+
+        if (dir == null && grimBypass.get()) {
             mc.getNetworkHandler()
                     .sendPacket(new PlayerActionC2SPacket(
                             PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
                             new BlockPos(0, 0, 0), Direction.DOWN));
+
+            hand = Hand.OFF_HAND;
         }
 
         /*
@@ -281,11 +311,10 @@ public class Surround extends Module {
                 && eyes.z > blockPos.getZ() && eyes.z < blockPos.getZ() + 1;
         int s = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
 
-        mc.getNetworkHandler().sendPacket(new PlayerInteractBlockC2SPacket(
-                grimBypass.get() ? Hand.OFF_HAND : Hand.MAIN_HAND,
-                new BlockHitResult(blockPos.toCenterPos(), Direction.DOWN, blockPos, inside), s));
+        mc.getNetworkHandler().sendPacket(new PlayerInteractBlockC2SPacket(hand, new BlockHitResult(
+                blockPos.toCenterPos(), dir == null ? Direction.DOWN : dir, blockPos, inside), s));
 
-        if (grimBypass.get()) {
+        if (dir == null && grimBypass.get()) {
             mc.getNetworkHandler()
                     .sendPacket(new PlayerActionC2SPacket(
                             PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,

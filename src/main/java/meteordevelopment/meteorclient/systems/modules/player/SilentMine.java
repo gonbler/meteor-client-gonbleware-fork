@@ -64,14 +64,14 @@ public class SilentMine extends Module {
     private FastRebreakBlock singleBreakBlock = null;
 
     private final long initTime = System.nanoTime();
-    private long currentGameTickCalculated = 0;
+    private double currentGameTickCalculated = 0;
 
     public SilentMine() {
         super(Categories.Player, "silent-mine",
                 "Allows you to mine blocks without holding a pickaxe");
 
-        currentGameTickCalculated = (System.nanoTime() - initTime)
-                / (java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50L));
+        currentGameTickCalculated = (double)(System.nanoTime() - initTime)
+                / (double)(java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50L));
     }
 
     @Override
@@ -85,8 +85,8 @@ public class SilentMine extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        currentGameTickCalculated = (System.nanoTime() - initTime)
-                / (java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50L));
+        currentGameTickCalculated = (double)(System.nanoTime() - initTime)
+                / (double)(java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50L));
 
         if (rebreakBlock != null) {
             if (mc.world.getBlockState(rebreakBlock.blockPos).isAir()) {
@@ -191,6 +191,17 @@ public class SilentMine extends Module {
             singleBreakBlock = new FastRebreakBlock(event, currentGameTickCalculated);
 
             singleBreakBlock.startBreaking();
+
+            if (rebreakBlock != null) {
+                rebreakBlock.cancelBreaking();
+
+                StartBreakingBlockEvent newEvent = new StartBreakingBlockEvent();
+                newEvent.blockPos = rebreakBlock.blockPos;
+                newEvent.direction = rebreakBlock.breakDreiction;
+
+                rebreakBlock = new FastRebreakBlock(newEvent, currentGameTickCalculated);
+                rebreakBlock.startBreaking();
+            }
         }
 
         if ((rebreakBlock != null && event.blockPos.equals(rebreakBlock.blockPos))
@@ -299,11 +310,11 @@ public class SilentMine extends Module {
 
         public boolean beenAir = false;
 
-        private long destroyProgressStart = 0;
+        private double destroyProgressStart = 0;
 
         private double previousProgress = 0.0;
 
-        public FastRebreakBlock(StartBreakingBlockEvent event, long currentTick) {
+        public FastRebreakBlock(StartBreakingBlockEvent event, double currentTick) {
             blockPos = event.blockPos;
 
             breakDreiction = event.direction;
@@ -311,7 +322,7 @@ public class SilentMine extends Module {
             destroyProgressStart = currentTick;
         }
 
-        public boolean isReady(long currentTick, boolean isRebreak) {
+        public boolean isReady(double currentTick, boolean isRebreak) {
             double threshold = isRebreak ? 0.7 : 1.0;
 
             return getBreakProgress(currentTick) >= threshold || timesBroken > 0;
@@ -373,7 +384,7 @@ public class SilentMine extends Module {
                     PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
         }
 
-        public double getBreakProgress(long currentTick) {
+        public double getBreakProgress(double currentTick) {
             BlockState state = mc.world.getBlockState(blockPos);
 
             FindItemResult slot = InvUtils.findFastestTool(mc.world.getBlockState(blockPos));
@@ -385,7 +396,7 @@ public class SilentMine extends Module {
                     * (double) (currentTick - destroyProgressStart), 1.0);
         }
 
-        public void render(Render3DEvent event, long currentTick, boolean isPrimary) {
+        public void render(Render3DEvent event, double currentTick, boolean isPrimary) {
             VoxelShape shape = mc.world.getBlockState(blockPos).getOutlineShape(mc.world, blockPos);
             if (shape == null || shape.isEmpty()) {
                 event.renderer.box(blockPos, sideColor.get(), lineColor.get(), shapeMode.get(), 0);

@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
+import baritone.api.utils.RotationUtils;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
@@ -43,6 +44,7 @@ import meteordevelopment.meteorclient.utils.misc.Pool;
 import meteordevelopment.meteorclient.utils.misc.text.MeteorClickEvent;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
+import meteordevelopment.meteorclient.utils.player.RotationManager;
 import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.meteorclient.utils.player.Timer;
 import meteordevelopment.meteorclient.utils.render.color.Color;
@@ -188,6 +190,7 @@ public class AutoCrystal extends Module {
     private final List<PlacePosition> _placePositions = new ArrayList<>();
 
     private final IntSet explodedCrystals = new IntOpenHashSet();
+    private final Map<Integer, Long> crystalBreakDelays = new HashMap<>();
 
     private Entity explodeEntity = null;
 
@@ -208,6 +211,7 @@ public class AutoCrystal extends Module {
     @Override
     public void onActivate() {
         explodedCrystals.clear();
+        crystalBreakDelays.clear();
     }
 
 
@@ -252,6 +256,10 @@ public class AutoCrystal extends Module {
                 }
 
                 if (Friends.get().isFriend(player)) {
+                    continue;
+                }
+
+                if (player.isDead()) {
                     continue;
                 }
 
@@ -310,6 +318,8 @@ public class AutoCrystal extends Module {
             if (!isExplodeEntity && rotateBreak.get()) {
                 rotatePos = null;
             }
+
+            crystalBreakDelays.clear();
         }
     }
 
@@ -362,11 +372,15 @@ public class AutoCrystal extends Module {
     }
 
     public boolean breakCrystal(Entity entity) {
+        return breakCrystal(entity, false);
+    }
+
+    public boolean breakCrystal(Entity entity, boolean overrideRotate) {
         if (mc.player == null) {
             return false;
         }
 
-        if (rotateBreak.get()) {
+        if (!overrideRotate && rotateBreak.get()) {
             MeteorClient.ROTATION.lookAt(entity.getPos());
 
             rotatePos = entity.getPos();
@@ -375,6 +389,14 @@ public class AutoCrystal extends Module {
                 return false;
             }
         }
+
+        if (crystalBreakDelays.containsKey(entity.getId())) {
+            if (System.currentTimeMillis() - crystalBreakDelays.get(entity.getId()) < 16) {
+                return false;
+            }
+        }
+
+        crystalBreakDelays.put(entity.getId(), System.currentTimeMillis());
 
         PlayerInteractEntityC2SPacket packet =
                 PlayerInteractEntityC2SPacket.attack(entity, mc.player.isSneaking());
@@ -503,6 +525,10 @@ public class AutoCrystal extends Module {
                 continue;
             }
 
+            if (player.isDead()) {
+                continue;
+            }
+
             if (Friends.get().isFriend(player)) {
                 continue;
             }
@@ -534,7 +560,8 @@ public class AutoCrystal extends Module {
     @EventHandler()
     public void onRotate(LookAtEvent event) {
         if (rotatePos != null) {
-            event.setTarget(rotatePos, 180f, 10f);
+            float[] grr = MeteorClient.ROTATION.getRotation(rotatePos);
+            event.setRotation(grr[0], grr[1], 180f, 10f);
         }
     }
 
@@ -661,17 +688,21 @@ public class AutoCrystal extends Module {
         return found.get();
     }
 
-    public Direction getPlaceOnDirection(BlockPos pos) {
+    public static Direction getPlaceOnDirection(BlockPos pos) {
         if (pos == null) {
             return null;
         }
         Direction best = null;
-        if (mc.world != null && mc.player != null) {
+        if (MeteorClient.mc.world != null && MeteorClient.mc.player != null) {
             double cDist = -1;
             for (Direction dir : Direction.values()) {
 
                 // Strict dir check (checks if face isnt on opposite side of the block to player)
-                if (!getStrictDirection(pos, dir)) {
+                /*
+                 * if (!getStrictDirection(pos, dir)) { continue; }
+                 */
+
+                if (MeteorClient.mc.world.getBlockState(pos.offset(dir)).isAir()) {
                     continue;
                 }
 
@@ -686,25 +717,25 @@ public class AutoCrystal extends Module {
         return best;
     }
 
-    public boolean getStrictDirection(BlockPos pos, Direction dir) {
+    public static boolean getStrictDirection(BlockPos pos, Direction dir) {
         return switch (dir) {
-            case DOWN -> mc.player.getEyePos().y <= pos.getY() + 0.5;
-            case UP -> mc.player.getEyePos().y >= pos.getY() + 0.5;
-            case NORTH -> mc.player.getZ() < pos.getZ();
-            case SOUTH -> mc.player.getZ() >= pos.getZ() + 1;
-            case WEST -> mc.player.getX() < pos.getX();
-            case EAST -> mc.player.getX() >= pos.getX() + 1;
+            case DOWN -> MeteorClient.mc.player.getEyePos().y <= pos.getY() + 0.5;
+            case UP -> MeteorClient.mc.player.getEyePos().y >= pos.getY() + 0.5;
+            case NORTH -> MeteorClient.mc.player.getZ() < pos.getZ();
+            case SOUTH -> MeteorClient.mc.player.getZ() >= pos.getZ() + 1;
+            case WEST -> MeteorClient.mc.player.getX() < pos.getX();
+            case EAST -> MeteorClient.mc.player.getX() >= pos.getX() + 1;
         };
     }
 
-    private double directionDir(BlockPos pos, Direction dir) {
-        if (mc.player == null) {
+    private static double directionDir(BlockPos pos, Direction dir) {
+        if (MeteorClient.mc.player == null) {
             return 0;
         }
 
         Vec3d vec = new Vec3d(pos.getX() + dir.getOffsetX() / 2f,
                 pos.getY() + dir.getOffsetY() / 2f, pos.getZ() + dir.getOffsetZ() / 2f);
-        Vec3d dist = mc.player.getEyePos().add(-vec.x, -vec.y, -vec.z);
+        Vec3d dist = MeteorClient.mc.player.getEyePos().add(-vec.x, -vec.y, -vec.z);
 
         return Math.sqrt(dist.x * dist.x + dist.y * dist.y + dist.z * dist.z);
     }

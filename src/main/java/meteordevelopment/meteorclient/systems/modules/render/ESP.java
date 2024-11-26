@@ -23,6 +23,7 @@ import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
@@ -92,6 +93,15 @@ public class ESP extends Module {
     private final Setting<Double> fadeDistance = sgGeneral.add(new DoubleSetting.Builder()
         .name("fade-distance")
         .description("The distance from an entity where the color begins to fade.")
+        .defaultValue(3)
+        .min(0)
+        .sliderMax(12)
+        .build()
+    );
+
+    private final Setting<Double> endCrystalFadeDistance = sgGeneral.add(new DoubleSetting.Builder()
+        .name("end-crystal-fade-distance")
+        .description("The distance from an end crystal where the color begins to fade.")
         .defaultValue(3)
         .min(0)
         .sliderMax(12)
@@ -203,8 +213,33 @@ public class ESP extends Module {
     private void drawBoundingBox(Render3DEvent event, Entity entity) {
         Color color = getColor(entity);
         if (color != null) {
+            double alpha = 1.0;
+
+            if (entity instanceof EndCrystalEntity) {
+                double fadeDist = endCrystalFadeDistance.get() * endCrystalFadeDistance.get();
+                double distance = PlayerUtils.squaredDistanceToCamera(entity);
+
+                if (distance <= fadeDist / 2) {
+                    alpha = 1.0;
+                } else if (distance >= fadeDist * 2) {
+                    alpha = 0.0;
+                } else {
+                    alpha = 1.0 - (distance - fadeDist / 2) / (fadeDist * 1.5);
+                }
+
+                if (alpha <= 0.075) {
+                    alpha = 0.0;
+                } else {
+                    alpha += 0.1;
+                }
+
+                if (alpha > 1.0) {
+                    alpha = 1.0;
+                }
+            }
+
             lineColor.set(color);
-            sideColor.set(color).a((int) (sideColor.a * fillOpacity.get()));
+            sideColor.set(color).a((int) (sideColor.a * fillOpacity.get() * alpha * alpha));
         }
 
         if (mode.get() == Mode.Box) {

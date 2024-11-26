@@ -9,10 +9,12 @@ import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.IntSetting;
+import meteordevelopment.meteorclient.settings.KeybindSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.misc.Keybind;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.orbit.EventHandler;
@@ -31,34 +33,36 @@ import net.minecraft.util.math.Vec3d;
 
 public class PearlPhase extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
-    private final SettingGroup sgRender = settings.createGroup("Render");
 
     private final Setting<SwitchMode> switchMode =
             sgGeneral.add(new EnumSetting.Builder<SwitchMode>().name("Switch Mode")
                     .description("Which method of switching should be used.")
                     .defaultValue(SwitchMode.Silent).build());
-    private final Setting<Integer> pitch = sgGeneral
-            .add(new IntSetting.Builder().name("Pitch").description("How deep down to look.")
-                    .defaultValue(85).range(-90, 90).sliderRange(0, 90).build());
 
-    private final Setting<Boolean> instaRot =
-            sgGeneral.add(new BoolSetting.Builder().name("Instant Rotation")
-                    .description("Instantly rotates.").defaultValue(false).build());
-    private final Setting<Double> pitchVelocityScaling = sgGeneral.add(new DoubleSetting.Builder()
-            .name("Pitch velo scaling").description("How to scale pitch with your velocity")
-            .defaultValue(0).range(-5, 5).sliderRange(-5, 5).build());
+    private final Setting<Keybind> phaseBind = sgGeneral.add(new KeybindSetting.Builder()
+            .name("key-bind").description("Phase on keybind press").build());
 
-    private final double[] diagonalAngles = {45, 135, 225, 315};
+    private final Setting<Boolean> instaRot = sgGeneral.add(new BoolSetting.Builder()
+            .name("Instant Rotation").description("Instantly snaps to the target rotation.")
+            .defaultValue(false).build());
+
+    private final Setting<Double> movementPredictionFactor =
+            sgGeneral.add(new DoubleSetting.Builder().name("movement-prediction-factor")
+                    .description("How far to predict your movement ahead").defaultValue(0)
+                    .range(-5, 5).sliderRange(-5, 5).build());
 
     private boolean needRotation = false;
-    private float rotYaw = 0;
-    private float rotPitch = 0;
+    private boolean active = false;
+    private boolean keyUnpressed = false;
+    private boolean rotationSet = false;
 
     public PearlPhase() {
         super(Categories.Combat, "pearl-phase", "Phases into walls using pearls");
     }
 
-    public void onActivate() {
+    private void activate() {
+        active = true;
+
         if (mc.player == null || mc.world == null)
             return;
 
@@ -75,64 +79,51 @@ public class PearlPhase extends Module {
             Block block = mc.world.getBlockState(pos).getBlock();
 
             if (block.equals(Blocks.OBSIDIAN) || block.equals(Blocks.BEDROCK)) {
-                toggle();
+                deactivate(false);
                 return;
             }
         }
 
-
         if (switch (switchMode.get()) {
             case Silent -> !InvUtils.findInHotbar(Items.ENDER_PEARL).found();
         }) {
-            toggle();
+            deactivate(false);
             return;
         }
 
         if (mc.options.sneakKey.isPressed()) {
-            toggle();
+            deactivate(false);
             return;
         }
 
-        // Get base pitch from configuration
-        double basePitch = pitch.get();
-        double throwYaw = getYaw();
-
-        // Calculate the direction vector for the throw
-        double throwDirectionX = -Math.sin(Math.toRadians(throwYaw));
-        double throwDirectionZ = Math.cos(Math.toRadians(throwYaw));
-
-        // Player's velocity vector
-        Vec3d playerVelocity = mc.player.getVelocity();
-        double velocityX = playerVelocity.x;
-        double velocityZ = playerVelocity.z;
-
-        // Normalize velocity vector for dot product calculation
-        double velocityMagnitude = Math.sqrt(velocityX * velocityX + velocityZ * velocityZ);
-        if (velocityMagnitude > 0) { // Avoid division by zero
-            velocityX /= velocityMagnitude;
-            velocityZ /= velocityMagnitude;
-        }
-
-        double dotProduct = (velocityX * throwDirectionX) + (velocityZ * throwDirectionZ);
-
-        double phasePitch = basePitch + dotProduct * pitchVelocityScaling.get();
-
+        MeteorClient.ROTATION.snapAt(calculateTargetPos(), true);
         needRotation = true;
-
-        rotYaw = (float)throwYaw;
-        rotPitch = (float)phasePitch;
-
-        MeteorClient.ROTATION.snapAt(rotYaw, rotPitch, true);
     }
 
-    @EventHandler
-    private void onTick(TickEvent.Pre event) {
-        if (needRotation) {
-            MeteorClient.ROTATION.snapAt(rotYaw, rotPitch, true);
+    private void deactivate(boolean phased) {
+        active = false;
+
+        if (phased) {
+            info("[PearlPhase] Phased");
+        } else {
+            needRotation = false;
         }
     }
 
     private void update() {
+        if (!phaseBind.get().isPressed()) {
+            keyUnpressed = true;
+        }
+
+        if (phaseBind.get().isPressed() && keyUnpressed) {
+            activate();
+            keyUnpressed = false;
+        }
+
+        if (!active) {
+            return;
+        }
+
         Box boundingBox = mc.player.getBoundingBox().shrink(0.05, 0.1, 0.05);
         double feetY = mc.player.getY();
 
@@ -146,7 +137,7 @@ public class PearlPhase extends Module {
             Block block = mc.world.getBlockState(pos).getBlock();
 
             if (block.equals(Blocks.OBSIDIAN) || block.equals(Blocks.BEDROCK)) {
-                toggle();
+                deactivate(false);
                 return;
             }
         }
@@ -155,48 +146,25 @@ public class PearlPhase extends Module {
         if (switch (switchMode.get()) {
             case Silent -> !InvUtils.findInHotbar(Items.ENDER_PEARL).found();
         }) {
-            toggle();
+            deactivate(false);
             return;
         }
 
         if (mc.options.sneakKey.isPressed()) {
-            toggle();
+            deactivate(false);
             return;
         }
 
-        // Get base pitch from configuration
-        double basePitch = pitch.get();
-        double throwYaw = getYaw();
+        needRotation = true;
 
-        // Calculate the direction vector for the throw
-        double throwDirectionX = -Math.sin(Math.toRadians(throwYaw));
-        double throwDirectionZ = Math.cos(Math.toRadians(throwYaw));
-
-        // Player's velocity vector
-        Vec3d playerVelocity = mc.player.getVelocity();
-        double velocityX = playerVelocity.x;
-        double velocityZ = playerVelocity.z;
-
-        // Normalize velocity vector for dot product calculation
-        double velocityMagnitude = Math.sqrt(velocityX * velocityX + velocityZ * velocityZ);
-        if (velocityMagnitude > 0) { // Avoid division by zero
-            velocityX /= velocityMagnitude;
-            velocityZ /= velocityMagnitude;
-        }
-
-        double dotProduct = (velocityX * throwDirectionX) + (velocityZ * throwDirectionZ);
-
-        double phasePitch = basePitch + dotProduct * pitchVelocityScaling.get();
-
-        rotYaw = (float)throwYaw;
-        rotPitch = (float)phasePitch;
-
-        if (MeteorClient.ROTATION.inFov((float)throwYaw, (float)phasePitch, 3f)) {
-            throwPearl(throwYaw, phasePitch);
+        float[] dir = MeteorClient.ROTATION.getRotation(calculateTargetPos());
+        if (rotationSet) {
+            throwPearl(dir[0], dir[1]);
+            rotationSet = false;
         }
     }
 
-    private void throwPearl(double throwYaw, double phasePitch) {
+    private void throwPearl(float yaw, float pitch) {
         switch (switchMode.get()) {
             case Silent -> {
                 InvUtils.swap(InvUtils.findInHotbar(Items.ENDER_PEARL).slot(), true);
@@ -205,12 +173,10 @@ public class PearlPhase extends Module {
 
         int sequence = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
 
-        mc.getNetworkHandler().sendPacket(new PlayerInteractItemC2SPacket(Hand.MAIN_HAND, sequence,
-                (float) throwYaw, (float) phasePitch));
+        mc.getNetworkHandler()
+                .sendPacket(new PlayerInteractItemC2SPacket(Hand.MAIN_HAND, sequence, mc.player.getYaw(), mc.player.getPitch()));
 
-        needRotation = false;
-
-        toggle();
+        deactivate(true);
 
         switch (switchMode.get()) {
             case Silent -> InvUtils.swapBack();
@@ -219,80 +185,59 @@ public class PearlPhase extends Module {
 
     @EventHandler()
     public void onRotate(LookAtEvent event) {
-        if (!isActive()) {
-            return;
-        }
-
         if (needRotation) {
-            event.setRotation(rotYaw, rotPitch, 180, 20);
+            float[] dir = MeteorClient.ROTATION.getRotation(calculateTargetPos());
+            event.setRotation(dir[0], dir[1], 180, 20);
+            rotationSet = true;
+
+            if (!active) {
+                needRotation = false;
+            }
         }
     }
-
 
     @EventHandler(priority = EventPriority.HIGHEST)
     private void onRender(Render3DEvent event) {
         update();
     }
 
-    private double getYaw() {
-        if (mc.player == null)
-            return 0;
+    private Vec3d calculateTargetPos() {
+        final double X_OFFSET = Math.PI / 13;
+        final double Z_OFFSET = Math.PI / 4;
 
-        // Player's current yaw
-        float playerYaw = mc.player.getYaw();
+        // Get the player's current velocity
+        Vec3d velocity = mc.player.getVelocity();
 
-        // Movement inputs
-        boolean forward = mc.options.forwardKey.isPressed();
-        boolean backward = mc.options.backKey.isPressed();
-        boolean left = mc.options.leftKey.isPressed();
-        boolean right = mc.options.rightKey.isPressed();
+        // Predict future player position
+        double predictedX = mc.player.getX() + velocity.x * movementPredictionFactor.get();
+        double predictedZ = mc.player.getZ() + velocity.z * movementPredictionFactor.get();
 
-        // Determine movement direction
-        double moveYaw = playerYaw; // Default to forward
-        if (forward && left) {
-            moveYaw -= 45; // Forward-left
-        } else if (forward && right) {
-            moveYaw += 45; // Forward-right
-        } else if (backward && left) {
-            moveYaw -= 135; // Backward-left
-        } else if (backward && right) {
-            moveYaw += 135; // Backward-right
-        } else if (forward) {
-            moveYaw = playerYaw; // Forward
-        } else if (backward) {
-            moveYaw += 180; // Backward
-        } else if (left) {
-            moveYaw -= 90; // Left
-        } else if (right) {
-            moveYaw += 90; // Right
-        }
+        // Calculate target Y position
+        double y = mc.player.getY() - 0.5;
 
-        // Normalize yaw to 0-360 degrees
-        moveYaw = (moveYaw + 360) % 360;
+        // Calculate target X position
+        double x = predictedX
+                + MathHelper.clamp(toClosest(predictedX, Math.floor(predictedX) + X_OFFSET,
+                        Math.floor(predictedX) + Z_OFFSET) - predictedX, -0.2, 0.2);
 
-        moveYaw = getClosestAngle(moveYaw, diagonalAngles);
+        // Calculate target Z position
+        double z = predictedZ
+                + MathHelper.clamp(toClosest(predictedZ, Math.floor(predictedZ) + X_OFFSET,
+                        Math.floor(predictedZ) + Z_OFFSET) - predictedZ, -0.2, 0.2);
 
-        // Target position to phase to
-        double targetX = mc.player.getX() - Math.sin(Math.toRadians(moveYaw));
-        double targetZ = mc.player.getZ() + Math.cos(Math.toRadians(moveYaw));
-        Vec3d targetPos =
-                new Vec3d(Math.floor(targetX) + 0.5, mc.player.getY(), Math.floor(targetZ) + 0.5);
-
-        return Rotations.getYaw(targetPos);
+        return new Vec3d(x, y, z);
     }
 
-    // Utility to find the closest angle in a set
-    private double getClosestAngle(double angle, double[] angles) {
-        double closest = angles[0];
-        double minDiff = Math.abs(angle - closest);
-        for (double candidate : angles) {
-            double diff = Math.abs(angle - candidate);
-            if (diff < minDiff) {
-                closest = candidate;
-                minDiff = diff;
-            }
+
+    private double toClosest(double num, double min, double max) {
+        double dmin = num - min;
+        double dmax = max - num;
+
+        if (dmax > dmin) {
+            return min;
+        } else {
+            return max;
         }
-        return closest;
     }
 
     public enum SwitchMode {

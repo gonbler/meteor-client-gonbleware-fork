@@ -20,7 +20,11 @@ import meteordevelopment.meteorclient.systems.modules.player.Portals;
 =======
 import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.player.RotationManager;
+<<<<<<< HEAD
 >>>>>>> 238aa8572 (AutoCrystal/AutoMine/Surround PVP update)
+=======
+>>>>>>> 1.21.1
+>>>>>>> 4f33bc581 (AC, Phase, Surround, FakeFly, NoRotate, Mine, ESP)
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.input.Input;
@@ -34,7 +38,11 @@ import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import org.spongepowered.asm.mixin.Final;
+<<<<<<< HEAD
 >>>>>>> 238aa8572 (AutoCrystal/AutoMine/Surround PVP update)
+=======
+>>>>>>> 1.21.1
+>>>>>>> 4f33bc581 (AC, Phase, Surround, FakeFly, NoRotate, Mine, ESP)
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;

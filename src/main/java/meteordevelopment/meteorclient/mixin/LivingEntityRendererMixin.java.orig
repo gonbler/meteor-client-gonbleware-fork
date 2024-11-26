@@ -19,7 +19,11 @@ import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.meteorclient.utils.player.RotationManager;
 import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.meteorclient.utils.render.color.Color;
+<<<<<<< HEAD
 >>>>>>> 238aa8572 (AutoCrystal/AutoMine/Surround PVP update)
+=======
+>>>>>>> 1.21.1
+>>>>>>> 4f33bc581 (AC, Phase, Surround, FakeFly, NoRotate, Mine, ESP)
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
@@ -40,7 +44,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.*;
+<<<<<<< HEAD
 >>>>>>> 238aa8572 (AutoCrystal/AutoMine/Surround PVP update)
+=======
+>>>>>>> 1.21.1
+>>>>>>> 4f33bc581 (AC, Phase, Surround, FakeFly, NoRotate, Mine, ESP)
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import static meteordevelopment.meteorclient.MeteorClient.mc;
@@ -78,7 +86,11 @@ public abstract class LivingEntityRendererMixin<T extends LivingEntity, S extend
         return oldValue;
     }
 
+<<<<<<< HEAD
 >>>>>>> 238aa8572 (AutoCrystal/AutoMine/Surround PVP update)
+=======
+>>>>>>> 1.21.1
+>>>>>>> 4f33bc581 (AC, Phase, Surround, FakeFly, NoRotate, Mine, ESP)
     // Player model rendering in main menu
 
     @ModifyExpressionValue(method = "hasLabel(Lnet/minecraft/entity/LivingEntity;D)Z", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/network/ClientPlayerEntity;getScoreboardTeam()Lnet/minecraft/scoreboard/Team;"))
@@ -237,5 +249,9 @@ public abstract class LivingEntityRendererMixin<T extends LivingEntity, S extend
             livingEntity.prevPitch = originalPitch;
         }
     }
+<<<<<<< HEAD
 >>>>>>> 238aa8572 (AutoCrystal/AutoMine/Surround PVP update)
+=======
+>>>>>>> 1.21.1
+>>>>>>> 4f33bc581 (AC, Phase, Surround, FakeFly, NoRotate, Mine, ESP)
 }

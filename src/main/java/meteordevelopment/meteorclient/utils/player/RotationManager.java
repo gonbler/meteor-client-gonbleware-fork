@@ -36,17 +36,40 @@ public class RotationManager {
     public static Vec3d directionVec = null;
     public static boolean lastGround;
 
+    private boolean sentRotationPacketThisMove = false;
+
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (!ROTATE_TIMER.passed(50)) {
-            SendMovementPacketsEvent.Packet packet =
-                    new SendMovementPacketsEvent.Packet(new PlayerMoveC2SPacket.LookAndOnGround(
-                            mc.player.getYaw(), mc.player.getPitch(), mc.player.isOnGround()));
-            onMovementPacket(packet);
+        /*
+         * if (!ROTATE_TIMER.passed(50)) { SendMovementPacketsEvent.Packet packet = new
+         * SendMovementPacketsEvent.Packet(new PlayerMoveC2SPacket.LookAndOnGround(
+         * mc.player.getYaw(), mc.player.getPitch(), mc.player.isOnGround()));
+         * onMovementPacket(packet);
+         * 
+         * if (packet.packet != null) { mc.getNetworkHandler().sendPacket(packet.packet); } }
+         */
+    }
 
-            if (packet.packet != null) {
-                mc.getNetworkHandler().sendPacket(packet.packet);
+    @EventHandler(priority = EventPriority.HIGHEST)
+    private void onMovePre(SendMovementPacketsEvent.Pre event) {
+        sentRotationPacketThisMove = false;
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    private void onMovePost(SendMovementPacketsEvent.Post event) {
+        if (!sentRotationPacketThisMove) {
+            RotateEvent event1 = new RotateEvent(mc.player.getYaw(), mc.player.getPitch());
+            MeteorClient.EVENT_BUS.post(event1);
+
+            if (!event1.isModified()) {
+                return;
             }
+
+            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(
+                    event1.getYaw(), event1.getPitch(), mc.player.isOnGround()));
+
+            rotationYaw = event1.getYaw();
+            rotationPitch = event1.getPitch();
         }
     }
 
@@ -134,6 +157,8 @@ public class RotationManager {
             return;
         }
 
+        sentRotationPacketThisMove = true;
+
         if (event.packet.changesLook()) {
             if (event.packet instanceof PlayerMoveC2SPacket.Full) {
                 event.packet = new PlayerMoveC2SPacket.Full(event.packet.getX(0),
@@ -145,9 +170,9 @@ public class RotationManager {
             }
         } else {
             if (event.packet instanceof PlayerMoveC2SPacket.PositionAndOnGround) {
-                event.packet = new PlayerMoveC2SPacket.Full(mc.player.getX(), mc.player.getY(),
-                        mc.player.getZ(), event1.getYaw(), event1.getPitch(),
-                        event.packet.isOnGround());
+                event.packet = new PlayerMoveC2SPacket.Full(event.packet.getX(0),
+                        event.packet.getY(0), event.packet.getZ(0), event1.getYaw(),
+                        event1.getPitch(), event.packet.isOnGround());
             } else {
                 event.packet = new PlayerMoveC2SPacket.LookAndOnGround(event1.getYaw(),
                         event1.getPitch(), event.packet.isOnGround());

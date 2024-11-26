@@ -10,6 +10,8 @@ import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.player.ChestSwap;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
@@ -60,6 +62,7 @@ public class ElytraFakeFly extends Module {
     private int moreElytraTicks = 0;
 
     private Vec3d currentVelocity = Vec3d.ZERO;
+    private InventorySlotSwap slotSwap = null;
 
     public ElytraFakeFly() {
         super(Categories.Movement, "elytra-fakefly",
@@ -79,21 +82,20 @@ public class ElytraFakeFly extends Module {
 
     @Override
     public void onDeactivate() {
-        equipChestplate();
+        equipChestplate(slotSwap);
     }
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (mc.player.isOnGround()) {
-            mc.player.jump();
-            mc.player.setOnGround(false);
-            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(false));
-
-            equipElytra();
-
-            mc.player.networkHandler.sendPacket(new ClientCommandC2SPacket(mc.player,
-                    ClientCommandC2SPacket.Mode.START_FALL_FLYING));
-        }
+        /*
+         * if (mc.player.isOnGround()) { mc.player.jump(); mc.player.setOnGround(false);
+         * mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(false));
+         * 
+         * equipElytra();
+         * 
+         * mc.player.networkHandler.sendPacket(new ClientCommandC2SPacket(mc.player,
+         * ClientCommandC2SPacket.Mode.START_FALL_FLYING)); }
+         */
 
         if (needsFirework && moreElytraTicks <= 2) {
             if (currentVelocity.length() > 0) {
@@ -101,8 +103,6 @@ public class ElytraFakeFly extends Module {
                 needsFirework = false;
             }
         }
-
-
 
         Vec3d desiredVelocity = new Vec3d(0, 0, 0);
 
@@ -151,7 +151,7 @@ public class ElytraFakeFly extends Module {
         }
         currentVelocity = currentVelocity.add(velocityDifference);
 
-        equipElytra();
+        slotSwap = equipElytra();
 
         Box boundingBox = mc.player.getBoundingBox();
 
@@ -215,7 +215,8 @@ public class ElytraFakeFly extends Module {
 
         if (mode.get() == Mode.Chestplate) {
             if (moreElytraTicks <= 0) {
-                equipChestplate();
+                equipChestplate(slotSwap);
+                slotSwap = null;
             }
         }
 
@@ -258,12 +259,12 @@ public class ElytraFakeFly extends Module {
         return isActive();
     }
 
-    private boolean equipChestplate() {
+    private void equipChestplate(InventorySlotSwap slotSwap) {
         if (mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem()
                 .equals(Items.DIAMOND_CHESTPLATE)
                 || mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem()
                         .equals(Items.NETHERITE_CHESTPLATE)) {
-            return false;
+            return;
         }
 
         FindItemResult result = InvUtils.findInHotbar(Items.NETHERITE_CHESTPLATE);
@@ -274,35 +275,28 @@ public class ElytraFakeFly extends Module {
         if (result.found()) {
             mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, 6, result.slot(),
                     SlotActionType.SWAP, mc.player);
-            return true;
-        }
 
-        int bestSlot = -1;
-        boolean breakLoop = false;
-
-        for (int i = 0; i < mc.player.getInventory().main.size(); i++) {
-            Item item = mc.player.getInventory().main.get(i).getItem();
-
-            if (item == Items.DIAMOND_CHESTPLATE) {
-                bestSlot = i;
-            } else if (item == Items.NETHERITE_CHESTPLATE) {
-                bestSlot = i;
-                breakLoop = true;
+            if (slotSwap != null) {
+                mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                        slotSwap.hotbarSlot, slotSwap.inventorySlot, SlotActionType.SWAP,
+                        mc.player);
             }
-
-            if (breakLoop)
-                break;
+            return;
         }
 
-        if (bestSlot != -1)
-            equip(bestSlot);
+        result = InvUtils.find(Items.NETHERITE_CHESTPLATE);
+        if (!result.found()) {
+            result = InvUtils.find(Items.DIAMOND_CHESTPLATE);
+        }
 
-        return bestSlot != -1;
+        if (result.found()) {
+            InvUtils.move().from(result.slot()).toArmor(2);
+        }
     }
 
-    private void equipElytra() {
+    private InventorySlotSwap equipElytra() {
         if (mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem().equals(Items.ELYTRA)) {
-            return;
+            return null;
         }
 
         FindItemResult result = InvUtils.findInHotbar(Items.ELYTRA);
@@ -310,21 +304,36 @@ public class ElytraFakeFly extends Module {
         if (result.found()) {
             mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, 6, result.slot(),
                     SlotActionType.SWAP, mc.player);
-            return;
+            return null;
         }
 
-        for (int i = 0; i < mc.player.getInventory().main.size(); i++) {
-            Item item = mc.player.getInventory().main.get(i).getItem();
+        result = InvUtils.find(Items.ELYTRA);
 
-            if (item == Items.ELYTRA) {
-                equip(i);
-                break;
+        if (!result.found()) {
+            return null;
+        }
+
+        FindItemResult hotbarSlot = InvUtils.findInHotbar(x -> {
+            if (x.getItem() == Items.TOTEM_OF_UNDYING) {
+                return false;
             }
-        }
-    }
+            return true;
+        });
 
-    private void equip(int slot) {
-        InvUtils.move().from(slot).toArmor(2);
+        // Move elytra to hotbarSlot
+        mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                hotbarSlot.found() ? hotbarSlot.slot() : 0, result.slot(), SlotActionType.SWAP,
+                mc.player);
+
+        // Equip elytra
+        mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, 6,
+                hotbarSlot.found() ? hotbarSlot.slot() : 0, SlotActionType.SWAP, mc.player);
+
+        InventorySlotSwap slotSwap = new InventorySlotSwap();
+        slotSwap.hotbarSlot = hotbarSlot.found() ? hotbarSlot.slot() : 0;
+        slotSwap.inventorySlot = result.slot();
+
+        return slotSwap;
     }
 
     private void useFirework() {
@@ -357,6 +366,11 @@ public class ElytraFakeFly extends Module {
 
             InvUtils.swapBack();
         }
+    }
+
+    private class InventorySlotSwap {
+        public int hotbarSlot;
+        public int inventorySlot;
     }
 
     public enum Mode {
