@@ -9,6 +9,7 @@ import it.unimi.dsi.fastutil.objects.Reference2ReferenceOpenHashMap;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.game.GameLeftEvent;
 import meteordevelopment.meteorclient.systems.accounts.Accounts;
+import meteordevelopment.meteorclient.systems.config.AntiCheatConfig;
 import meteordevelopment.meteorclient.systems.config.Config;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.hud.Hud;
@@ -50,6 +51,7 @@ public class Systems {
         add(new Profiles());
         add(new Proxies());
         add(new Hud());
+        add(new AntiCheatConfig());
 
         MeteorClient.EVENT_BUS.subscribe(Systems.class);
     }

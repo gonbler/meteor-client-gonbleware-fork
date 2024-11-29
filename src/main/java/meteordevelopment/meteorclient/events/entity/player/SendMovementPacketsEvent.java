@@ -16,11 +16,13 @@ public class SendMovementPacketsEvent {
         }
     }
 
-    public static class Packet {
-        public PlayerMoveC2SPacket packet;
+    public static class Rotation {
+        public float yaw;
+        public float pitch;
 
-        public Packet(PlayerMoveC2SPacket packet) {
-            this.packet = packet;
+        public Rotation(float yaw, float pitch) {
+            this.yaw = yaw;
+            this.pitch = pitch;
         }
     }
 

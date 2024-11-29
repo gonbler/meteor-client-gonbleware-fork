@@ -26,6 +26,7 @@ import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
+import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
@@ -60,6 +61,11 @@ public class SilentMine extends Module {
             .defaultValue(new SettingColor(225, 0, 0, 255))
             .visible(() -> renderBlock.get() && shapeMode.get().lines()).build());
 
+    private final Setting<Boolean> debugRenderPrimary =
+            sgRender.add(new BoolSetting.Builder().name("debug-render-primary")
+                    .description("Render the primary block differently for debugging.")
+                    .defaultValue(true).build());
+
     private FastRebreakBlock rebreakBlock = null;
     private FastRebreakBlock singleBreakBlock = null;
 
@@ -70,8 +76,8 @@ public class SilentMine extends Module {
         super(Categories.Player, "silent-mine",
                 "Allows you to mine blocks without holding a pickaxe");
 
-        currentGameTickCalculated = (double)(System.nanoTime() - initTime)
-                / (double)(java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50L));
+        currentGameTickCalculated = (double) (System.nanoTime() - initTime)
+                / (double) (java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50L));
     }
 
     @Override
@@ -85,8 +91,8 @@ public class SilentMine extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        currentGameTickCalculated = (double)(System.nanoTime() - initTime)
-                / (double)(java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50L));
+        currentGameTickCalculated = (double) (System.nanoTime() - initTime)
+                / (double) (java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50L));
 
         if (rebreakBlock != null) {
             if (mc.world.getBlockState(rebreakBlock.blockPos).isAir()) {
@@ -126,7 +132,8 @@ public class SilentMine extends Module {
                 FindItemResult slot = InvUtils.findFastestTool(blockState);
 
                 if (singleBreakBlock.isReady(currentGameTickCalculated, false)
-                        && !mc.player.isUsingItem()) {
+                        && !(mc.player.isUsingItem()
+                                && mc.player.getActiveHand() == Hand.MAIN_HAND)) {
                     if (autoSwitch.get() && slot.found()
                             && mc.player.getInventory().selectedSlot != slot.slot()
                             && swapBackTimeout <= 0) {
@@ -150,7 +157,8 @@ public class SilentMine extends Module {
                 FindItemResult slot = InvUtils.findFastestTool(blockState);
 
                 if (rebreakBlock.isReady(currentGameTickCalculated, true)
-                        && !mc.player.isUsingItem()) {
+                        && !(mc.player.isUsingItem()
+                                && mc.player.getActiveHand() == Hand.MAIN_HAND)) {
                     if (autoSwitch.get() && slot.found()
                             && mc.player.getInventory().selectedSlot != slot.slot()
                             && !needSwapBack) {
@@ -165,7 +173,7 @@ public class SilentMine extends Module {
         }
 
 
-        if (swapBackTimeout >= 0) {
+        if (mc.player.isOnGround() && swapBackTimeout >= 0) {
             swapBackTimeout--;
         }
 
@@ -188,13 +196,11 @@ public class SilentMine extends Module {
         }
 
         if (singleBreakBlock == null) {
-            singleBreakBlock = new FastRebreakBlock(event, currentGameTickCalculated);
+            singleBreakBlock = new FastRebreakBlock(event, currentGameTickCalculated - 0.1);
 
             singleBreakBlock.startBreaking();
 
             if (rebreakBlock != null) {
-                rebreakBlock.cancelBreaking();
-
                 StartBreakingBlockEvent newEvent = new StartBreakingBlockEvent();
                 newEvent.blockPos = rebreakBlock.blockPos;
                 newEvent.direction = rebreakBlock.breakDreiction;
@@ -220,6 +226,26 @@ public class SilentMine extends Module {
 
             rebreakBlock.startBreaking();
         }
+    }
+
+    public void silentBreakBlock(BlockPos pos) {
+        silentBreakBlock(pos, Direction.UP);
+    }
+
+    public void silentBreakBlock(BlockPos pos, Direction direction) {
+        if (!isActive()) {
+            return;
+        }
+
+        if (pos == null) {
+            return;
+        }
+
+        StartBreakingBlockEvent breakEvent = new StartBreakingBlockEvent();
+        breakEvent.blockPos = pos;
+        breakEvent.direction = direction;
+
+        onStartBreakingBlock(breakEvent);
     }
 
     public boolean miningSingleBreakBlock() {
@@ -428,7 +454,7 @@ public class SilentMine extends Module {
 
             Color color = sideColor.get();
 
-            if (isPrimary) {
+            if (debugRenderPrimary.get() && isPrimary) {
                 color = Color.ORANGE.a(40);
             }
 

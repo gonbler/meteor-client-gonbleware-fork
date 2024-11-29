@@ -91,7 +91,11 @@ public class Offhand extends Module {
         .build()
     );
 
+<<<<<<< HEAD
     //Totem
+=======
+    // Totem
+>>>>>>> 6415f99e1 (AC,Phase,SilentMine,MovementFix,Rotations,AntiCheat,Enemies)
 
     private final Setting<Double> minHealth = sgTotem.add(new DoubleSetting.Builder()
         .name("min-health")

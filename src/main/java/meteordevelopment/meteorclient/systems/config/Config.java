@@ -94,6 +94,13 @@ public class Config extends System<Config> {
         .build()
     );
 
+    public final Setting<SettingColor> enemyColor = sgVisual.add(new ColorSetting.Builder()
+        .name("enemy-color")
+        .description("The color used to show enemy.")
+        .defaultValue(new SettingColor(240, 10, 10))
+        .build()
+    );
+
     // Chat
 
     public final Setting<String> prefix = sgChat.add(new StringSetting.Builder()

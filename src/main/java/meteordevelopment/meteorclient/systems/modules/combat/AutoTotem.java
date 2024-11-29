@@ -6,6 +6,7 @@
 package meteordevelopment.meteorclient.systems.modules.combat;
 
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
+import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
@@ -91,7 +92,7 @@ public class AutoTotem extends Module {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
-    private void onTick(TickEvent.Pre event) {
+    private void onRender(Render3DEvent event) {
         if (mode.get() == Mode.None) {
             return;
         }

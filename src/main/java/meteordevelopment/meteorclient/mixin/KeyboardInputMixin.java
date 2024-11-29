@@ -5,6 +5,8 @@
 
 package meteordevelopment.meteorclient.mixin;
 
+import meteordevelopment.meteorclient.MeteorClient;
+import meteordevelopment.meteorclient.events.input.KeyboardInputEvent;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.movement.Sneak;
 import net.minecraft.client.input.Input;
@@ -28,5 +30,12 @@ public abstract class KeyboardInputMixin extends Input {
             true,
             playerInput.sprint()
         );
+    }
+
+    @Inject(method = "tick", at = @At(value = "FIELD", target = "Lnet/minecraft/client/input/KeyboardInput;sneaking:Z", shift = At.Shift.AFTER), cancellable = true)
+    private void onSneak(boolean slowDown, float slowDownFactor, CallbackInfo ci) {
+        KeyboardInputEvent event = new KeyboardInputEvent();
+        MeteorClient.EVENT_BUS.post(event);
+        if (event.isCancelled()) ci.cancel();
     }
 }

@@ -433,6 +433,8 @@ public class Modules extends System<Modules> {
 
         add(new AutoCrystal());
         add(new AutoMine());
+        add(new ForceSwim());
+        add(new SwordAura());
     }
 
     private void initPlayer() {
@@ -503,7 +505,9 @@ public class Modules extends System<Modules> {
         add(new Step());
         add(new TridentBoost());
         add(new Velocity());
+
         add(new ElytraFakeFly());
+        add(new MovementFix());
     }
 
     private void initRender() {

@@ -6,12 +6,12 @@
 package meteordevelopment.meteorclient.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
+import meteordevelopment.meteorclient.systems.managers.RotationManager;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.render.Chams;
 import meteordevelopment.meteorclient.systems.modules.render.Freecam;
 import meteordevelopment.meteorclient.systems.modules.render.NoRender;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
-import meteordevelopment.meteorclient.utils.player.RotationManager;
 import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import net.minecraft.client.render.RenderLayer;

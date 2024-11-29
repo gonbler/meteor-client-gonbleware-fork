@@ -12,6 +12,7 @@ import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.LivingEntityMoveEvent;
 import meteordevelopment.meteorclient.events.entity.player.JumpVelocityMultiplierEvent;
 import meteordevelopment.meteorclient.events.entity.player.PlayerMoveEvent;
+import meteordevelopment.meteorclient.events.entity.player.UpdatePlayerVelocity;
 import meteordevelopment.meteorclient.mixininterface.ICamera;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.combat.Hitboxes;
@@ -25,6 +26,7 @@ import meteordevelopment.meteorclient.systems.modules.world.HighwayBuilder;
 import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.entity.fakeplayer.FakePlayerEntity;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
+import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.postprocess.PostProcessShaders;
 import net.minecraft.block.Block;
@@ -238,4 +240,16 @@ public abstract class EntityMixin {
             ci.cancel();
         }
     }
+
+    @Inject(method = "updateVelocity", at = {@At("HEAD")}, cancellable = true)
+	public void updateVelocityHook(float speed, Vec3d movementInput, CallbackInfo ci) {
+		if ((Object) this == mc.player) {
+			UpdatePlayerVelocity event = new UpdatePlayerVelocity(movementInput, speed, mc.player.getYaw(), PlayerUtils.movementInputToVelocity(movementInput, speed, mc.player.getYaw()));
+			MeteorClient.EVENT_BUS.post(event);
+			if (event.isCancelled()) {
+				ci.cancel();
+				mc.player.setVelocity(mc.player.getVelocity().add(event.getVelocity()));
+			}
+		}
+	}
 }

@@ -360,9 +360,15 @@ public class ESP extends Module {
 
     public Color getEntityTypeColor(Entity entity) {
         if (distance.get()) {
-            if (friendOverride.get() && entity instanceof PlayerEntity && Friends.get().isFriend((PlayerEntity) entity)) {
-                return Config.get().friendColor.get();
-            } else return EntityUtils.getColorFromDistance(entity);
+            if (friendOverride.get()) {
+                if (Friends.get().isFriend((PlayerEntity) entity)) {
+                    return Config.get().friendColor.get();
+                } if (Friends.get().isEnemy((PlayerEntity) entity)) {
+                    return Config.get().enemyColor.get();
+                }
+            }
+             
+            return EntityUtils.getColorFromDistance(entity);
         } else if (entity instanceof PlayerEntity) {
             return PlayerUtils.getPlayerColor(((PlayerEntity) entity), playersColor.get());
         } else {

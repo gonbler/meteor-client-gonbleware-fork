@@ -31,6 +31,7 @@ public class RotateEvent {
     public boolean isModified() {
         return modified;
     }
+    
     public void setRotation(final float yaw, final float pitch) {
         this.setYaw(yaw);
         this.setPitch(pitch);

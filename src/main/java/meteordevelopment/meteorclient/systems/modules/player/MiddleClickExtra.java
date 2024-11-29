@@ -16,6 +16,7 @@ import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.friends.Friend;
 import meteordevelopment.meteorclient.systems.friends.Friends;
+import meteordevelopment.meteorclient.systems.friends.Friend.FriendType;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.misc.input.KeyAction;
@@ -97,7 +98,7 @@ public class MiddleClickExtra extends Module {
             if (!(mc.targetedEntity instanceof PlayerEntity player)) return;
 
             if (!Friends.get().isFriend(player)) {
-                Friends.get().add(new Friend(player));
+                Friends.get().add(new Friend(player, FriendType.Friend));
                 info("Added %s to friends", player.getName().getString());
                 if (message.get()) ChatUtils.sendPlayerMsg("/msg " + player.getName() + " I just friended you on Meteor.");
             } else {

@@ -1,14 +1,11 @@
 package meteordevelopment.meteorclient.systems.modules.combat;
 
-import org.jetbrains.annotations.NotNull;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.player.LookAtEvent;
+import meteordevelopment.meteorclient.events.entity.player.RotateEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
-import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
-import meteordevelopment.meteorclient.settings.IntSetting;
 import meteordevelopment.meteorclient.settings.KeybindSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
@@ -16,15 +13,12 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.misc.Keybind;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
-import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
-import net.minecraft.item.BlockItem;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractItemC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
@@ -42,10 +36,6 @@ public class PearlPhase extends Module {
     private final Setting<Keybind> phaseBind = sgGeneral.add(new KeybindSetting.Builder()
             .name("key-bind").description("Phase on keybind press").build());
 
-    private final Setting<Boolean> instaRot = sgGeneral.add(new BoolSetting.Builder()
-            .name("Instant Rotation").description("Instantly snaps to the target rotation.")
-            .defaultValue(false).build());
-
     private final Setting<Double> movementPredictionFactor =
             sgGeneral.add(new DoubleSetting.Builder().name("movement-prediction-factor")
                     .description("How far to predict your movement ahead").defaultValue(0)
@@ -54,7 +44,8 @@ public class PearlPhase extends Module {
     private boolean needRotation = false;
     private boolean active = false;
     private boolean keyUnpressed = false;
-    private boolean rotationSet = false;
+
+    private int rotationSetTicks = 0;
 
     public PearlPhase() {
         super(Categories.Combat, "pearl-phase", "Phases into walls using pearls");
@@ -96,6 +87,7 @@ public class PearlPhase extends Module {
             return;
         }
 
+        rotationSetTicks = 0;
         MeteorClient.ROTATION.snapAt(calculateTargetPos(), true);
         needRotation = true;
     }
@@ -104,7 +96,7 @@ public class PearlPhase extends Module {
         active = false;
 
         if (phased) {
-            info("[PearlPhase] Phased");
+            info("Phased");
         } else {
             needRotation = false;
         }
@@ -158,9 +150,9 @@ public class PearlPhase extends Module {
         needRotation = true;
 
         float[] dir = MeteorClient.ROTATION.getRotation(calculateTargetPos());
-        if (rotationSet) {
+        if (rotationSetTicks > 1) {
             throwPearl(dir[0], dir[1]);
-            rotationSet = false;
+            rotationSetTicks = 0;
         }
     }
 
@@ -174,7 +166,7 @@ public class PearlPhase extends Module {
         int sequence = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
 
         mc.getNetworkHandler()
-                .sendPacket(new PlayerInteractItemC2SPacket(Hand.MAIN_HAND, sequence, mc.player.getYaw(), mc.player.getPitch()));
+                .sendPacket(new PlayerInteractItemC2SPacket(Hand.MAIN_HAND, sequence, yaw, pitch));
 
         deactivate(true);
 
@@ -186,9 +178,8 @@ public class PearlPhase extends Module {
     @EventHandler()
     public void onRotate(LookAtEvent event) {
         if (needRotation) {
-            float[] dir = MeteorClient.ROTATION.getRotation(calculateTargetPos());
-            event.setRotation(dir[0], dir[1], 180, 20);
-            rotationSet = true;
+            event.setTarget(calculateTargetPos(), 100f);
+            rotationSetTicks++;
 
             if (!active) {
                 needRotation = false;

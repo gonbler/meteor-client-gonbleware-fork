@@ -43,7 +43,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import de.florianmichael.viafabricplus.util.ItemUtil;
 
-public class AutoTrap extends Module {
+public class ForceSwim extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgRender = settings.createGroup("Render");
 
@@ -72,7 +72,6 @@ public class AutoTrap extends Module {
     private final Setting<Boolean> pauseEat = sgGeneral.add(new BoolSetting.Builder()
             .name("pause-eat").description("Pauses while eating.").defaultValue(true).build());
 
-
     // Render
 
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("render")
@@ -94,8 +93,9 @@ public class AutoTrap extends Module {
     private PlayerEntity target;
     private Map<BlockPos, Long> placeCooldowns = new HashMap<>();
 
-    public AutoTrap() {
-        super(Categories.Combat, "auto-trap", "Traps people in a box to prevent them from moving.");
+    public ForceSwim() {
+        super(Categories.Combat, "force-swim",
+                "Tries to prevent people from standing up while swiming");
     }
 
     @Override
@@ -109,22 +109,22 @@ public class AutoTrap extends Module {
     }
 
     @EventHandler
-    private void onTick(TickEvent.Pre event) {
+    private void onTick(TickEvent.Post event) {
         if (target == null || TargetUtils.isBadTarget(target, range.get())) {
             target = TargetUtils.getPlayerTarget(range.get(), priority.get());
             if (TargetUtils.isBadTarget(target, range.get()))
                 return;
         }
 
-        if (target == null) {
-            return;
-        }
-
-        if (!startPlace()) {
+        if (target == null || !target.isCrawling()) {
             return;
         }
 
         if (pauseEat.get() && mc.player.isUsingItem()) {
+            return;
+        }
+
+        if (!startPlace()) {
             return;
         }
 
@@ -161,7 +161,7 @@ public class AutoTrap extends Module {
     private List<BlockPos> getBlockPoses() {
         List<BlockPos> list = new ArrayList<>();
 
-        Box boundingBox = target.getBoundingBox().shrink(0.05, 0.1, 0.05);
+        Box boundingBox = target.getBoundingBox().expand(0.5, 0.0, 0.5);
         double feetY = target.getY();
 
         Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
@@ -172,17 +172,7 @@ public class AutoTrap extends Module {
                 (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
                 (int) Math.floor(feetBox.maxZ))) {
 
-            for (int y = -1; y < 3; y++) {
-                if (y < 2) {
-                    for (Direction dir : Direction.Type.HORIZONTAL) {
-                        BlockPos actualPos = pos.add(0, y, 0).offset(dir);
-
-                        list.add(actualPos);
-                    }
-                }
-
-                list.add(pos.add(0, y, 0));
-            }
+            list.add(pos.add(0, 1, 0));
         }
 
         return list;
@@ -197,18 +187,12 @@ public class AutoTrap extends Module {
             return;
         }
 
-        Box boundingBox = target.getBoundingBox().shrink(0.005, 0.1, 0.005);
-        double feetY = target.getY();
-
-        Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
-                feetY + 0.1, boundingBox.maxZ);
 
         int placed = 0;
 
         List<BlockPos> poses = getBlockPoses();
 
         for (BlockPos pos : poses) {
-
             boolean isCrystalBlock = false;
             for (Direction dir : Direction.Type.HORIZONTAL) {
                 if (pos.equals(target.getBlockPos().offset(dir))) {

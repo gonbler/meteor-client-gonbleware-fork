@@ -21,9 +21,9 @@ import meteordevelopment.meteorclient.utils.misc.NbtUtils;
 import meteordevelopment.meteorclient.utils.network.MeteorExecutor;
 import net.minecraft.client.gui.screen.Screen;
 
-public class FriendsTab extends Tab {
-    public FriendsTab() {
-        super("Friends");
+public class EnemiesTab extends Tab {
+    public EnemiesTab() {
+        super("Enemies");
     }
 
     @Override
@@ -57,7 +57,7 @@ public class FriendsTab extends Tab {
             WPlus add = list.add(theme.plus()).widget();
             add.action = () -> {
                 String name = nameW.get().trim();
-                Friend friend = new Friend(name, FriendType.Friend);
+                Friend friend = new Friend(name, FriendType.Enemy);
 
                 if (Friends.get().add(friend)) {
                     nameW.set("");
@@ -77,7 +77,7 @@ public class FriendsTab extends Tab {
             table.clear();
             if (Friends.get().isEmpty()) return;
 
-            Friends.get().friendStream().forEach(friend ->
+            Friends.get().enemyStream().forEach(friend ->
                 MeteorExecutor.execute(() -> {
                     if (friend.headTextureNeedsUpdate()) {
                         friend.updateInfo();
@@ -86,7 +86,7 @@ public class FriendsTab extends Tab {
                 })
             );
 
-            Friends.get().friendStream().forEach(friend -> {
+            Friends.get().enemyStream().forEach(friend -> {
                 table.add(theme.texture(32, 32, friend.getHead().needsRotate() ? 90 : 0, friend.getHead()));
                 table.add(theme.label(friend.getName()));
 
