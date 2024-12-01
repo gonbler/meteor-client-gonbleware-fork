@@ -5,6 +5,8 @@
 
 package meteordevelopment.meteorclient.systems.modules.movement;
 
+import java.util.HashSet;
+import java.util.Set;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
@@ -12,6 +14,7 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.world.Timer;
 import meteordevelopment.orbit.EventHandler;
+import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 
 public class NoSlow extends Module {

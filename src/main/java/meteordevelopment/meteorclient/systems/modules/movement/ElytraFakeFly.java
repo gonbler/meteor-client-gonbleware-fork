@@ -97,12 +97,8 @@ public class ElytraFakeFly extends Module {
          * ClientCommandC2SPacket.Mode.START_FALL_FLYING)); }
          */
 
-        if (needsFirework && moreElytraTicks <= 2) {
-            if (currentVelocity.length() > 0) {
-                useFirework();
-                needsFirework = false;
-            }
-        }
+
+        boolean isUsingFirework = getIsUsingFirework();
 
         Vec3d desiredVelocity = new Vec3d(0, 0, 0);
 
@@ -141,17 +137,28 @@ public class ElytraFakeFly extends Module {
             desiredVelocity = desiredVelocity.add(0, -verticalSpeed.get() / 20, 0);
         }
 
+        double actualAccelTime = accelTime.get();
+
+        boolean desiredVelocityReset = false;
+
+        if (!isUsingFirework) {
+            desiredVelocity = new Vec3d(0, 0, 0);
+
+            desiredVelocityReset = true;
+
+            actualAccelTime = 2.0;
+        }
+
         // Accelerate or decelerate toward desired velocity
         currentVelocity =
                 new Vec3d(mc.player.getVelocity().x, currentVelocity.y, mc.player.getVelocity().z);
         Vec3d velocityDifference = desiredVelocity.subtract(currentVelocity);
-        double maxDelta = (horizontalSpeed.get() / 20) / (accelTime.get() * 20);
+        double maxDelta = (horizontalSpeed.get() / 20) / (actualAccelTime * 20);
         if (velocityDifference.lengthSquared() > maxDelta * maxDelta) {
             velocityDifference = velocityDifference.normalize().multiply(maxDelta);
         }
         currentVelocity = currentVelocity.add(velocityDifference);
 
-        slotSwap = equipElytra();
 
         Box boundingBox = mc.player.getBoundingBox();
 
@@ -175,38 +182,31 @@ public class ElytraFakeFly extends Module {
             double distanceToBlock = playerFeetY - blockTopY;
 
             if (distanceToBlock >= 0 && distanceToBlock < 0.1) {
-                mc.player.jump();
-                mc.player.setOnGround(false);
-                mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(false));
                 if (currentVelocity.y < 0) {
                     currentVelocity = new Vec3d(currentVelocity.x, 0.1, currentVelocity.z);
                 }
             }
         }
-
-        boolean using = false;
-
-        for (Entity entity : mc.world.getEntities()) {
-            if (entity instanceof FireworkRocketEntity firework) {
-                if (firework.getOwner() != null && firework.getOwner().equals(mc.player)) {
-                    using = true;
-                }
-            }
-        }
-
+        
         if (fireworkTicksLeft < ((int) (fireworkDelay.get() * 20.0) - 3) && fireworkTicksLeft > 3
-                && !using) {
+                && !isUsingFirework) {
             fireworkTicksLeft = 0;
         }
+
+        slotSwap = equipElytra();
 
         mc.player.networkHandler.sendPacket(new ClientCommandC2SPacket(mc.player,
                 ClientCommandC2SPacket.Mode.START_FALL_FLYING));
 
         if (fireworkTicksLeft <= 0) {
-            if (currentVelocity.length() > 0) {
-                moreElytraTicks = 3;
-            }
             needsFirework = true;
+        }
+
+        if (needsFirework) {
+            if (currentVelocity.length() > 0 || desiredVelocityReset) {
+                useFirework();
+                needsFirework = false;
+            }
         }
 
         if (fireworkTicksLeft >= 0) {
@@ -214,14 +214,8 @@ public class ElytraFakeFly extends Module {
         }
 
         if (mode.get() == Mode.Chestplate) {
-            if (moreElytraTicks <= 0) {
-                equipChestplate(slotSwap);
-                slotSwap = null;
-            }
-        }
-
-        if (moreElytraTicks >= 0) {
-            moreElytraTicks--;
+            equipChestplate(slotSwap);
+            slotSwap = null;
         }
     }
 
@@ -255,11 +249,25 @@ public class ElytraFakeFly extends Module {
         }
     }
 
+    private boolean getIsUsingFirework() {
+        boolean usingFirework = false;
+
+        for (Entity entity : mc.world.getEntities()) {
+            if (entity instanceof FireworkRocketEntity firework) {
+                if (firework.getOwner() != null && firework.getOwner().equals(mc.player)) {
+                    usingFirework = true;
+                }
+            }
+        }
+
+        return usingFirework;
+    }
+
     public boolean isFlying() {
         return isActive();
     }
 
-    private void equipChestplate(InventorySlotSwap slotSwap) {
+    public void equipChestplate(InventorySlotSwap slotSwap) {
         if (mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem()
                 .equals(Items.DIAMOND_CHESTPLATE)
                 || mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem()
@@ -294,7 +302,7 @@ public class ElytraFakeFly extends Module {
         }
     }
 
-    private InventorySlotSwap equipElytra() {
+    public InventorySlotSwap equipElytra() {
         if (mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem().equals(Items.ELYTRA)) {
             return null;
         }

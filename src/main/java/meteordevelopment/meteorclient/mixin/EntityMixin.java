@@ -202,7 +202,12 @@ public abstract class EntityMixin {
     private EntityPose modifyGetPose(EntityPose original) {
         if ((Object) this != mc.player) return original;
 
+<<<<<<< HEAD
         if (original == EntityPose.GLIDING && Modules.get().get(ElytraFakeFly.class).isFlying()) {
+=======
+        ElytraFakeFly fakeFly = Modules.get().get(ElytraFakeFly.class);
+        if (original == EntityPose.FALL_FLYING && fakeFly.isFlying()) {
+>>>>>>> aabf81805 (Fix FakeFly, Add new GUI theme)
             return EntityPose.STANDING;
         }
 

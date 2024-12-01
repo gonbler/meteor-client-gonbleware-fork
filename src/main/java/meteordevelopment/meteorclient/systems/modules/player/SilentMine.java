@@ -5,7 +5,9 @@
 
 package meteordevelopment.meteorclient.systems.modules.player;
 
+import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.player.StartBreakingBlockEvent;
+import meteordevelopment.meteorclient.events.meteor.SilentMineFinishedEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
@@ -82,8 +84,7 @@ public class SilentMine extends Module {
 
     @Override
     public void onDeactivate() {
-        rebreakBlock = null;
-        singleBreakBlock = null;
+
     }
 
     int swapBackTimeout = 0;
@@ -97,6 +98,9 @@ public class SilentMine extends Module {
         if (rebreakBlock != null) {
             if (mc.world.getBlockState(rebreakBlock.blockPos).isAir()) {
                 rebreakBlock.beenAir = true;
+
+                MeteorClient.EVENT_BUS
+                        .post(new SilentMineFinishedEvent.Post(rebreakBlock.blockPos, true));
             }
 
             boolean outOfRange = Utils.distance(mc.player.getX() - 0.5,
@@ -111,11 +115,15 @@ public class SilentMine extends Module {
             }
         }
 
-        if (miningSingleBreakBlock() && mc.world.getBlockState(singleBreakBlock.blockPos).isAir()) {
+        if (isMiningSinglebreakBlock()
+                && mc.world.getBlockState(singleBreakBlock.blockPos).isAir()) {
+            MeteorClient.EVENT_BUS
+                    .post(new SilentMineFinishedEvent.Post(singleBreakBlock.blockPos, false));
+
             stopMiningSingleBreak(false);
         }
 
-        if (miningSingleBreakBlock() && singleBreakBlock.timesBroken > 5) {
+        if (isMiningSinglebreakBlock() && singleBreakBlock.timesBroken > 5) {
             stopMiningSingleBreak(true);
         }
 
@@ -125,18 +133,16 @@ public class SilentMine extends Module {
         }
 
         // Update our doublemine block
-        if (miningSingleBreakBlock()) {
+        if (isMiningSinglebreakBlock()) {
             BlockState blockState = mc.world.getBlockState(singleBreakBlock.blockPos);
 
             if (!blockState.isAir()) {
                 FindItemResult slot = InvUtils.findFastestTool(blockState);
 
                 if (singleBreakBlock.isReady(currentGameTickCalculated, false)
-                        && !(mc.player.isUsingItem()
-                                && mc.player.getActiveHand() == Hand.MAIN_HAND)) {
+                        && !mc.player.isUsingItem()) {
                     if (autoSwitch.get() && slot.found()
-                            && mc.player.getInventory().selectedSlot != slot.slot()
-                            && swapBackTimeout <= 0) {
+                            && mc.player.getInventory().selectedSlot != slot.slot()) {
                         InvUtils.swap(slot.slot(), true);
 
                         swapBackTimeout = 3;
@@ -144,6 +150,9 @@ public class SilentMine extends Module {
                         needSwapBack = true;
 
                         singleBreakBlock.timesBroken++;
+
+                        MeteorClient.EVENT_BUS.post(
+                                new SilentMineFinishedEvent.Pre(singleBreakBlock.blockPos, false));
                     }
                 }
             }
@@ -157,8 +166,7 @@ public class SilentMine extends Module {
                 FindItemResult slot = InvUtils.findFastestTool(blockState);
 
                 if (rebreakBlock.isReady(currentGameTickCalculated, true)
-                        && !(mc.player.isUsingItem()
-                                && mc.player.getActiveHand() == Hand.MAIN_HAND)) {
+                        && !mc.player.isUsingItem()) {
                     if (autoSwitch.get() && slot.found()
                             && mc.player.getInventory().selectedSlot != slot.slot()
                             && !needSwapBack) {
@@ -167,7 +175,11 @@ public class SilentMine extends Module {
                         needSwapBack = true;
                     }
 
+                    MeteorClient.EVENT_BUS
+                            .post(new SilentMineFinishedEvent.Pre(rebreakBlock.blockPos, true));
+
                     rebreakBlock.tryBreak();
+
                 }
             }
         }
@@ -248,14 +260,18 @@ public class SilentMine extends Module {
         onStartBreakingBlock(breakEvent);
     }
 
-    public boolean miningSingleBreakBlock() {
+    public boolean isMiningSinglebreakBlock() {
         return singleBreakBlock != null;
     }
 
+    public boolean isMiningRebreakBlock() {
+        return rebreakBlock != null && !rebreakBlock.beenAir;
+    }
+
     public void stopMiningSingleBreak(boolean sendAbort) {
-        if (miningSingleBreakBlock()) {
+        if (isMiningSinglebreakBlock()) {
             if (sendAbort) {
-                singleBreakBlock.cancelBreaking();
+                singleBreakBlock.cancelBreakingRestart();
             }
             singleBreakBlock = null;
         }
@@ -338,8 +354,6 @@ public class SilentMine extends Module {
 
         private double destroyProgressStart = 0;
 
-        private double previousProgress = 0.0;
-
         public FastRebreakBlock(StartBreakingBlockEvent event, double currentTick) {
             blockPos = event.blockPos;
 
@@ -349,22 +363,13 @@ public class SilentMine extends Module {
         }
 
         public boolean isReady(double currentTick, boolean isRebreak) {
-            double threshold = isRebreak ? 0.7 : 1.0;
+            double breakProgressSingleTick = getBreakProgress(destroyProgressStart + 1.0);
+            double threshold = isRebreak ? 0.7 : 1.0 - breakProgressSingleTick;
 
             return getBreakProgress(currentTick) >= threshold || timesBroken > 0;
         }
 
         public void startBreaking() {
-            FindItemResult slot = InvUtils.findFastestTool(mc.world.getBlockState(blockPos));
-
-            boolean needSwapBack = false;
-            if (autoSwitch.get() && !needSwapBack) {
-                if (slot.found() && mc.player.getInventory().selectedSlot != slot.slot()) {
-                    InvUtils.swap(slot.slot(), true);
-                    needSwapBack = true;
-                }
-            }
-
             int s1 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
             int s2 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
             int s3 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
@@ -387,10 +392,6 @@ public class SilentMine extends Module {
                     PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
 
             started = true;
-
-            if (needSwapBack) {
-                InvUtils.swapBack();
-            }
         }
 
         public void tryBreak() {
@@ -406,6 +407,18 @@ public class SilentMine extends Module {
         }
 
         public void cancelBreaking() {
+            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
+        }
+
+        public void cancelBreakingRestart() {
+            int s1 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
+
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, blockPos,
+                            breakDreiction, s1));
+
             mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                     PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
         }

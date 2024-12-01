@@ -136,9 +136,9 @@ public abstract class WWindow extends WVerticalList {
     }
 
     protected abstract class WHeader extends WContainer {
-        private final WWidget icon;
-        private WTriangle triangle;
-        private WHorizontalList list;
+        protected final WWidget icon;
+        protected WTriangle triangle;
+        protected WHorizontalList list;
 
         public WHeader(WWidget icon) {
             this.icon = icon;
@@ -162,7 +162,7 @@ public abstract class WWindow extends WVerticalList {
             triangle.action = () -> setExpanded(!expanded);
         }
 
-        private void createList() {
+        protected void createList() {
             list = add(theme.horizontalList()).expandX().widget();
             list.spacing = 0;
         }

@@ -27,17 +27,22 @@ public abstract class CobwebBlockMixin {
     private void onEntityCollision(BlockState state, World world, BlockPos pos, Entity entity,
             CallbackInfo info) {
         if (entity == mc.player) {
-            if (Modules.get().get(NoSlow.class).cobweb())
-                info.cancel();
+            NoSlow noSlow = Modules.get().get(NoSlow.class);
 
-            if (Modules.get().get(NoSlow.class).cobwebGrim()) {
+            if (noSlow.cobweb()) {
+                info.cancel();
+            }
+
+            if (noSlow.cobwebGrim()) {
                 info.cancel();
 
                 int s1 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
-                int s2 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
-                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, pos, Direction.UP, s1));
-                
-                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, pos, Direction.UP, s2));
+                //int s2 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
+                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                        PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, pos, Direction.UP));
+
+                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                        PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, pos, Direction.UP, s1));
             }
         }
     }

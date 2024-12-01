@@ -5,6 +5,7 @@
 
 package meteordevelopment.meteorclient.systems.modules.movement;
 
+import java.util.function.Predicate;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.mixin.PlayerMoveC2SPacketAccessor;
@@ -30,14 +31,13 @@ import net.minecraft.block.Blocks;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.Items;
+import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.RaycastContext;
-
-import java.util.function.Predicate;
 
 public class NoFall extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -182,6 +182,33 @@ public class NoFall extends Module {
                     useItem(InvUtils.findInHotbar(Items.BUCKET), false, targetPos.down(), true);
                 }
             }
+        } 
+
+
+        // Elytra swap
+        else if (mode.get() == Mode.Elytra) {
+            if (mc.player.fallDistance > 5) {
+                BlockHitResult result = mc.world.raycast(new RaycastContext(mc.player.getPos(), mc.player.getPos().subtract(0, 5, 0), RaycastContext.ShapeType.OUTLINE, RaycastContext.FluidHandling.NONE, mc.player));
+                
+                if (result != null && result.getType() == HitResult.Type.BLOCK) {
+                    ElytraFakeFly fakeFly = Modules.get().get(ElytraFakeFly.class);
+
+                    if (fakeFly.isFlying()) {
+                        return;
+                    }
+
+                    var s = fakeFly.equipElytra();
+
+                    mc.player.networkHandler.sendPacket(new ClientCommandC2SPacket(mc.player,
+                            ClientCommandC2SPacket.Mode.START_FALL_FLYING));
+                    mc.player.startFallFlying();
+
+                    mc.player.stopFallFlying();
+                    fakeFly.equipChestplate(s);
+
+                    mc.player.fallDistance /= 2;
+                }
+            }
         }
     }
 
@@ -217,7 +244,8 @@ public class NoFall extends Module {
     public enum Mode {
         Packet,
         AirPlace,
-        Place
+        Place,
+        Elytra
     }
 
     public enum PlacedItem {

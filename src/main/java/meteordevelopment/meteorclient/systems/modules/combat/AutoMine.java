@@ -4,9 +4,12 @@ package meteordevelopment.meteorclient.systems.modules.combat;
 import java.util.List;
 import java.util.stream.Collectors;
 import meteordevelopment.meteorclient.events.entity.player.StartBreakingBlockEvent;
+import meteordevelopment.meteorclient.events.meteor.SilentMineFinishedEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.settings.BoolSetting;
+import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
@@ -16,11 +19,14 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
 import meteordevelopment.meteorclient.utils.Utils;
+import meteordevelopment.meteorclient.utils.entity.SortPriority;
+import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.s2c.play.BlockBreakingProgressS2CPacket;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
@@ -29,15 +35,30 @@ import net.minecraft.util.math.Vec3d;
 public class AutoMine extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    private final Setting<AntiSwimType> antiSwim =
-            sgGeneral.add(new EnumSetting.Builder<AntiSwimType>().name("Anti-Swim")
+    private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder().name("range")
+            .description("Max range to target").defaultValue(6.0).min(0).sliderMax(7.0).build());
+
+    private final Setting<SortPriority> targetPriority =
+            sgGeneral.add(new EnumSetting.Builder<SortPriority>().name("target-priority")
+                    .description("How to choose the target").defaultValue(SortPriority.ClosestAngle)
+                    .build());
+
+    private final Setting<AntiSwimMode> antiSwim =
+            sgGeneral.add(new EnumSetting.Builder<AntiSwimMode>().name("anti-swim-mode")
                     .description(
                             "Starts mining your head block when the enemy starts mining your feet")
-                    .defaultValue(AntiSwimType.OnMine).build());
+                    .defaultValue(AntiSwimMode.OnMine).build());
+
+    private final Setting<AntiSurroundMode> antiSurroundMode =
+            sgGeneral.add(new EnumSetting.Builder<AntiSurroundMode>().name("anti-surround-mode")
+                    .description("Places crystals in places to prevent surround")
+                    .defaultValue(AntiSurroundMode.Auto).build());
+
+
 
     private SilentMine silentMine = null;
 
-    private AbstractClientPlayerEntity targetPlayer = null;
+    private PlayerEntity targetPlayer = null;
 
     private BlockPos target1 = null;
     private BlockPos target2 = null;
@@ -65,14 +86,51 @@ public class AutoMine extends Module {
     }
 
     @EventHandler
+    private void onSilentMineFinished(SilentMineFinishedEvent.Pre event) {
+        if (targetPlayer == null) {
+            return;
+        }
+
+        AntiSurroundMode mode = antiSurroundMode.get();
+
+        if (mode == AntiSurroundMode.None) {
+            return;
+        }
+
+        if (mode == AntiSurroundMode.Auto || mode == AntiSurroundMode.Outer) {
+            for (Direction dir : Direction.HORIZONTAL) {
+                BlockPos playerSurroundBlock = targetPlayer.getBlockPos().offset(dir);
+
+                for (Direction outerDir : Direction.HORIZONTAL) {
+                    BlockPos outerCrystalPos = playerSurroundBlock.offset(outerDir);
+
+                    Modules.get().get(AutoCrystal.class).preplaceCrystal(outerCrystalPos);
+
+                    mode = AntiSurroundMode.Outer;
+                }
+            }
+        }
+
+        if (mode == AntiSurroundMode.Auto || mode == AntiSurroundMode.Inner) {
+            for (Direction dir : Direction.HORIZONTAL) {
+                BlockPos playerSurroundBlock = targetPlayer.getBlockPos().offset(dir);
+
+                if (playerSurroundBlock.equals(event.getBlockPos())) {
+                    Modules.get().get(AutoCrystal.class).preplaceCrystal(playerSurroundBlock);
+                }
+            }
+        }
+    }
+
+    @EventHandler
     private void onPacket(PacketEvent.Receive event) {
         if (silentMine == null) {
             silentMine = (SilentMine) Modules.get().get(SilentMine.class);
         }
 
         if (event.packet instanceof BlockBreakingProgressS2CPacket packet) {
-            if (antiSwim.get() == AntiSwimType.OnMine
-                    || antiSwim.get() == AntiSwimType.OnMineAndSwim) {
+            if (antiSwim.get() == AntiSwimMode.OnMine
+                    || antiSwim.get() == AntiSwimMode.OnMineAndSwim) {
                 if (!mc.player.getBlockPos().equals(packet.getPos())) {
                     return;
                 }
@@ -100,10 +158,10 @@ public class AutoMine extends Module {
 
         boolean prioHead = false;
 
-        if (antiSwim.get() == AntiSwimType.Always) {
+        if (antiSwim.get() == AntiSwimMode.Always) {
             if (BlockUtils.canBreak(mc.player.getBlockPos().offset(Direction.UP), selfHeadBlock)
                     && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
-                    && (!silentMine.miningSingleBreakBlock()
+                    && (!silentMine.isMiningSinglebreakBlock()
                             || silentMine.getRebreakBlockPos() == null)) {
                 silentMine.silentBreakBlock(mc.player.getBlockPos().offset(Direction.UP));
 
@@ -111,10 +169,10 @@ public class AutoMine extends Module {
             }
         }
 
-        if (antiSwim.get() == AntiSwimType.OnMineAndSwim && mc.player.isCrawling()) {
+        if (antiSwim.get() == AntiSwimMode.OnMineAndSwim && mc.player.isCrawling()) {
             if (BlockUtils.canBreak(mc.player.getBlockPos().offset(Direction.UP), selfHeadBlock)
                     && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
-                    && (!silentMine.miningSingleBreakBlock()
+                    && (!silentMine.isMiningSinglebreakBlock()
                             || silentMine.getRebreakBlockPos() == null)) {
 
                 silentMine.silentBreakBlock(mc.player.getBlockPos().offset(Direction.UP));
@@ -123,19 +181,19 @@ public class AutoMine extends Module {
             }
         }
 
-        targetPlayer = findClosestTargetPlayer();
+        targetPlayer = TargetUtils.getPlayerTarget(range.get(), targetPriority.get());
 
         if (targetPlayer == null) {
             return;
         }
 
-        if (silentMine.miningSingleBreakBlock() && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
+        if (silentMine.isMiningSinglebreakBlock() && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
                 && selfFeetBlock.isAir() && silentMine.getRebreakBlockPos() == mc.player
                         .getBlockPos().offset(Direction.UP)) {
             return;
         }
 
-        if (!silentMine.miningSingleBreakBlock()) {
+        if (!prioHead && !silentMine.isMiningRebreakBlock()) {
             findTargetBlocks();
             silentMine.silentBreakBlock(target1);
             silentMine.silentBreakBlock(target2);
@@ -286,16 +344,6 @@ public class AutoMine extends Module {
 
         return 0;
     }
-
-    private AbstractClientPlayerEntity findClosestTargetPlayer() {
-        return mc.world
-                .getPlayers().stream().filter(player -> player != mc.player
-                        && !Friends.get().isFriend(player) && player.distanceTo(mc.player) < 12)
-                .sorted((p1, p2) -> {
-                    return Float.compare(mc.player.distanceTo(p1), mc.player.distanceTo(p2));
-                }).findFirst().orElse(null);
-    }
-
     @EventHandler
     private void onRender(Render3DEvent event) {
         if (mc.player == null || mc.world == null)
@@ -305,7 +353,11 @@ public class AutoMine extends Module {
         render(event);
     }
 
-    private enum AntiSwimType {
+    private enum AntiSwimMode {
         None, Always, OnMine, OnMineAndSwim
+    }
+
+    private enum AntiSurroundMode {
+        None, Inner, Outer, Auto
     }
 }

@@ -41,7 +41,7 @@ import meteordevelopment.meteorclient.utils.player.Timer;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
-import meteordevelopment.starscript.compiler.Expr.Bool;
+import net.caffeinemc.mods.lithium.common.util.Pos;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -108,12 +108,14 @@ public class AutoCrystal extends Module {
             new DoubleSetting.Builder().name("max-place").description("Max self damage to place.")
                     .defaultValue(15).min(0).sliderRange(0, 20).build());
 
+    // -- Face Place -- //
     private final Setting<Boolean> facePlaceMissingArmor =
-            sgPlace.add(new BoolSetting.Builder().name("face-place-missing-armor")
+            sgFacePlace.add(new BoolSetting.Builder().name("face-place-missing-armor")
                     .description("Face places on missing armor").defaultValue(true).build());
 
-    private final Setting<Keybind> forceFacePlaceKeybind = sgPlace.add(new KeybindSetting.Builder()
-            .name("force-face-place").description("Keybind to force face place").build());
+    private final Setting<Keybind> forceFacePlaceKeybind =
+            sgFacePlace.add(new KeybindSetting.Builder().name("force-face-place")
+                    .description("Keybind to force face place").build());
 
     // -- Break -- //
     private final Setting<Double> breakSpeedLimit =
@@ -170,23 +172,12 @@ public class AutoCrystal extends Module {
             .name("break-range").description("Maximum distance to break crystals for")
             .defaultValue(4.0).build());
 
-
-    // -- Auto-Mine compat -- //
-    private final Setting<Boolean> autoMinePreSpam = sgMine.add(new BoolSetting.Builder()
-            .name("auto-mine-pre-spam")
-            .description("Spams crystal place packets when auto-mine is about to break a block.")
-            .defaultValue(true).build());
-
-    private final Setting<Double> autoMineCompletionProgress =
-            sgMine.add(new DoubleSetting.Builder().name("auto-mine-completion")
-                    .description("Auto mine value to start spamming from").defaultValue(0.98)
-                    .build());
-
     private final Pool<PlacePosition> placePositionPool = new Pool<>(PlacePosition::new);
     private final List<PlacePosition> _placePositions = new ArrayList<>();
 
     private final IntSet explodedCrystals = new IntOpenHashSet();
     private final Map<Integer, Long> crystalBreakDelays = new HashMap<>();
+    private final Map<BlockPos, Long> crystalPlaceDelays = new HashMap<>();
 
     private long lastPlaceTimeMS = 0;
     private long lastBreakTimeMS = 0;
@@ -200,6 +191,9 @@ public class AutoCrystal extends Module {
 
     private AutoMine autoMine;
 
+    private int _packetsSentLastSecond;
+    private int _ticksSent = 0;
+
     public AutoCrystal() {
         super(Categories.Combat, "auto-crystal", "Automatically places and attacks crystals.");
     }
@@ -212,6 +206,9 @@ public class AutoCrystal extends Module {
 
         explodedCrystals.clear();
         crystalBreakDelays.clear();
+        crystalPlaceDelays.clear();
+        _ticksSent = 0;
+        _packetsSentLastSecond = 0;
     }
 
 
@@ -225,6 +222,14 @@ public class AutoCrystal extends Module {
         }
 
         isExplodeEntity = false;
+
+        _ticksSent = ++_ticksSent % 20;
+
+
+        if (_ticksSent % 20 == 0) {
+            info("" + _packetsSentLastSecond);
+            _packetsSentLastSecond = 0;
+        }
     }
 
     private void update(Render3DEvent event) {
@@ -240,8 +245,7 @@ public class AutoCrystal extends Module {
 
         _placePositions.clear();
 
-        if (pauseEat.get()
-                && (mc.player.isUsingItem() && mc.player.getActiveHand() == Hand.MAIN_HAND)) {
+        if (pauseEat.get() && mc.player.isUsingItem()) {
             return;
         }
 
@@ -287,12 +291,6 @@ public class AutoCrystal extends Module {
                     renderTimer.reset();
                 }
             }
-
-            if (autoMine.isActive() && autoMinePreSpam.get()) {
-                if (autoMine.getPrimaryBreakProgress() >= autoMineCompletionProgress.get()) {
-                    preplaceCrystal();
-                }
-            }
         }
 
         if (breakCrystals.get()) {
@@ -325,14 +323,12 @@ public class AutoCrystal extends Module {
                     lastBreakTimeMS = System.currentTimeMillis();
                 }
             }
+        }
 
-            boolean rotateBreakThisUpdate = isExplodeEntity && rotateBreak.get();
-            boolean rotatePlaceThisUpdate = bestPlacePos != null && rotateBreak.get();
-            if (!rotateBreakThisUpdate && !rotatePlaceThisUpdate) {
-                rotatePos = null;
-            }
-
-            // crystalBreakDelays.clear();
+        boolean rotateBreakThisUpdate = isExplodeEntity && rotateBreak.get();
+        boolean rotatePlaceThisUpdate = bestPlacePos != null && rotatePlace.get();
+        if (!rotateBreakThisUpdate && !rotatePlaceThisUpdate) {
+            rotatePos = null;
         }
     }
 
@@ -346,7 +342,8 @@ public class AutoCrystal extends Module {
         Box box = new Box(crystaBlockPos.getX(), crystaBlockPos.getY(), crystaBlockPos.getZ(),
                 crystaBlockPos.getX() + 1, crystaBlockPos.getY() + 2, crystaBlockPos.getZ() + 1);
 
-        if (intersectsWithEntity(box, entity -> !entity.isSpectator() && !explodedCrystals.contains(entity.getId()))) {
+        if (intersectsWithEntity(box,
+                entity -> !entity.isSpectator() && !explodedCrystals.contains(entity.getId()))) {
             return false;
         }
 
@@ -365,6 +362,14 @@ public class AutoCrystal extends Module {
                 return false;
             }
         }
+
+        if (crystalPlaceDelays.containsKey(pos)) {
+            if (System.currentTimeMillis() - crystalPlaceDelays.get(pos) < 50) {
+                return false;
+            }
+        }
+
+        crystalPlaceDelays.put(pos, System.currentTimeMillis());
 
         switch (switchMode.get()) {
             case Silent -> InvUtils.swap(result.slot(), true);
@@ -423,7 +428,7 @@ public class AutoCrystal extends Module {
         }
 
         if (crystalBreakDelays.containsKey(entity.getId())) {
-            if (System.currentTimeMillis() - crystalBreakDelays.get(entity.getId()) < 300) {
+            if (System.currentTimeMillis() - crystalBreakDelays.get(entity.getId()) < 50) {
                 return false;
             }
         }
@@ -434,6 +439,8 @@ public class AutoCrystal extends Module {
                 PlayerInteractEntityC2SPacket.attack(entity, mc.player.isSneaking());
 
         mc.getNetworkHandler().sendPacket(packet);
+
+        _packetsSentLastSecond++;
 
         if (breakSwingMode.get().client())
             mc.player.swingHand(Hand.MAIN_HAND);
@@ -532,7 +539,8 @@ public class AutoCrystal extends Module {
                         shouldFacePlace = true;
                     }
 
-                    if (targetDamage >= (shouldFacePlace ? 1.0 : minPlace.get()) && targetDamage > bestPos.damage) {
+                    if (targetDamage >= (shouldFacePlace ? 1.0 : minPlace.get())
+                            && targetDamage > bestPos.damage) {
                         bestPos.blockPos = pos;
                         bestPos.placeDirection = dir;
                         bestPos.damage = targetDamage;
@@ -552,13 +560,7 @@ public class AutoCrystal extends Module {
         }
     }
 
-    private void preplaceCrystal() {
-        BlockPos pos = autoMine.getPrimaryBreakBos();
-
-        if (pos == null) {
-            return;
-        }
-
+    public void preplaceCrystal(BlockPos pos) {
         BlockPos downPos = pos.down();
         BlockState downState = mc.world.getBlockState(downPos);
         Block downBlock = downState.getBlock();
@@ -614,13 +616,7 @@ public class AutoCrystal extends Module {
                         && target.getInventory().armor.get(3).isEmpty())
                     continue;
             }
-
-            double targetDamage = DamageUtils.newCrystalDamage(target, target.getBoundingBox(),
-                    new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5), pos);
-
-            if (targetDamage >= minPlace.get()) {
-                placeCrystal(downPos, dir);
-            }
+            placeCrystal(downPos, dir);
         }
     }
 

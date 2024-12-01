@@ -32,6 +32,7 @@ import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.item.ItemStack;
+import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Hand;
@@ -99,6 +100,7 @@ public abstract class LivingEntityMixin extends Entity {
             return true;
         }
 
+
         return original;
     }
 
@@ -113,7 +115,6 @@ public abstract class LivingEntityMixin extends Entity {
 
         if ((Object) this == mc.player && fakeFly.isFlying()) {
             cir.setReturnValue(false);
-            return;
         }
 
         if (previousElytra && !elytra && (elytraFly.isActive())
@@ -126,6 +127,36 @@ public abstract class LivingEntityMixin extends Entity {
                 cir.setReturnValue(Slide.recastElytra(mc.player));
         }
         previousElytra = elytra;
+    }
+
+    @ModifyExpressionValue(method = "travel", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/LivingEntity;isFallFlying()Z"))
+    private boolean overrideTravelIsFallFlying(boolean original) {
+        if ((Object) this != mc.player) {
+            return original;
+        }
+
+        ElytraFakeFly fakeFly = Modules.get().get(ElytraFakeFly.class);
+
+        if (fakeFly.isFlying()) {
+            return true;
+        }
+
+        return original;
+    }
+
+    @ModifyExpressionValue(method = "isInSwimmingPose", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/LivingEntity;isFallFlying()Z"))
+    private boolean overrideIsInSwimmingPosIsFallFlying(boolean original) {
+        if ((Object) this != mc.player) {
+            return original;
+        }
+
+        ElytraFakeFly fakeFly = Modules.get().get(ElytraFakeFly.class);
+
+        if (fakeFly.isFlying()) {
+            return true;
+        }
+
+        return original;
     }
 
     @ModifyReturnValue(method = "hasStatusEffect", at = @At("RETURN"))

@@ -2,7 +2,6 @@ package meteordevelopment.meteorclient.systems.modules.combat;
 
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.player.LookAtEvent;
-import meteordevelopment.meteorclient.events.entity.player.RotateEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;

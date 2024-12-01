@@ -168,7 +168,7 @@ public class Modules extends System<Modules> {
         }
     }
 
-    public Set<Module> searchTitles(String text) {
+    public Map<Module, Integer> searchTitles(String text) {
         Map<Module, Integer> modules = new ValueComparableMap<>(Comparator.naturalOrder());
 
         for (Module module : this.moduleInstances.values()) {
@@ -182,7 +182,7 @@ public class Modules extends System<Modules> {
             modules.put(module, modules.getOrDefault(module, 0) + score);
         }
 
-        return modules.keySet();
+        return modules;
     }
 
     public Set<Module> searchSettingTitles(String text) {

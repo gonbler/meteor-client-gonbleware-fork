@@ -90,6 +90,7 @@
     "EntityVelocityUpdateS2CPacketAccessor",
     "ExplosionS2CPacketMixin",
     "FileCacheAccessor",
+    "FireworkRocketItemMixin",
     "FireworkRocketEntityMixin",
     "FireworksSparkParticleMixin",
     "FireworksSparkParticleSubMixin",
