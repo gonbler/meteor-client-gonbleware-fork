@@ -227,7 +227,7 @@ public class Offhand extends Module {
                     }
 
                     // Swap to offhand
-                    else if ((isClicking || !autoTotem.isLocked() && !item.isOffhand())) {
+                    else if ((isClicking || !item.isOffhand())) {
                         InvUtils.move().from(item.slot()).toOffhand();
                         sentMessage = false;
                     }
@@ -242,7 +242,13 @@ public class Offhand extends Module {
     @EventHandler
     private void onMouseButton(MouseButtonEvent event) {
         // Detects if the User is right-clicking
+<<<<<<< HEAD
         isClicking = mc.currentScreen == null && !Modules.get().get(AutoTotem.class).isLocked() && !usableItem() && !mc.player.isUsingItem() && event.action == KeyAction.Press && event.button == GLFW_MOUSE_BUTTON_RIGHT;
+=======
+        isClicking = mc.currentScreen == null
+                && !usableItem() && !mc.player.isUsingItem() && event.action == KeyAction.Press
+                && event.button == GLFW_MOUSE_BUTTON_RIGHT;
+>>>>>>> 628977692 (FakeFly, silent mine, autototem, automine)
     }
 
     private boolean usableItem() {

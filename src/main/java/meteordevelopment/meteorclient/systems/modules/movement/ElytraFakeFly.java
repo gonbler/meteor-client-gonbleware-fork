@@ -10,8 +10,6 @@ import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.systems.modules.Modules;
-import meteordevelopment.meteorclient.systems.modules.player.ChestSwap;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
@@ -19,7 +17,6 @@ import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
-import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
@@ -45,7 +42,7 @@ public class ElytraFakeFly extends Module {
 
     public final Setting<Double> horizontalSpeed = sgGeneral.add(new DoubleSetting.Builder()
             .name("horizontal-speed").description("Controls how fast will you go horizontally.")
-            .defaultValue(30).min(0).max(100).build());
+            .defaultValue(50).min(0).max(100).build());
 
     public final Setting<Double> verticalSpeed = sgGeneral.add(new DoubleSetting.Builder()
             .name("vertical-speed").description("Controls how fast will you go veritcally.")
@@ -54,12 +51,11 @@ public class ElytraFakeFly extends Module {
     public final Setting<Double> accelTime =
             sgGeneral.add(new DoubleSetting.Builder().name("accel-time")
                     .description("Controls how fast will you accelerate and decelerate in second")
-                    .defaultValue(0.5).min(0.001).max(2).build());
+                    .defaultValue(0.2).min(0.001).max(2).build());
 
     private int fireworkTicksLeft = 0;
     private boolean needsFirework = false;
     private Vec3d lastMovement = Vec3d.ZERO;
-    private int moreElytraTicks = 0;
 
     private Vec3d currentVelocity = Vec3d.ZERO;
     private InventorySlotSwap slotSwap = null;
@@ -71,7 +67,6 @@ public class ElytraFakeFly extends Module {
 
     @Override
     public void onActivate() {
-        moreElytraTicks = 5;
         needsFirework = true;
         currentVelocity = mc.player.getVelocity();
 
@@ -87,17 +82,6 @@ public class ElytraFakeFly extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        /*
-         * if (mc.player.isOnGround()) { mc.player.jump(); mc.player.setOnGround(false);
-         * mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(false));
-         * 
-         * equipElytra();
-         * 
-         * mc.player.networkHandler.sendPacket(new ClientCommandC2SPacket(mc.player,
-         * ClientCommandC2SPacket.Mode.START_FALL_FLYING)); }
-         */
-
-
         boolean isUsingFirework = getIsUsingFirework();
 
         Vec3d desiredVelocity = new Vec3d(0, 0, 0);
@@ -140,6 +124,10 @@ public class ElytraFakeFly extends Module {
         double actualAccelTime = accelTime.get();
 
         boolean desiredVelocityReset = false;
+
+        if (desiredVelocity.y == 0) {
+            desiredVelocity.add(0, 1e-5, 0);
+        }
 
         if (!isUsingFirework) {
             desiredVelocity = new Vec3d(0, 0, 0);
@@ -187,7 +175,7 @@ public class ElytraFakeFly extends Module {
                 }
             }
         }
-        
+
         if (fireworkTicksLeft < ((int) (fireworkDelay.get() * 20.0) - 3) && fireworkTicksLeft > 3
                 && !isUsingFirework) {
             fireworkTicksLeft = 0;
@@ -203,7 +191,7 @@ public class ElytraFakeFly extends Module {
         }
 
         if (needsFirework) {
-            if (currentVelocity.length() > 0 || desiredVelocityReset) {
+            if (currentVelocity.length() > 1e-7 || desiredVelocityReset) {
                 useFirework();
                 needsFirework = false;
             }
@@ -285,9 +273,9 @@ public class ElytraFakeFly extends Module {
                     SlotActionType.SWAP, mc.player);
 
             if (slotSwap != null) {
-                mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
-                        slotSwap.hotbarSlot, slotSwap.inventorySlot, SlotActionType.SWAP,
-                        mc.player);
+                // Move elytra to inventory slot
+                mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, slotSwap.inventorySlot,
+                    result.slot(), SlotActionType.SWAP, mc.player);
             }
             return;
         }
@@ -329,9 +317,8 @@ public class ElytraFakeFly extends Module {
         });
 
         // Move elytra to hotbarSlot
-        mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
-                hotbarSlot.found() ? hotbarSlot.slot() : 0, result.slot(), SlotActionType.SWAP,
-                mc.player);
+        mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, result.slot(),
+                hotbarSlot.found() ? hotbarSlot.slot() : 0, SlotActionType.SWAP, mc.player);
 
         // Equip elytra
         mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, 6,
@@ -347,32 +334,55 @@ public class ElytraFakeFly extends Module {
     private void useFirework() {
         fireworkTicksLeft = (int) (fireworkDelay.get() * 20.0);
 
+        int hotbarSilentSwapSlot = -1;
+        int inventorySilentSwapSlot = -1;
+
         FindItemResult itemResult = InvUtils.findInHotbar(Items.FIREWORK_ROCKET);
-        if (!itemResult.found())
+        if (!itemResult.found()) {
+            FindItemResult invResult = InvUtils.find(Items.FIREWORK_ROCKET);
+
+            if (!invResult.found()) {
+                return;
+            }
+
+
+            FindItemResult hotbarSlotToSwapToResult = InvUtils.findInHotbar(x -> {
+                if (x.getItem() == Items.TOTEM_OF_UNDYING) {
+                    return false;
+                }
+                return true;
+            });
+
+            inventorySilentSwapSlot = invResult.slot();
+            hotbarSilentSwapSlot =
+                    hotbarSlotToSwapToResult.found() ? hotbarSlotToSwapToResult.slot() : 0;
+
+            mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                    inventorySilentSwapSlot, hotbarSilentSwapSlot, SlotActionType.SWAP, mc.player);
+
+            // Re-search in hotbar
+            itemResult = InvUtils.findInHotbar(Items.FIREWORK_ROCKET);
+        }
+
+        if (!itemResult.found()) {
             return;
+        }
 
         if (itemResult.isOffhand()) {
             mc.interactionManager.interactItem(mc.player, Hand.OFF_HAND);
             mc.player.swingHand(Hand.OFF_HAND);
         } else {
             InvUtils.swap(itemResult.slot(), true);
-            int sequence = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
 
-            PlayerInteractItemC2SPacket playerInteractItemC2SPacket =
-                    new PlayerInteractItemC2SPacket(Hand.MAIN_HAND, sequence, mc.player.getYaw(),
-                            mc.player.getPitch());
-            ItemStack itemStack = mc.player.getStackInHand(Hand.MAIN_HAND);
-            TypedActionResult<ItemStack> typedActionResult =
-                    itemStack.use(mc.world, mc.player, Hand.MAIN_HAND);
-            ItemStack itemStack2 = (ItemStack) typedActionResult.getValue();
-            if (itemStack2 != itemStack) {
-                mc.player.setStackInHand(Hand.MAIN_HAND, itemStack2);
-            }
-
-            mc.getNetworkHandler().sendPacket(playerInteractItemC2SPacket);
+            mc.interactionManager.interactItem(mc.player, Hand.MAIN_HAND);
             mc.player.swingHand(Hand.MAIN_HAND);
 
             InvUtils.swapBack();
+        }
+
+        if (inventorySilentSwapSlot != -1 && hotbarSilentSwapSlot != -1) {
+            mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                    inventorySilentSwapSlot, hotbarSilentSwapSlot, SlotActionType.SWAP, mc.player);
         }
     }
 

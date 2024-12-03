@@ -1,7 +1,11 @@
 package meteordevelopment.meteorclient.systems.modules.combat;
 
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import meteordevelopment.meteorclient.events.entity.player.StartBreakingBlockEvent;
 import meteordevelopment.meteorclient.events.meteor.SilentMineFinishedEvent;
@@ -49,12 +53,14 @@ public class AutoMine extends Module {
                             "Starts mining your head block when the enemy starts mining your feet")
                     .defaultValue(AntiSwimMode.OnMine).build());
 
+    private final Setting<Double> antiSurroundInnerTime = sgGeneral.add(new DoubleSetting.Builder()
+            .name("anti-surround-inner-spam-time").description("Max range to target")
+            .defaultValue(0.1).min(0).sliderMax(0.3).build());
+
     private final Setting<AntiSurroundMode> antiSurroundMode =
             sgGeneral.add(new EnumSetting.Builder<AntiSurroundMode>().name("anti-surround-mode")
                     .description("Places crystals in places to prevent surround")
                     .defaultValue(AntiSurroundMode.Auto).build());
-
-
 
     private SilentMine silentMine = null;
 
@@ -62,6 +68,10 @@ public class AutoMine extends Module {
 
     private BlockPos target1 = null;
     private BlockPos target2 = null;
+
+    private Map<BlockPos, Long> crystalSpamTargets = new HashMap<>();
+
+    private List<BlockPos> removePoses = new ArrayList<>();
 
     public AutoMine() {
         super(Categories.Combat, "auto-mine", "Automatically mines blocks");
@@ -76,12 +86,34 @@ public class AutoMine extends Module {
         if (silentMine == null) {
             silentMine = (SilentMine) Modules.get().get(SilentMine.class);
         }
+
+        crystalSpamTargets.clear();
     }
 
     @EventHandler
-    private void onTick(TickEvent event) {
+    private void onTick(TickEvent.Pre event) {
         if (silentMine == null) {
             silentMine = (SilentMine) Modules.get().get(SilentMine.class);
+        }
+
+        Long currentTime = System.currentTimeMillis();
+        removePoses.clear();
+
+        synchronized (crystalSpamTargets) {
+            for (Map.Entry<BlockPos, Long> spamTarget : crystalSpamTargets.entrySet()) {
+                double difference = (currentTime - spamTarget.getValue()) / 1000.0;
+
+                if (difference > antiSurroundInnerTime.get()) {
+                    removePoses.add(spamTarget.getKey());
+                }
+
+                Modules.get().get(AutoCrystal.class).preplaceCrystal(spamTarget.getKey());
+                info("Placed?");
+            }
+
+            for (BlockPos removePos : removePoses) {
+                crystalSpamTargets.remove(removePos);
+            }
         }
     }
 
@@ -111,12 +143,15 @@ public class AutoMine extends Module {
             }
         }
 
-        if (mode == AntiSurroundMode.Auto || mode == AntiSurroundMode.Inner) {
-            for (Direction dir : Direction.HORIZONTAL) {
-                BlockPos playerSurroundBlock = targetPlayer.getBlockPos().offset(dir);
+        synchronized (crystalSpamTargets) {
+            if (mode == AntiSurroundMode.Auto || mode == AntiSurroundMode.Inner) {
+                for (Direction dir : Direction.HORIZONTAL) {
+                    BlockPos playerSurroundBlock = targetPlayer.getBlockPos().offset(dir);
 
-                if (playerSurroundBlock.equals(event.getBlockPos())) {
-                    Modules.get().get(AutoCrystal.class).preplaceCrystal(playerSurroundBlock);
+                    if (playerSurroundBlock.equals(event.getBlockPos())) {
+                        // Modules.get().get(AutoCrystal.class).preplaceCrystal(playerSurroundBlock);
+                        crystalSpamTargets.put(playerSurroundBlock, System.currentTimeMillis());
+                    }
                 }
             }
         }
@@ -187,9 +222,10 @@ public class AutoMine extends Module {
             return;
         }
 
-        if (silentMine.isMiningSinglebreakBlock() && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
-                && selfFeetBlock.isAir() && silentMine.getRebreakBlockPos() == mc.player
-                        .getBlockPos().offset(Direction.UP)) {
+        if (silentMine.isMiningSinglebreakBlock()
+                && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN) && selfFeetBlock.isAir()
+                && silentMine.getRebreakBlockPos() == mc.player.getBlockPos()
+                        .offset(Direction.UP)) {
             return;
         }
 
@@ -344,6 +380,7 @@ public class AutoMine extends Module {
 
         return 0;
     }
+
     @EventHandler
     private void onRender(Render3DEvent event) {
         if (mc.player == null || mc.world == null)

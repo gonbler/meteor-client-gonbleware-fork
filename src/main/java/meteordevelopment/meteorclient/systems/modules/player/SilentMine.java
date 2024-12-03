@@ -5,6 +5,8 @@
 
 package meteordevelopment.meteorclient.systems.modules.player;
 
+import static meteordevelopment.meteorclient.MeteorClient.FOLDER;
+import static meteordevelopment.meteorclient.utils.Utils.resolveAddress;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.player.StartBreakingBlockEvent;
 import meteordevelopment.meteorclient.events.meteor.SilentMineFinishedEvent;
@@ -124,12 +126,34 @@ public class SilentMine extends Module {
         }
 
         if (isMiningSinglebreakBlock() && singleBreakBlock.timesBroken > 5) {
-            stopMiningSingleBreak(true);
+            StartBreakingBlockEvent newEvent = new StartBreakingBlockEvent();
+            newEvent.blockPos = singleBreakBlock.blockPos;
+            newEvent.direction = singleBreakBlock.breakDreiction;
+
+            singleBreakBlock = new FastRebreakBlock(newEvent, currentGameTickCalculated);
+            singleBreakBlock.startBreaking();
         }
 
         if (rebreakBlock != null && rebreakBlock.timesBroken > 10 && !canRebreak()) {
             rebreakBlock.cancelBreaking();
             rebreakBlock = null;
+        }
+
+        int tempSlot = -1;
+        if (isMiningSinglebreakBlock()) {
+            BlockState blockState = mc.world.getBlockState(singleBreakBlock.blockPos);
+
+            if (!blockState.isAir()) {
+                FindItemResult result = InvUtils.findFastestTool(blockState); 
+
+                if (result.found()) {
+                    tempSlot = result.slot();
+                }
+            } 
+        }
+
+        if (mc.player.isOnGround() && (tempSlot == -1 || tempSlot == mc.player.getInventory().selectedSlot) && swapBackTimeout >= 0) {
+            swapBackTimeout--;
         }
 
         // Update our doublemine block
@@ -139,7 +163,7 @@ public class SilentMine extends Module {
             if (!blockState.isAir()) {
                 FindItemResult slot = InvUtils.findFastestTool(blockState);
 
-                if (singleBreakBlock.isReady(currentGameTickCalculated, false)
+                if (singleBreakBlock.isReady(currentGameTickCalculated, false) 
                         && !mc.player.isUsingItem()) {
                     if (autoSwitch.get() && slot.found()
                             && mc.player.getInventory().selectedSlot != slot.slot()) {
@@ -182,11 +206,6 @@ public class SilentMine extends Module {
 
                 }
             }
-        }
-
-
-        if (mc.player.isOnGround() && swapBackTimeout >= 0) {
-            swapBackTimeout--;
         }
 
         if (needSwapBack && (swapBackTimeout <= 0 || singleBreakBlock == null)) {
@@ -271,7 +290,7 @@ public class SilentMine extends Module {
     public void stopMiningSingleBreak(boolean sendAbort) {
         if (isMiningSinglebreakBlock()) {
             if (sendAbort) {
-                singleBreakBlock.cancelBreakingRestart();
+                singleBreakBlock.cancelBreaking();
             }
             singleBreakBlock = null;
         }
@@ -373,6 +392,8 @@ public class SilentMine extends Module {
             int s1 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
             int s2 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
             int s3 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
+            int s4 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
+            int s5 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
 
             mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                     PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, breakDreiction, s1));
@@ -384,6 +405,17 @@ public class SilentMine extends Module {
 
             mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                     PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, breakDreiction, s3));
+
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, blockPos,
+                            breakDreiction, s4));
+
+            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                    PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, breakDreiction, s5));
+
+            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
 
             mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                     PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
@@ -407,18 +439,6 @@ public class SilentMine extends Module {
         }
 
         public void cancelBreaking() {
-            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
-        }
-
-        public void cancelBreakingRestart() {
-            int s1 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
-
-            mc.getNetworkHandler()
-                    .sendPacket(new PlayerActionC2SPacket(
-                            PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, blockPos,
-                            breakDreiction, s1));
-
             mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                     PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, breakDreiction));
         }

@@ -104,7 +104,7 @@ public class AutoReplenish extends Module {
             }
 
             // Offhand
-            if (offhand.get() && !Modules.get().get(AutoTotem.class).isLocked()) {
+            if (offhand.get()) {
                 ItemStack stack = mc.player.getOffHandStack();
                 checkSlot(SlotUtils.OFFHAND, stack);
             }

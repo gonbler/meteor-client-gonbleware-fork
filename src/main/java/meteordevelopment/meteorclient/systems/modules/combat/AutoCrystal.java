@@ -41,11 +41,11 @@ import meteordevelopment.meteorclient.utils.player.Timer;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
-import net.caffeinemc.mods.lithium.common.util.Pos;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Items;
@@ -76,9 +76,6 @@ public class AutoCrystal extends Module {
     private final SettingGroup sgSwing = settings.createGroup("Swing");
 
     private final SettingGroup sgRange = settings.createGroup("Range");
-
-    private final SettingGroup sgMine = settings.createGroup("Auto Mine");
-
 
     // -- General -- //
     private final Setting<Boolean> placeCrystals = sgGeneral.add(new BoolSetting.Builder()
@@ -191,9 +188,6 @@ public class AutoCrystal extends Module {
 
     private AutoMine autoMine;
 
-    private int _packetsSentLastSecond;
-    private int _ticksSent = 0;
-
     public AutoCrystal() {
         super(Categories.Combat, "auto-crystal", "Automatically places and attacks crystals.");
     }
@@ -207,8 +201,6 @@ public class AutoCrystal extends Module {
         explodedCrystals.clear();
         crystalBreakDelays.clear();
         crystalPlaceDelays.clear();
-        _ticksSent = 0;
-        _packetsSentLastSecond = 0;
     }
 
 
@@ -222,14 +214,6 @@ public class AutoCrystal extends Module {
         }
 
         isExplodeEntity = false;
-
-        _ticksSent = ++_ticksSent % 20;
-
-
-        if (_ticksSent % 20 == 0) {
-            info("" + _packetsSentLastSecond);
-            _packetsSentLastSecond = 0;
-        }
     }
 
     private void update(Render3DEvent event) {
@@ -440,8 +424,6 @@ public class AutoCrystal extends Module {
 
         mc.getNetworkHandler().sendPacket(packet);
 
-        _packetsSentLastSecond++;
-
         if (breakSwingMode.get().client())
             mc.player.swingHand(Hand.MAIN_HAND);
 
@@ -595,29 +577,8 @@ public class AutoCrystal extends Module {
         if (selfDamage > maxPlace.get()) {
             return;
         }
-
-        for (PlayerEntity target : mc.world.getPlayers()) {
-            if (target == mc.player) {
-                continue;
-            }
-
-            if (Friends.get().isFriend(target)) {
-                continue;
-            }
-
-            if (target.isDead()) {
-                continue;
-            }
-
-            if (ignoreNakeds.get()) {
-                if (target.getInventory().armor.get(0).isEmpty()
-                        && target.getInventory().armor.get(1).isEmpty()
-                        && target.getInventory().armor.get(2).isEmpty()
-                        && target.getInventory().armor.get(3).isEmpty())
-                    continue;
-            }
-            placeCrystal(downPos, dir);
-        }
+        
+        placeCrystal(downPos, dir);
     }
 
     public boolean inPlaceRange(BlockPos blockPos) {
@@ -733,8 +694,8 @@ public class AutoCrystal extends Module {
     }
 
     private boolean intersectsWithEntities(Box box) {
-        return intersectsWithEntity(box,
-                entity -> !entity.isSpectator() && !explodedCrystals.contains(entity.getId()));
+        return intersectsWithEntity(box, entity -> !entity.isSpectator()
+                && !(entity instanceof ItemEntity) && !explodedCrystals.contains(entity.getId()));
     }
 
     public boolean intersectsWithEntity(Box box, Predicate<Entity> predicate) {

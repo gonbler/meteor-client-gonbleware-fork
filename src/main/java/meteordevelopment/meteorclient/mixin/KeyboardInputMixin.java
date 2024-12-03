@@ -8,6 +8,7 @@ package meteordevelopment.meteorclient.mixin;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.input.KeyboardInputEvent;
 import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.movement.ElytraFakeFly;
 import meteordevelopment.meteorclient.systems.modules.movement.Sneak;
 import net.minecraft.client.input.Input;
 import net.minecraft.client.input.KeyboardInput;
@@ -21,6 +22,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class KeyboardInputMixin extends Input {
     @Inject(method = "tick", at = @At("TAIL"))
     private void isPressed(boolean slowDown, float f, CallbackInfo ci) {
+<<<<<<< HEAD
         if (Modules.get().get(Sneak.class).doVanilla()) playerInput = new PlayerInput(
             playerInput.forward(),
             playerInput.backward(),
@@ -30,6 +32,11 @@ public abstract class KeyboardInputMixin extends Input {
             true,
             playerInput.sprint()
         );
+=======
+        if (Modules.get().get(Sneak.class).doVanilla()) sneaking = true;
+
+        if (Modules.get().get(ElytraFakeFly.class).isFlying()) sneaking = false;
+>>>>>>> 628977692 (FakeFly, silent mine, autototem, automine)
     }
 
     @Inject(method = "tick", at = @At(value = "FIELD", target = "Lnet/minecraft/client/input/KeyboardInput;sneaking:Z", shift = At.Shift.AFTER), cancellable = true)
