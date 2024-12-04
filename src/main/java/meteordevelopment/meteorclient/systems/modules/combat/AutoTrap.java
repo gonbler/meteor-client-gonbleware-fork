@@ -16,16 +16,12 @@ import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
-import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.Item;
-import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractBlockC2SPacket;
 import net.minecraft.util.Hand;
@@ -33,15 +29,11 @@ import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
-import de.florianmichael.viafabricplus.util.ItemUtil;
 
 public class AutoTrap extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -120,17 +112,17 @@ public class AutoTrap extends Module {
             return;
         }
 
-        if (!startPlace()) {
+        int placed = 0;
+
+        List<BlockPos> poses = getBlockPoses();
+
+        if (poses.size() > 0 && !startPlace()) {
             return;
         }
 
         if (pauseEat.get() && mc.player.isUsingItem()) {
             return;
         }
-
-        int placed = 0;
-
-        List<BlockPos> poses = getBlockPoses();
 
         for (BlockPos pos : poses) {
             boolean isCrystalBlock = false;
@@ -197,12 +189,6 @@ public class AutoTrap extends Module {
             return;
         }
 
-        Box boundingBox = target.getBoundingBox().shrink(0.005, 0.1, 0.005);
-        double feetY = target.getY();
-
-        Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
-                feetY + 0.1, boundingBox.maxZ);
-
         int placed = 0;
 
         List<BlockPos> poses = getBlockPoses();
@@ -224,7 +210,9 @@ public class AutoTrap extends Module {
                 break;
             }
 
-            if (BlockUtils.canPlace(pos, true)) {
+            
+
+            if (BlockUtils.canPlace(pos, true) && (!placeCooldowns.containsKey(pos) || System.currentTimeMillis() - placeCooldowns.get(pos) > 50)) {
                 placed++;
 
                 event.renderer.box(pos, sideColor.get(), lineColor.get(), shapeMode.get(), 0);

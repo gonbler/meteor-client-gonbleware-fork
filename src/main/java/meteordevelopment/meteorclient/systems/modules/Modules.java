@@ -578,6 +578,8 @@ public class Modules extends System<Modules> {
         add(new Timer());
         add(new VeinMiner());
 
+        add(new SourceFiller());
+
         if (BaritoneUtils.IS_AVAILABLE) {
             add(new Excavator());
             add(new InfinityMiner());

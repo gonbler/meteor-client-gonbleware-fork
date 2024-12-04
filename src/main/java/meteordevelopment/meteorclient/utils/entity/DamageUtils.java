@@ -45,7 +45,7 @@ import net.minecraft.world.Heightmap;
 import net.minecraft.world.RaycastContext;
 import net.minecraft.world.explosion.Explosion;
 import org.jetbrains.annotations.Nullable;
-
+import java.util.Set;
 import java.util.function.BiFunction;
 
 import static meteordevelopment.meteorclient.MeteorClient.mc;
@@ -167,7 +167,7 @@ public class DamageUtils {
         };
     }
 
-    public static double newCrystalDamage(PlayerEntity player, Box boundingBox, Vec3d crystal, BlockPos ignorePos) {
+    public static double newCrystalDamage(PlayerEntity player, Box boundingBox, Vec3d crystal, Set<BlockPos> ignorePos) {
         if (player == null) return 0;
         if (EntityUtils.getGameMode(player) == GameMode.CREATIVE && !(player instanceof FakePlayerEntity)) return 0;
 
@@ -190,7 +190,7 @@ public class DamageUtils {
         return damage < 0 ? 0 : damage;
     }
 
-    public static double getExposure(Vec3d source, Entity entity, Box box, RaycastContext raycastContext, BlockPos ignore) {
+    public static double getExposure(Vec3d source, Entity entity, Box box, RaycastContext raycastContext, Set<BlockPos> ignore) {
         double d = 1 / ((box.maxX - box.minX) * 2 + 1);
         double e = 1 / ((box.maxY - box.minY) * 2 + 1);
         double f = 1 / ((box.maxZ - box.minZ) * 2 + 1);
@@ -253,10 +253,10 @@ public class DamageUtils {
         });
     }    
 
-    private static BlockHitResult raycast(RaycastContext context, BlockPos ignore) {
+    private static BlockHitResult raycast(RaycastContext context, Set<BlockPos> ignore) {
         return BlockView.raycast(context.getStart(), context.getEnd(), context, (raycastContext, blockPos) -> {
             BlockState blockState;
-            if (blockPos.equals(ignore)) blockState = Blocks.AIR.getDefaultState();
+            if (ignore != null && ignore.contains(blockPos)) blockState = Blocks.AIR.getDefaultState();
             else {
                 blockState = mc.world.getBlockState(blockPos);
             }

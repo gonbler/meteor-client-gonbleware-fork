@@ -3,12 +3,11 @@
  * (https://github.com/MeteorDevelopment/meteor-client). Copyright (c) Meteor Development.
  */
 
-package meteordevelopment.meteorclient.systems.modules.combat;
+package meteordevelopment.meteorclient.systems.modules.world;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.Predicate;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
@@ -22,27 +21,24 @@ import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.systems.modules.Modules;
-import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
+import meteordevelopment.meteorclient.systems.modules.combat.AutoCrystal;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.decoration.EndCrystalEntity;
+import net.minecraft.fluid.Fluids;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractBlockC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 
-public class Surround extends Module {
+public class SourceFiller extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgRender = settings.createGroup("Render");
 
@@ -51,18 +47,12 @@ public class Surround extends Module {
     private final Setting<Integer> places = sgGeneral.add(new IntSetting.Builder().name("places")
             .description("Places to do each tick.").min(1).defaultValue(1).build());
 
-    private final Setting<Boolean> pauseEat =
-            sgGeneral.add(new BoolSetting.Builder().name("pause-eat")
-                    .description("Pauses while eating.").defaultValue(true).build());
+    private final Setting<Boolean> pauseEat = sgGeneral.add(new BoolSetting.Builder()
+            .name("pause-eat").description("Pauses while eating.").defaultValue(true).build());
 
     private final Setting<Boolean> grimBypass =
             sgGeneral.add(new BoolSetting.Builder().name("grim-bypass")
                     .description("Bypasses Grim for airplace.").defaultValue(true).build());
-
-    private final Setting<Boolean> protect = sgGeneral.add(new BoolSetting.Builder().name("protect")
-            .description(
-                    "Attempts to break crystals around surround positions to prevent surround break.")
-            .defaultValue(true).build());
 
     private final Setting<Double> placeTime =
             sgGeneral.add(new DoubleSetting.Builder().name("place-time")
@@ -99,9 +89,9 @@ public class Surround extends Module {
 
     private Vec3d snapPos = null;
 
-    public Surround() {
-        super(Categories.Combat, "surround",
-                "Surrounds you in blocks to prevent massive crystal damage.");
+    public SourceFiller() {
+        super(Categories.World, "source-filler",
+                "Places blocks in water and lava source blocks around you.");
     }
 
     @EventHandler
@@ -134,61 +124,7 @@ public class Surround extends Module {
     private void update() {
         placePoses.clear();
 
-        Box boundingBox = mc.player.getBoundingBox().shrink(0.05, 0.1, 0.05); // Tighter bounding
-                                                                              // box
-        int feetY = mc.player.getBlockPos().getY();
-
-        SilentMine silentMine = Modules.get().get(SilentMine.class);
-        AutoCrystal autoCrystal = Modules.get().get(AutoCrystal.class);
-
-        // Calculate the corners of the bounding box at the feet level
-        int minX = (int) Math.floor(boundingBox.minX);
-        int maxX = (int) Math.floor(boundingBox.maxX);
-        int minZ = (int) Math.floor(boundingBox.minZ);
-        int maxZ = (int) Math.floor(boundingBox.maxZ);
-
-        for (int x = minX; x <= maxX; x++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                BlockPos feetPos = new BlockPos(x, feetY, z);
-                BlockState feetState = mc.world.getBlockState(feetPos);
-
-                // Iterate over adjacent blocks around the player's feet
-                for (int offsetX = -1; offsetX <= 1; offsetX++) {
-                    for (int offsetZ = -1; offsetZ <= 1; offsetZ++) {
-                        if (Math.abs(offsetX) + Math.abs(offsetZ) != 1) {
-                            continue;
-                        }
-
-                        BlockPos adjacentPos = feetPos.add(offsetX, 0, offsetZ);
-                        BlockState adjacentState = mc.world.getBlockState(adjacentPos);
-
-                        // Don't place if we're mining that block
-                        if (adjacentPos.equals(silentMine.getRebreakBlockPos())
-                                || adjacentPos.equals(silentMine.getDelayedDestroyBlockPos())) {
-                            // continue;
-                        }
-
-                        if (adjacentState.isAir() || adjacentState.isReplaceable()) {
-                            placePoses.add(adjacentPos);
-                        }
-                    }
-                }
-
-                // Blocks below players feet
-                BlockPos belowFeetPos = new BlockPos(x, feetY - 1, z);
-                BlockState belowFeetState = mc.world.getBlockState(belowFeetPos);
-
-                // Don't place if we're mining that block
-                if (belowFeetPos.equals(silentMine.getRebreakBlockPos())
-                        || belowFeetPos.equals(silentMine.getDelayedDestroyBlockPos())) {
-                    continue;
-                }
-
-                if (belowFeetState.isAir() || belowFeetState.isReplaceable()) {
-                    placePoses.add(belowFeetPos);
-                }
-            }
-        }
+        int r = 5;
 
         long currentTime = System.currentTimeMillis();
         if ((currentTime - lastPlaceTimeMS) / 1000.0 > placeTime.get()) {
@@ -201,6 +137,27 @@ public class Surround extends Module {
             return;
         }
 
+        BlockPos eyePos = BlockPos.ofFloored(mc.player.getEyePos());
+        for (int y = r; y > -r; y--) {
+            for (int x = -r; x <= r; x++) {
+                for (int z = -r; z <= r; z++) {
+                    BlockPos pos = eyePos.add(x, y, z);
+
+                    if (placePoses.size() >= 2) {
+                        continue;
+                    }
+
+                    if (!pos.toCenterPos().isInRange(eyePos.toCenterPos(), 5.0)) {
+                        continue;
+                    }
+
+                    if (isWaterOrLavaSource(pos)) {
+                        placePoses.add(pos);
+                    }
+                }
+            }
+        }
+
         Iterator<BlockPos> iterator = placePoses.iterator();
 
         boolean needSwapBack = false;
@@ -208,26 +165,11 @@ public class Surround extends Module {
         while (placed < places.get() && iterator.hasNext()) {
             BlockPos placePos = iterator.next();
 
-            if (protect.get()) {
-                Box box = new Box(placePos.getX() - 1, placePos.getY() - 1, placePos.getZ() - 1,
-                        placePos.getX() + 1, placePos.getY() + 1, placePos.getZ() + 1);
-
-                Predicate<Entity> entityPredicate = entity -> entity instanceof EndCrystalEntity;
-
-                for (Entity crystal : mc.world.getOtherEntities(null, box, entityPredicate)) {
-                    MeteorClient.ROTATION.snapAt(crystal.getPos(), true);
-
-                    if (autoCrystal.breakCrystal(crystal, true)) {
-                        crystal.discard();
-                    }
-                }
-            }
-
             if (!BlockUtils.canPlace(placePos, true)) {
                 continue;
             }
 
-            FindItemResult result = InvUtils.findInHotbar(Items.OBSIDIAN);
+            FindItemResult result = InvUtils.findInHotbar(Items.NETHERRACK);
 
             if (!result.found()) {
                 break;
@@ -253,13 +195,11 @@ public class Surround extends Module {
         }
 
         Direction dir = null;
-        for (Direction test : Direction.values()) {
-            Direction placeOnDir = AutoCrystal.getPlaceOnDirection(blockPos.offset(test));
-            if (placeOnDir != null && blockPos.offset(test).offset(placeOnDir).equals(blockPos)) {
-                dir = placeOnDir;
-                break;
-            }
-        }
+        /*
+         * for (Direction test : Direction.values()) { Direction placeOnDir =
+         * AutoCrystal.getPlaceOnDirection(blockPos.offset(test)); if (placeOnDir != null &&
+         * blockPos.offset(test).offset(placeOnDir).equals(blockPos)) { dir = placeOnDir; break; } }
+         */
 
         Hand hand = Hand.MAIN_HAND;
 
@@ -295,4 +235,13 @@ public class Surround extends Module {
 
         return true;
     }
+
+    public boolean isWaterOrLavaSource(BlockPos pos) {
+        BlockState blockState = mc.world.getBlockState(pos);
+
+        return (blockState.getFluidState().getFluid().matchesType(Fluids.LAVA)
+                || blockState.getFluidState().getFluid().matchesType(Fluids.WATER))
+                && blockState.getFluidState().getLevel() == 8;
+    }
+
 }

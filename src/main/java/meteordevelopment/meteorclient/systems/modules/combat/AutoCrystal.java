@@ -2,10 +2,13 @@ package meteordevelopment.meteorclient.systems.modules.combat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
+import de.florianmichael.viafabricplus.settings.base.BooleanSetting;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
@@ -32,6 +35,7 @@ import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
 import meteordevelopment.meteorclient.utils.entity.DamageUtils;
 import meteordevelopment.meteorclient.utils.misc.Keybind;
 import meteordevelopment.meteorclient.utils.misc.Pool;
@@ -104,6 +108,12 @@ public class AutoCrystal extends Module {
     private final Setting<Double> maxPlace = sgPlace.add(
             new DoubleSetting.Builder().name("max-place").description("Max self damage to place.")
                     .defaultValue(15).min(0).sliderRange(0, 20).build());
+
+    private final Setting<Boolean> antiSurroundPlace = sgPlace.add(new BoolSetting.Builder()
+            .name("anti-surround")
+            .description(
+                    "Ignores auto-mine blocks from calculations to place outside of their surround.")
+            .defaultValue(true).build());
 
     // -- Face Place -- //
     private final Setting<Boolean> facePlaceMissingArmor =
@@ -435,6 +445,8 @@ public class AutoCrystal extends Module {
         return true;
     }
 
+    private Set<BlockPos> _calcIgnoreSet = new HashSet<>();
+
     private PlacePosition findBestPlacePosition(PlayerEntity target) {
         // Optimization to not spam allocs because java sucks
         PlacePosition bestPos = placePositionPool.get();
@@ -453,6 +465,20 @@ public class AutoCrystal extends Module {
         Box box = new Box(0, 0, 0, 0, 0, 0);
 
         boolean set = false;
+
+        _calcIgnoreSet.clear();
+        if (antiSurroundPlace.get()) {
+            SilentMine silentMine = Modules.get().get(SilentMine.class);
+            if (silentMine.isActive()) {
+                if (silentMine.getDelayedDestroyBlockPos() != null) {
+                    _calcIgnoreSet.add(silentMine.getDelayedDestroyBlockPos());
+                }
+
+                if (silentMine.getRebreakBlockPos() != null) {
+                    _calcIgnoreSet.add(silentMine.getRebreakBlockPos());
+                }
+            }
+        }
 
         for (int x = -r; x <= r; x++) {
             for (int y = -r; y <= r; y++) {
@@ -496,7 +522,7 @@ public class AutoCrystal extends Module {
 
                     double selfDamage = DamageUtils.newCrystalDamage(mc.player,
                             mc.player.getBoundingBox(),
-                            new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5), null);
+                            new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5), _calcIgnoreSet);
 
                     if (selfDamage > maxPlace.get()) {
                         continue;
@@ -504,7 +530,7 @@ public class AutoCrystal extends Module {
 
                     double targetDamage = DamageUtils.newCrystalDamage(target,
                             target.getBoundingBox(),
-                            new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5), null);
+                            new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5), _calcIgnoreSet);
 
                     boolean shouldFacePlace = false;
 
@@ -542,6 +568,8 @@ public class AutoCrystal extends Module {
         }
     }
 
+    private Set<BlockPos> _preplaceSet = new HashSet<>();
+
     public void preplaceCrystal(BlockPos pos) {
         BlockPos downPos = pos.down();
         BlockState downState = mc.world.getBlockState(downPos);
@@ -571,13 +599,16 @@ public class AutoCrystal extends Module {
         if (intersectsWithEntities(box))
             return;
 
+        _preplaceSet.clear();
+        _preplaceSet.add(pos);
+
         double selfDamage = DamageUtils.newCrystalDamage(mc.player, mc.player.getBoundingBox(),
-                new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5), pos);
+                new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5), _preplaceSet);
 
         if (selfDamage > maxPlace.get()) {
             return;
         }
-        
+
         placeCrystal(downPos, dir);
     }
 
