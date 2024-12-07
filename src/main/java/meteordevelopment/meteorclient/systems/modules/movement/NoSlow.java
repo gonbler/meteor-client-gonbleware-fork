@@ -90,6 +90,13 @@ public class NoSlow extends Module {
         .build()
     );
 
+    private final Setting<Boolean> crawling = sgGeneral.add(new BoolSetting.Builder()
+        .name("crawling")
+        .description("Whether or not crawling will not slow you down.")
+        .defaultValue(false)
+        .build()
+    );
+
     private final Setting<Boolean> hunger = sgGeneral.add(new BoolSetting.Builder()
         .name("hunger")
         .description("Whether or not hunger will not slow you down.")
@@ -139,6 +146,10 @@ public class NoSlow extends Module {
         return isActive() && web.get() == WebMode.Vanilla;
     }
 
+    public boolean cobwebGrim() {
+        return isActive() && web.get() == WebMode.Grim;
+    }
+
     public boolean berryBush() {
         return isActive() && berryBush.get();
     }
@@ -149,6 +160,10 @@ public class NoSlow extends Module {
 
     public boolean sneaking() {
         return isActive() && sneaking.get();
+    }
+
+    public boolean crawling() {
+        return isActive() && crawling.get();
     }
 
     public boolean hunger() {
@@ -170,11 +185,18 @@ public class NoSlow extends Module {
                 resetTimer = true;
             }
         }
+
+        if (web.get() == WebMode.Grim) {
+            if (mc.world.getBlockState(mc.player.getBlockPos()).getBlock().equals(Blocks.COBWEB) && !mc.player.isOnGround()) {
+                mc.player.setSprinting(false);
+            }
+        }
     }
 
     public enum WebMode {
         Vanilla,
         Timer,
+        Grim,
         None
     }
 }

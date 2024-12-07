@@ -32,7 +32,8 @@ public class Commands {
         add(new DropCommand());
         add(new EnchantCommand());
         add(new FakePlayerCommand());
-        add(new FriendsCommand());
+        add(new FriendCommand());
+        add(new EnemyCommand());
         add(new CommandsCommand());
         add(new InventoryCommand());
         add(new NbtCommand());

@@ -162,6 +162,13 @@ public class Notifier extends Module {
         .build()
     );
 
+    private final Setting<Boolean> showPosition = sgPearl.add(new BoolSetting.Builder()
+        .name("show-position")
+        .description("Whether or not to show the position of the pearl when it lands")
+        .defaultValue(false)
+        .build()
+    );
+
     // Joins/Leaves
 
     private final Setting<JoinLeaveModes> joinsLeavesMode = sgJoinsLeaves.add(new EnumSetting.Builder<JoinLeaveModes>()
@@ -253,7 +260,11 @@ public class Notifier extends Module {
                 if (pearl.getOwner() != null && pearl.getOwner() instanceof PlayerEntity p) {
                     double d = pearlStartPosMap.get(i).distanceTo(e.getPos());
                     if ((!Friends.get().isFriend(p) || !pearlIgnoreFriends.get()) && (!p.equals(mc.player) || !pearlIgnoreOwn.get())) {
-                        info("(highlight)%s's(default) pearl landed at %d, %d, %d (highlight)(%.1fm away, travelled %.1fm)(default).", pearl.getOwner().getName().getString(), pearl.getBlockPos().getX(), pearl.getBlockPos().getY(), pearl.getBlockPos().getZ(), pearl.distanceTo(mc.player), d);
+                        if (showPosition.get()) {
+                            info("(highlight)%s's(default) pearl landed at %d, %d, %d (highlight)(%.1fm away, travelled %.1fm)(default).", pearl.getOwner().getName().getString(), pearl.getBlockPos().getX(), pearl.getBlockPos().getY(), pearl.getBlockPos().getZ(), pearl.distanceTo(mc.player), d);
+                        } else {
+                            info("(highlight)%s's(default) pearl landed at (highlight)(%.1fm away, travelled %.1fm)(default).", pearl.getOwner().getName().getString(), pearl.distanceTo(mc.player), d);
+                        }
                     }
                 }
                 pearlStartPosMap.remove(i);

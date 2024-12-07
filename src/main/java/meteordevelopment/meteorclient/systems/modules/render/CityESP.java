@@ -61,7 +61,7 @@ public class CityESP extends Module {
         if (TargetUtils.isBadTarget(targetEntity, mc.player.getBlockInteractionRange() + 2)) {
             target = null;
         } else {
-            target = EntityUtils.getCityBlock(targetEntity);
+            target = EntityUtils.getCityBlock(mc.player, targetEntity, null);
         }
     }
 

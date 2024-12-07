@@ -171,7 +171,7 @@ public class Modules extends System<Modules> {
         }
     }
 
-    public Set<Module> searchTitles(String text) {
+    public Map<Module, Integer> searchTitles(String text) {
         Map<Module, Integer> modules = new ValueComparableMap<>(Comparator.naturalOrder());
 
         for (Module module : this.moduleInstances.values()) {
@@ -185,7 +185,7 @@ public class Modules extends System<Modules> {
             modules.put(module, modules.getOrDefault(module, 0) + score);
         }
 
-        return modules.keySet();
+        return modules;
     }
 
     public Set<Module> searchSettingTitles(String text) {
@@ -433,6 +433,11 @@ public class Modules extends System<Modules> {
         add(new SelfTrap());
         add(new SelfWeb());
         add(new Surround());
+
+        add(new AutoCrystal());
+        add(new AutoMine());
+        add(new ForceSwim());
+        add(new SwordAura());
     }
 
     private void initPlayer() {
@@ -464,6 +469,7 @@ public class Modules extends System<Modules> {
         add(new Reach());
         add(new Rotation());
         add(new SpeedMine());
+        add(new PearlPhase());
     }
 
     private void initMovement() {
@@ -478,6 +484,7 @@ public class Modules extends System<Modules> {
         add(new BoatFly());
         add(new ClickTP());
         add(new ElytraBoost());
+        add(new ElytraSpeed());
         add(new ElytraFly());
         add(new EntityControl());
         add(new EntitySpeed());
@@ -501,6 +508,9 @@ public class Modules extends System<Modules> {
         add(new Step());
         add(new TridentBoost());
         add(new Velocity());
+
+        add(new ElytraFakeFly());
+        add(new MovementFix());
     }
 
     private void initRender() {
@@ -542,6 +552,7 @@ public class Modules extends System<Modules> {
         add(new PopChams());
         add(new TunnelESP());
         add(new BetterTab());
+        add(new PhaseESP());
     }
 
     private void initWorld() {
@@ -565,10 +576,13 @@ public class Modules extends System<Modules> {
         add(new NoGhostBlocks());
         add(new Nuker());
         add(new PacketMine());
+        add(new SilentMine());
         add(new StashFinder());
         add(new SpawnProofer());
         add(new Timer());
         add(new VeinMiner());
+
+        add(new SourceFiller());
 
         if (BaritoneUtils.IS_AVAILABLE) {
             add(new Excavator());

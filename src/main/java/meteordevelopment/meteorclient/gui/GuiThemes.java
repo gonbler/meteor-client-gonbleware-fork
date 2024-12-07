@@ -6,6 +6,7 @@
 package meteordevelopment.meteorclient.gui;
 
 import meteordevelopment.meteorclient.MeteorClient;
+import meteordevelopment.meteorclient.gui.themes.gonbleware.GonbleWareGuiTheme;
 import meteordevelopment.meteorclient.gui.themes.meteor.MeteorGuiTheme;
 import meteordevelopment.meteorclient.utils.PostInit;
 import meteordevelopment.meteorclient.utils.PreInit;
@@ -31,6 +32,7 @@ public class GuiThemes {
 
     @PreInit
     public static void init() {
+        add(new GonbleWareGuiTheme());
         add(new MeteorGuiTheme());
     }
 
@@ -46,7 +48,7 @@ public class GuiThemes {
             }
         }
 
-        if (theme == null) select("Meteor");
+        if (theme == null) select("GonbleWare");
     }
 
     public static void add(GuiTheme theme) {

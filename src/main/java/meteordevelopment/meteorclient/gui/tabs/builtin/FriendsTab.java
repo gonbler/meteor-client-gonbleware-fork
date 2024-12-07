@@ -16,6 +16,7 @@ import meteordevelopment.meteorclient.gui.widgets.pressable.WMinus;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WPlus;
 import meteordevelopment.meteorclient.systems.friends.Friend;
 import meteordevelopment.meteorclient.systems.friends.Friends;
+import meteordevelopment.meteorclient.systems.friends.Friend.FriendType;
 import meteordevelopment.meteorclient.utils.misc.NbtUtils;
 import meteordevelopment.meteorclient.utils.network.MeteorExecutor;
 import net.minecraft.client.gui.screen.Screen;
@@ -56,7 +57,7 @@ public class FriendsTab extends Tab {
             WPlus add = list.add(theme.plus()).widget();
             add.action = () -> {
                 String name = nameW.get().trim();
-                Friend friend = new Friend(name);
+                Friend friend = new Friend(name, FriendType.Friend);
 
                 if (Friends.get().add(friend)) {
                     nameW.set("");
@@ -76,7 +77,7 @@ public class FriendsTab extends Tab {
             table.clear();
             if (Friends.get().isEmpty()) return;
 
-            Friends.get().forEach(friend ->
+            Friends.get().friendStream().forEach(friend ->
                 MeteorExecutor.execute(() -> {
                     if (friend.headTextureNeedsUpdate()) {
                         friend.updateInfo();
@@ -85,7 +86,7 @@ public class FriendsTab extends Tab {
                 })
             );
 
-            for (Friend friend : Friends.get()) {
+            Friends.get().friendStream().forEach(friend -> {
                 table.add(theme.texture(32, 32, friend.getHead().needsRotate() ? 90 : 0, friend.getHead()));
                 table.add(theme.label(friend.getName()));
 
@@ -96,7 +97,7 @@ public class FriendsTab extends Tab {
                 };
 
                 table.row();
-            }
+            });
         }
 
         @Override

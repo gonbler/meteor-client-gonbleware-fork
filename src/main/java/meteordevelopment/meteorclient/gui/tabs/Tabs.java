@@ -25,8 +25,10 @@ public class Tabs {
         add(new GuiTab());
         add(new HudTab());
         add(new FriendsTab());
+        add(new EnemiesTab());
         add(new MacrosTab());
         add(new ProfilesTab());
+        add(new AntiCheatTab());
 
         if (PathManagers.get().getSettings().get().sizeGroups() > 0) {
             add(new PathManagerTab());

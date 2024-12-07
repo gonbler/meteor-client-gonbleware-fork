@@ -133,6 +133,13 @@ public class Velocity extends Module {
         .build()
     );
 
+    public final Setting<Boolean> livingEntityKnockback = sgGeneral.add(new BoolSetting.Builder()
+        .name("living-entity-knockback")
+        .description("Prevents you from being moved by knockback.")
+        .defaultValue(true)
+        .build()
+    );
+
     public Velocity() {
         super(Categories.Movement, "velocity", "Prevents you from being moved by external forces.");
     }

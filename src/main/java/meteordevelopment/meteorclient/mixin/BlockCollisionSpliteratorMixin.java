@@ -32,7 +32,9 @@ public abstract class BlockCollisionSpliteratorMixin {
     private VoxelShape onComputeNextCollisionBox(BlockState state, BlockView world, BlockPos pos, ShapeContext context, Operation<VoxelShape> original) {
         VoxelShape shape = original.call(state, world, pos, context);
 
-        if (world != MinecraftClient.getInstance().world) {
+        MinecraftClient instance = MinecraftClient.getInstance();
+
+        if (world != instance.world) {
             return shape;
         }
 

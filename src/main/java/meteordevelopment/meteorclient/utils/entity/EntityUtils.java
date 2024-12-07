@@ -1,6 +1,6 @@
 /*
- * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/meteor-client).
- * Copyright (c) Meteor Development.
+ * This file is part of the Meteor Client distribution
+ * (https://github.com/MeteorDevelopment/meteor-client). Copyright (c) Meteor Development.
  */
 
 package meteordevelopment.meteorclient.utils.entity;
@@ -43,15 +43,25 @@ import static meteordevelopment.meteorclient.MeteorClient.mc;
 public class EntityUtils {
     private static BlockPos.Mutable testPos = new BlockPos.Mutable();
 
-    private EntityUtils() {
-    }
+    private EntityUtils() {}
 
     public static boolean isAttackable(EntityType<?> type) {
-        return type != EntityType.AREA_EFFECT_CLOUD && type != EntityType.ARROW && type != EntityType.FALLING_BLOCK && type != EntityType.FIREWORK_ROCKET && type != EntityType.ITEM && type != EntityType.LLAMA_SPIT && type != EntityType.SPECTRAL_ARROW && type != EntityType.ENDER_PEARL && type != EntityType.EXPERIENCE_BOTTLE && type != EntityType.POTION && type != EntityType.TRIDENT && type != EntityType.LIGHTNING_BOLT && type != EntityType.FISHING_BOBBER && type != EntityType.EXPERIENCE_ORB && type != EntityType.EGG;
+        return type != EntityType.AREA_EFFECT_CLOUD && type != EntityType.ARROW
+                && type != EntityType.FALLING_BLOCK && type != EntityType.FIREWORK_ROCKET
+                && type != EntityType.ITEM && type != EntityType.LLAMA_SPIT
+                && type != EntityType.SPECTRAL_ARROW && type != EntityType.ENDER_PEARL
+                && type != EntityType.EXPERIENCE_BOTTLE && type != EntityType.POTION
+                && type != EntityType.TRIDENT && type != EntityType.LIGHTNING_BOLT
+                && type != EntityType.FISHING_BOBBER && type != EntityType.EXPERIENCE_ORB
+                && type != EntityType.EGG;
     }
 
     public static boolean isRideable(EntityType<?> type) {
-        return type == EntityType.MINECART || type == EntityType.BOAT || type == EntityType.CAMEL || type == EntityType.DONKEY || type == EntityType.HORSE || type == EntityType.LLAMA || type == EntityType.MULE || type == EntityType.PIG || type == EntityType.SKELETON_HORSE || type == EntityType.STRIDER || type == EntityType.ZOMBIE_HORSE;
+        return type == EntityType.MINECART || type == EntityType.BOAT || type == EntityType.CAMEL
+                || type == EntityType.DONKEY || type == EntityType.HORSE || type == EntityType.LLAMA
+                || type == EntityType.MULE || type == EntityType.PIG
+                || type == EntityType.SKELETON_HORSE || type == EntityType.STRIDER
+                || type == EntityType.ZOMBIE_HORSE;
     }
 
     public static float getTotalHealth(LivingEntity target) {
@@ -59,17 +69,23 @@ public class EntityUtils {
     }
 
     public static int getPing(PlayerEntity player) {
-        if (mc.getNetworkHandler() == null) return 0;
+        if (mc.getNetworkHandler() == null)
+            return 0;
 
-        PlayerListEntry playerListEntry = mc.getNetworkHandler().getPlayerListEntry(player.getUuid());
-        if (playerListEntry == null) return 0;
+        PlayerListEntry playerListEntry =
+                mc.getNetworkHandler().getPlayerListEntry(player.getUuid());
+        if (playerListEntry == null)
+            return 0;
         return playerListEntry.getLatency();
     }
 
     public static GameMode getGameMode(PlayerEntity player) {
-        if (player == null) return null;
-        PlayerListEntry playerListEntry = mc.getNetworkHandler().getPlayerListEntry(player.getUuid());
-        if (playerListEntry == null) return null;
+        if (player == null)
+            return null;
+        PlayerListEntry playerListEntry =
+                mc.getNetworkHandler().getPlayerListEntry(player.getUuid());
+        if (playerListEntry == null)
+            return null;
         return playerListEntry.getGameMode();
     }
 
@@ -79,7 +95,8 @@ public class EntityUtils {
         for (int i = 0; i < 64; i++) {
             BlockState state = mc.world.getBlockState(blockPos);
 
-            if (state.blocksMovement()) break;
+            if (state.blocksMovement())
+                break;
 
             Fluid fluid = state.getFluidState().getFluid();
             if (fluid == Fluids.WATER || fluid == Fluids.FLOWING_WATER) {
@@ -93,17 +110,20 @@ public class EntityUtils {
     }
 
     public static boolean isInRenderDistance(Entity entity) {
-        if (entity == null) return false;
+        if (entity == null)
+            return false;
         return isInRenderDistance(entity.getX(), entity.getZ());
     }
 
     public static boolean isInRenderDistance(BlockEntity entity) {
-        if (entity == null) return false;
+        if (entity == null)
+            return false;
         return isInRenderDistance(entity.getPos().getX(), entity.getPos().getZ());
     }
 
     public static boolean isInRenderDistance(BlockPos pos) {
-        if (pos == null) return false;
+        if (pos == null)
+            return false;
         return isInRenderDistance(pos.getX(), pos.getZ());
     }
 
@@ -115,8 +135,10 @@ public class EntityUtils {
         return x < d && z < d;
     }
 
-    public static BlockPos getCityBlock(PlayerEntity player) {
-        if (player == null) return null;
+    public static BlockPos getCityBlock(PlayerEntity self, PlayerEntity player,
+            BlockPos excludeBlockPos) {
+        if (player == null)
+            return null;
 
         double bestDistanceSquared = 6 * 6;
         Direction bestDirection = null;
@@ -124,24 +146,47 @@ public class EntityUtils {
         for (Direction direction : Direction.HORIZONTAL) {
             testPos.set(player.getBlockPos().offset(direction));
 
+            if (excludeBlockPos != null && testPos.equals(excludeBlockPos)) {
+                continue;
+            }
+
             Block block = mc.world.getBlockState(testPos).getBlock();
-            if (block != Blocks.OBSIDIAN && block != Blocks.NETHERITE_BLOCK && block != Blocks.CRYING_OBSIDIAN
-                && block != Blocks.RESPAWN_ANCHOR && block != Blocks.ANCIENT_DEBRIS) continue;
+            if (block != Blocks.OBSIDIAN && block != Blocks.NETHERITE_BLOCK
+                    && block != Blocks.CRYING_OBSIDIAN && block != Blocks.RESPAWN_ANCHOR
+                    && block != Blocks.ANCIENT_DEBRIS) {
+                if (block == Blocks.AIR && mc.world.getBlockState(player.getBlockPos())
+                        .getBlock() == Blocks.OBSIDIAN) {
+                    return player.getBlockPos();
+                }
+
+                continue;
+            }
 
             double testDistanceSquared = PlayerUtils.squaredDistanceTo(testPos);
+            for (Direction direction2 : Direction.HORIZONTAL) {
+                BlockPos selfBlockPos = self.getBlockPos().offset(direction2);
+
+                if (selfBlockPos.equals(testPos)) {
+                    testDistanceSquared += 2;
+                }
+            }
+
             if (testDistanceSquared < bestDistanceSquared) {
                 bestDistanceSquared = testDistanceSquared;
                 bestDirection = direction;
             }
         }
 
-        if (bestDirection == null) return null;
+        if (bestDirection == null)
+            return null;
         return player.getBlockPos().offset(bestDirection);
     }
 
     public static String getName(Entity entity) {
-        if (entity == null) return null;
-        if (entity instanceof PlayerEntity) return entity.getName().getString();
+        if (entity == null)
+            return null;
+        if (entity instanceof PlayerEntity)
+            return entity.getName().getString();
         return entity.getType().getName().getString();
     }
 
@@ -160,10 +205,11 @@ public class EntityUtils {
 
         if (percent < 0.5) {
             r = 255;
-            g = (int) (255 * percent / 0.5);  // Closer to 0.5, closer to yellow (255,255,0)
+            g = (int) (255 * percent / 0.5); // Closer to 0.5, closer to yellow (255,255,0)
         } else {
             g = 255;
-            r = 255 - (int) (255 * (percent - 0.5) / 0.5); // Closer to 1.0, closer to green (0,255,0)
+            r = 255 - (int) (255 * (percent - 0.5) / 0.5); // Closer to 1.0, closer to green
+                                                           // (0,255,0)
         }
 
         distanceColor.set(r, g, 0, 255);
@@ -173,11 +219,15 @@ public class EntityUtils {
     public static boolean intersectsWithEntity(Box box, Predicate<Entity> predicate) {
         EntityLookup<Entity> entityLookup = ((WorldAccessor) mc.world).getEntityLookup();
 
-        // Fast implementation using SimpleEntityLookup that returns on the first intersecting entity
+        // Fast implementation using SimpleEntityLookup that returns on the first
+        // intersecting entity
         if (entityLookup instanceof SimpleEntityLookup<Entity> simpleEntityLookup) {
-            SectionedEntityCache<Entity> cache = ((SimpleEntityLookupAccessor) simpleEntityLookup).getCache();
-            LongSortedSet trackedPositions = ((SectionedEntityCacheAccessor) cache).getTrackedPositions();
-            Long2ObjectMap<EntityTrackingSection<Entity>> trackingSections = ((SectionedEntityCacheAccessor) cache).getTrackingSections();
+            SectionedEntityCache<Entity> cache =
+                    ((SimpleEntityLookupAccessor) simpleEntityLookup).getCache();
+            LongSortedSet trackedPositions =
+                    ((SectionedEntityCacheAccessor) cache).getTrackedPositions();
+            Long2ObjectMap<EntityTrackingSection<Entity>> trackingSections =
+                    ((SectionedEntityCacheAccessor) cache).getTrackingSections();
 
             int i = ChunkSectionPos.getSectionCoord(box.minX - 2);
             int j = ChunkSectionPos.getSectionCoord(box.minY - 2);
@@ -189,7 +239,8 @@ public class EntityUtils {
             for (int o = i; o <= l; o++) {
                 long p = ChunkSectionPos.asLong(o, 0, 0);
                 long q = ChunkSectionPos.asLong(o, -1, -1);
-                LongBidirectionalIterator longIterator = trackedPositions.subSet(p, q + 1).iterator();
+                LongBidirectionalIterator longIterator =
+                        trackedPositions.subSet(p, q + 1).iterator();
 
                 while (longIterator.hasNext()) {
                     long r = longIterator.nextLong();
@@ -197,11 +248,16 @@ public class EntityUtils {
                     int t = ChunkSectionPos.unpackZ(r);
 
                     if (s >= j && s <= m && t >= k && t <= n) {
-                        EntityTrackingSection<Entity> entityTrackingSection = trackingSections.get(r);
+                        EntityTrackingSection<Entity> entityTrackingSection =
+                                trackingSections.get(r);
 
-                        if (entityTrackingSection != null && entityTrackingSection.getStatus().shouldTrack()) {
-                            for (Entity entity : ((EntityTrackingSectionAccessor) entityTrackingSection).<Entity>getCollection()) {
-                                if (entity.getBoundingBox().intersects(box) && predicate.test(entity)) return true;
+                        if (entityTrackingSection != null
+                                && entityTrackingSection.getStatus().shouldTrack()) {
+                            for (Entity entity : ((EntityTrackingSectionAccessor) entityTrackingSection)
+                                    .<Entity>getCollection()) {
+                                if (entity.getBoundingBox().intersects(box)
+                                        && predicate.test(entity))
+                                    return true;
                             }
                         }
                     }
@@ -211,11 +267,13 @@ public class EntityUtils {
             return false;
         }
 
-        // Slow implementation that loops every entity if for some reason the EntityLookup implementation is changed
+        // Slow implementation that loops every entity if for some reason the
+        // EntityLookup implementation is changed
         AtomicBoolean found = new AtomicBoolean(false);
 
         entityLookup.forEachIntersects(box, entity -> {
-            if (!found.get() && predicate.test(entity)) found.set(true);
+            if (!found.get() && predicate.test(entity))
+                found.set(true);
         });
 
         return found.get();

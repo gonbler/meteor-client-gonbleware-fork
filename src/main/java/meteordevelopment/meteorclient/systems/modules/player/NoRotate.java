@@ -11,6 +11,7 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
+import net.minecraft.network.packet.s2c.play.PositionFlag;
 
 public class NoRotate extends Module {
     public NoRotate() {
@@ -19,9 +20,17 @@ public class NoRotate extends Module {
 
     @EventHandler
     private void onReceivePacket(PacketEvent.Receive event) {
-        if (event.packet instanceof PlayerPositionLookS2CPacket) {
-            ((PlayerPositionLookS2CPacketAccessor) event.packet).setPitch(mc.player.getPitch());
-            ((PlayerPositionLookS2CPacketAccessor) event.packet).setYaw(mc.player.getYaw());
+        if (event.packet instanceof PlayerPositionLookS2CPacket packet) {
+            if (packet.getFlags().contains(PositionFlag.Y_ROT)) {
+                ((PlayerPositionLookS2CPacketAccessor) packet).setYaw(0);
+            } else {
+                ((PlayerPositionLookS2CPacketAccessor) packet).setYaw(mc.player.getYaw());
+            }
+            if (packet.getFlags().contains(PositionFlag.X_ROT)) {
+                ((PlayerPositionLookS2CPacketAccessor) packet).setPitch(0);
+            } else {
+                ((PlayerPositionLookS2CPacketAccessor) packet).setPitch(mc.player.getPitch());
+            }
         }
     }
 }

@@ -24,13 +24,16 @@ import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.ExperienceOrbEntity;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.Item;
 import net.minecraft.util.math.Vec2f;
 import org.joml.Vector2f;
 import org.joml.Vector3d;
-
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Set;
 
 public class Tracers extends Module {
@@ -49,6 +52,22 @@ public class Tracers extends Module {
         .name("entities")
         .description("Select specific entities.")
         .defaultValue(EntityType.PLAYER)
+        .build()
+    );
+
+    private final Setting<List<Item>> itemTargets = sgGeneral.add(new ItemListSetting.Builder()
+        .name("items")
+        .description("Select specific items to target.")
+        .visible(() ->  entities.get().contains(EntityType.ITEM))
+        .build()
+    );
+
+    private final Setting<Integer> minExperienceOrbSize = sgGeneral.add(new IntSetting.Builder()
+        .name("minimum-experience-orb-size")
+        .description("Only draws tracers to specific sizes of xp orbs.")
+        .visible(() ->  entities.get().contains(EntityType.EXPERIENCE_ORB))
+        .defaultValue(0)
+        .min(0).sliderMax(10)
         .build()
     );
 
@@ -218,7 +237,25 @@ public class Tracers extends Module {
     }
 
     private boolean shouldBeIgnored(Entity entity) {
-        return !PlayerUtils.isWithin(entity, maxDist.get()) || (!Modules.get().isActive(Freecam.class) && entity == mc.player) || !entities.get().contains(entity.getType()) || (ignoreSelf.get() && entity == mc.player) || (ignoreFriends.get() && entity instanceof PlayerEntity && Friends.get().isFriend((PlayerEntity) entity)) || (!showInvis.get() && entity.isInvisible()) | !EntityUtils.isInRenderDistance(entity);
+        boolean normalIgnore = !PlayerUtils.isWithin(entity, maxDist.get()) || (!Modules.get().isActive(Freecam.class) && entity == mc.player) || !entities.get().contains(entity.getType()) || (ignoreSelf.get() && entity == mc.player) || (ignoreFriends.get() && entity instanceof PlayerEntity && Friends.get().isFriend((PlayerEntity) entity)) || (!showInvis.get() && entity.isInvisible()) | !EntityUtils.isInRenderDistance(entity);
+    
+        if (normalIgnore) {
+            return true;
+        }
+
+        if (entity instanceof ItemEntity item) {
+            if (!itemTargets.get().contains(item.getStack().getItem())) {
+                return true;
+            }
+        }
+
+        if (entity instanceof ExperienceOrbEntity exp) {
+            if (exp.getOrbSize() < minExperienceOrbSize.get()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private Color getEntityColor(Entity entity) {

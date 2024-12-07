@@ -369,10 +369,18 @@ public class BlockUtils {
         }
     }
 
+    public static double getBreakDelta(double breakingSpeed, BlockState state) {
+        float hardness = state.getHardness(null, null);
+        if (hardness == -1) return 0;
+        else {
+            return breakingSpeed / hardness / 30;
+        }
+    }
+
     /**
      * @see net.minecraft.entity.player.PlayerEntity#getBlockBreakingSpeed(BlockState)
      */
-    private static double getBlockBreakingSpeed(int slot, BlockState block) {
+    public static double getBlockBreakingSpeed(int slot, BlockState block) {
         double speed = mc.player.getInventory().main.get(slot).getMiningSpeedMultiplier(block);
 
         if (speed > 1) {

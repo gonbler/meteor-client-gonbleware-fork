@@ -1,6 +1,6 @@
 /*
- * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/meteor-client).
- * Copyright (c) Meteor Development.
+ * This file is part of the Meteor Client distribution
+ * (https://github.com/MeteorDevelopment/meteor-client). Copyright (c) Meteor Development.
  */
 
 package meteordevelopment.meteorclient.mixin;
@@ -29,6 +29,17 @@ public abstract class PlayerListHudMixin {
     @Shadow
     protected abstract List<PlayerListEntry> collectPlayerEntries();
 
+    @Inject(method = "collectPlayerEntries", at = @At("RETURN"), cancellable = true)
+    private void modifyPlayerEntries(CallbackInfoReturnable<List<PlayerListEntry>> cir) {
+        List<PlayerListEntry> originalList = cir.getReturnValue();
+        BetterTab betterTab = Modules.get().get(BetterTab.class);
+
+        List<PlayerListEntry> modifiedList = originalList.stream().filter(betterTab::shouldShowPlayer).toList();
+
+        cir.setReturnValue(modifiedList);
+    }
+
+
     @ModifyConstant(constant = @Constant(longValue = 80L), method = "collectPlayerEntries")
     private long modifyCount(long count) {
         BetterTab module = Modules.get().get(BetterTab.class);
@@ -40,20 +51,25 @@ public abstract class PlayerListHudMixin {
     public void getPlayerName(PlayerListEntry playerListEntry, CallbackInfoReturnable<Text> info) {
         BetterTab betterTab = Modules.get().get(BetterTab.class);
 
-        if (betterTab.isActive()) info.setReturnValue(betterTab.getPlayerName(playerListEntry));
+        if (betterTab.isActive())
+            info.setReturnValue(betterTab.getPlayerName(playerListEntry));
     }
 
-    @ModifyArg(method = "render", at = @At(value = "INVOKE", target = "Ljava/lang/Math;min(II)I"), index = 0)
+    @ModifyArg(method = "render", at = @At(value = "INVOKE", target = "Ljava/lang/Math;min(II)I"),
+            index = 0)
     private int modifyWidth(int width) {
         BetterTab module = Modules.get().get(BetterTab.class);
 
         return module.isActive() && module.accurateLatency.get() ? width + 30 : width;
     }
 
-    @Inject(method = "render", at = @At(value = "INVOKE", target = "Ljava/lang/Math;min(II)I", shift = At.Shift.BEFORE))
-    private void modifyHeight(CallbackInfo ci, @Local(ordinal = 5)LocalIntRef o, @Local(ordinal = 6)LocalIntRef p) {
+    @Inject(method = "render", at = @At(value = "INVOKE", target = "Ljava/lang/Math;min(II)I",
+            shift = At.Shift.BEFORE))
+    private void modifyHeight(CallbackInfo ci, @Local(ordinal = 5) LocalIntRef o,
+            @Local(ordinal = 6) LocalIntRef p) {
         BetterTab module = Modules.get().get(BetterTab.class);
-        if (!module.isActive()) return;
+        if (!module.isActive())
+            return;
 
         int newO;
         int newP = 1;
@@ -67,7 +83,8 @@ public abstract class PlayerListHudMixin {
     }
 
     @Inject(method = "renderLatencyIcon", at = @At("HEAD"), cancellable = true)
-    private void onRenderLatencyIcon(DrawContext context, int width, int x, int y, PlayerListEntry entry, CallbackInfo ci) {
+    private void onRenderLatencyIcon(DrawContext context, int width, int x, int y,
+            PlayerListEntry entry, CallbackInfo ci) {
         BetterTab betterTab = Modules.get().get(BetterTab.class);
 
         if (betterTab.isActive() && betterTab.accurateLatency.get()) {
@@ -77,7 +94,8 @@ public abstract class PlayerListHudMixin {
             int latency = MathHelper.clamp(entry.getLatency(), 0, 9999);
             int color = latency < 150 ? 0x00E970 : latency < 300 ? 0xE7D020 : 0xD74238;
             String text = latency + "ms";
-            context.drawTextWithShadow(textRenderer, text, x + width - textRenderer.getWidth(text), y, color);
+            context.drawTextWithShadow(textRenderer, text, x + width - textRenderer.getWidth(text),
+                    y, color);
             ci.cancel();
         }
     }

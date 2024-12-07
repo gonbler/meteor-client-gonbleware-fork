@@ -6,6 +6,7 @@
 package meteordevelopment.meteorclient.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
+import meteordevelopment.meteorclient.systems.managers.RotationManager;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.render.Chams;
 import meteordevelopment.meteorclient.systems.modules.render.Freecam;
@@ -25,6 +26,7 @@ import net.minecraft.scoreboard.Team;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
@@ -49,6 +51,7 @@ public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extend
     @ModifyVariable(method = "render(Lnet/minecraft/entity/LivingEntity;FFLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V", ordinal = 2, at = @At(value = "STORE", ordinal = 0))
     public float changeYaw(float oldValue, LivingEntity entity) {
         if (entity.equals(mc.player) && Rotations.rotationTimer < 10) return Rotations.serverYaw;
+
         return oldValue;
     }
 
@@ -127,5 +130,59 @@ public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extend
             return getRenderLayer(livingEntity, showBody, translucent, showOutline);
 
         return RenderLayer.getItemEntityTranslucentCull(Chams.BLANK);
+    }
+
+    @Unique
+    private LivingEntity lastEntity;
+    @Unique
+    private float originalYaw;
+    @Unique
+    private float originalHeadYaw;
+    @Unique
+    private float originalBodyYaw;
+    @Unique
+    private float originalPitch;
+
+    @Unique
+    private float originalPrevYaw;
+    @Unique
+    private float originalPrevHeadYaw;
+    @Unique
+    private float originalPrevBodyYaw;
+    @Inject(method = "render", at = @At("HEAD"))
+    public void onRenderPre(T livingEntity, float f, float g, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i, CallbackInfo ci) {
+        if (mc.player != null && livingEntity == mc.player) {
+            originalYaw = livingEntity.getYaw();
+            originalHeadYaw = livingEntity.headYaw;
+            originalBodyYaw = livingEntity.bodyYaw;
+            originalPitch = livingEntity.getPitch();
+            originalPrevYaw = livingEntity.prevYaw;
+            originalPrevHeadYaw = livingEntity.prevHeadYaw;
+            originalPrevBodyYaw = livingEntity.prevBodyYaw;
+
+            livingEntity.setYaw(RotationManager.getRenderYawOffset());
+            livingEntity.headYaw = RotationManager.getRotationYawHead();
+            livingEntity.bodyYaw = RotationManager.getRenderYawOffset();
+            livingEntity.setPitch(RotationManager.getRenderPitch());
+            livingEntity.prevYaw = RotationManager.getPrevRenderYawOffset();
+            livingEntity.prevHeadYaw = RotationManager.getPrevRotationYawHead();
+            livingEntity.prevBodyYaw = RotationManager.getPrevRenderYawOffset();
+            livingEntity.prevPitch = RotationManager.getPrevPitch();
+        }
+        lastEntity = livingEntity;
+    }
+
+    @Inject(method = "render", at = @At("TAIL"))
+    public void onRenderPost(T livingEntity, float f, float g, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i, CallbackInfo ci) {
+        if (mc.player != null && livingEntity == mc.player) {
+            livingEntity.setYaw(originalYaw);
+            livingEntity.headYaw = originalHeadYaw;
+            livingEntity.bodyYaw = originalBodyYaw;
+            livingEntity.setPitch(originalPitch);
+            livingEntity.prevYaw = originalPrevYaw;
+            livingEntity.prevHeadYaw = originalPrevHeadYaw;
+            livingEntity.prevBodyYaw = originalPrevBodyYaw;
+            livingEntity.prevPitch = originalPitch;
+        }
     }
 }

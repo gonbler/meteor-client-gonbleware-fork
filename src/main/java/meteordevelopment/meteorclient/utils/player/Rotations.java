@@ -221,6 +221,20 @@ public class Rotations {
         rotationTimer = 0;
     }
 
+    public static double yawAngle(double current, double target) {
+        double c = MathHelper.wrapDegrees(current) + 180, t = MathHelper.wrapDegrees(target) + 180;
+        if (c > t) {
+            return t + 360 - c < Math.abs(c - t) ? 360 - c + t : t - c;
+        } else {
+            return 360 - t + c < Math.abs(c - t) ? -(360 - t + c) : t - c;
+        }
+    }
+
+    public static Vec3d getDirection(Vec3d from, Vec3d to) {
+        Vec3d direction = to.subtract(from);
+        return direction.normalize();
+    }
+
     private static class Rotation {
         public double yaw, pitch;
         public int priority;

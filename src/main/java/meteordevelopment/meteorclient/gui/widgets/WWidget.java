@@ -11,6 +11,8 @@ import meteordevelopment.meteorclient.gui.utils.BaseWidget;
 
 public abstract class WWidget implements BaseWidget {
     public boolean visible = true;
+    public boolean highlight = false;
+    public boolean deactivate = false;
     public GuiTheme theme;
 
     public double x, y;

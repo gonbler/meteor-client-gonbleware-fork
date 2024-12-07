@@ -89,6 +89,7 @@
     "ExplosionMixin",
     "ExplosionS2CPacketMixin",
     "FileCacheAccessor",
+    "FireworkRocketItemMixin",
     "FireworkRocketEntityMixin",
     "FireworksSparkParticleMixin",
     "FireworksSparkParticleSubMixin",

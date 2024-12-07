@@ -12,13 +12,14 @@ import meteordevelopment.meteorclient.commands.arguments.FriendArgumentType;
 import meteordevelopment.meteorclient.commands.arguments.PlayerListEntryArgumentType;
 import meteordevelopment.meteorclient.systems.friends.Friend;
 import meteordevelopment.meteorclient.systems.friends.Friends;
+import meteordevelopment.meteorclient.systems.friends.Friend.FriendType;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import net.minecraft.command.CommandSource;
 import net.minecraft.util.Formatting;
 
-public class FriendsCommand extends Command {
-    public FriendsCommand() {
-        super("friends", "Manages friends.");
+public class EnemyCommand extends Command {
+    public EnemyCommand() {
+        super("enemy", "Manages enemies.");
     }
 
     @Override
@@ -27,12 +28,12 @@ public class FriendsCommand extends Command {
             .then(argument("player", PlayerListEntryArgumentType.create())
                 .executes(context -> {
                     GameProfile profile = PlayerListEntryArgumentType.get(context).getProfile();
-                    Friend friend = new Friend(profile.getName(), profile.getId());
+                    Friend friend = new Friend(profile.getName(), profile.getId(), FriendType.Enemy);
 
                     if (Friends.get().add(friend)) {
-                        ChatUtils.sendMsg(friend.hashCode(), Formatting.GRAY, "Added (highlight)%s (default)to friends.".formatted(friend.getName()));
+                        ChatUtils.sendMsg(friend.hashCode(), Formatting.GRAY, "Added (highlight)%s (default)to enemies.".formatted(friend.getName()));
                     }
-                    else error("Already friends with that player.");
+                    else error("Already enemies with that player.");
 
                     return SINGLE_SUCCESS;
                 })
@@ -44,14 +45,14 @@ public class FriendsCommand extends Command {
                 .executes(context -> {
                     Friend friend = FriendArgumentType.get(context);
                     if (friend == null) {
-                        error("Not friends with that player.");
+                        error("Not friends with that enemy.");
                         return SINGLE_SUCCESS;
                     }
 
                     if (Friends.get().remove(friend)) {
-                        ChatUtils.sendMsg(friend.hashCode(), Formatting.GRAY, "Removed (highlight)%s (default)from friends.".formatted(friend.getName()));
+                        ChatUtils.sendMsg(friend.hashCode(), Formatting.GRAY, "Removed (highlight)%s (default)from enemies.".formatted(friend.getName()));
                     }
-                    else error("Failed to remove that friend.");
+                    else error("Failed to remove that enemy.");
 
                     return SINGLE_SUCCESS;
                 })
@@ -59,8 +60,8 @@ public class FriendsCommand extends Command {
         );
 
         builder.then(literal("list").executes(context -> {
-                info("--- Friends ((highlight)%s(default)) ---", Friends.get().count());
-                Friends.get().forEach(friend -> ChatUtils.info("(highlight)%s".formatted(friend.getName())));
+                info("--- Enemies ((highlight)%s(default)) ---", Friends.get().count());
+                Friends.get().friendStream().forEach(friend -> ChatUtils.info("(highlight)%s".formatted(friend.getName())));
                 return SINGLE_SUCCESS;
             })
         );

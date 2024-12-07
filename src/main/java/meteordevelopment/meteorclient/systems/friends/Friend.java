@@ -1,6 +1,6 @@
 /*
- * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/meteor-client).
- * Copyright (c) Meteor Development.
+ * This file is part of the Meteor Client distribution
+ * (https://github.com/MeteorDevelopment/meteor-client). Copyright (c) Meteor Development.
  */
 
 package meteordevelopment.meteorclient.systems.friends;
@@ -23,18 +23,21 @@ public class Friend implements ISerializable<Friend>, Comparable<Friend> {
     private volatile @Nullable UUID id;
     private volatile @Nullable PlayerHeadTexture headTexture;
     private volatile boolean updating;
+    private volatile FriendType type = FriendType.Friend;
 
-    public Friend(String name, @Nullable UUID id) {
+    public Friend(String name, @Nullable UUID id, FriendType type) {
         this.name = name;
         this.id = id;
         this.headTexture = null;
+        this.type = type;
     }
 
-    public Friend(PlayerEntity player) {
-        this(player.getName().getString(), player.getUuid());
+    public Friend(PlayerEntity player, FriendType type) {
+        this(player.getName().getString(), player.getUuid(), type);
     }
-    public Friend(String name) {
-        this(name, null);
+
+    public Friend(String name, FriendType type) {
+        this(name, null, type);
     }
 
     public String getName() {
@@ -47,8 +50,10 @@ public class Friend implements ISerializable<Friend>, Comparable<Friend> {
 
     public void updateInfo() {
         updating = true;
-        APIResponse res = Http.get("https://api.mojang.com/users/profiles/minecraft/" + name).sendJson(APIResponse.class);
-        if (res == null || res.name == null || res.id == null) return;
+        APIResponse res = Http.get("https://api.mojang.com/users/profiles/minecraft/" + name)
+                .sendJson(APIResponse.class);
+        if (res == null || res.name == null || res.id == null)
+            return;
         name = res.name;
         id = UndashedUuid.fromStringLenient(res.id);
         headTexture = PlayerHeadUtils.fetchHead(id);
@@ -59,12 +64,31 @@ public class Friend implements ISerializable<Friend>, Comparable<Friend> {
         return !this.updating && headTexture == null;
     }
 
+    public FriendType getFriendType() {
+        return type;
+    }
+
+    public void setfFriendType(FriendType type) {
+        this.type = type;
+    }
+
     @Override
     public NbtCompound toTag() {
         NbtCompound tag = new NbtCompound();
 
         tag.putString("name", name);
-        if (id != null) tag.putString("id", UndashedUuid.toString(id));
+
+        if (id != null)
+            tag.putString("id", UndashedUuid.toString(id));
+
+        switch (type) {
+            case Friend:
+                tag.putString("friendType", "Friend");
+                break;
+            case Enemy:
+                tag.putString("friendType", "Enemy");
+                break;
+        }
 
         return tag;
     }
@@ -76,8 +100,10 @@ public class Friend implements ISerializable<Friend>, Comparable<Friend> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         Friend friend = (Friend) o;
         return Objects.equals(name, friend.name);
     }
@@ -94,5 +120,9 @@ public class Friend implements ISerializable<Friend>, Comparable<Friend> {
 
     private static class APIResponse {
         String name, id;
+    }
+
+    public enum FriendType {
+        Friend, Enemy
     }
 }
