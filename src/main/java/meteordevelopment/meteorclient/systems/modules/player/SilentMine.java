@@ -133,7 +133,7 @@ public class SilentMine extends Module {
             removeDelayedDestroy(false);
         }
 
-       
+
 
         /*
          * if (hasDelayedDestroy() && delayedDestroyBlock.timesBroken > 5) { StartBreakingBlockEvent
@@ -144,9 +144,9 @@ public class SilentMine extends Module {
          * delayedDestroyBlock.startBreaking(); }
          */
 
-         if (rebreakBlock != null && mc.world.getBlockState(rebreakBlock.blockPos).isAir()) {
+        if (rebreakBlock != null && mc.world.getBlockState(rebreakBlock.blockPos).isAir()) {
             rebreakBlock.beenAir = true;
-         }
+        }
 
         if (hasRebreakBlock() && rebreakBlock.timesBroken > 10 && !canRebreakRebreakBlock()) {
             rebreakBlock.cancelBreaking();
@@ -225,7 +225,7 @@ public class SilentMine extends Module {
             }
         }
 
-         if (hasDelayedDestroy() && delayedDestroyBlock.timesBroken > 2) {
+        if (hasDelayedDestroy() && delayedDestroyBlock.timesBroken > 2) {
             if (inBreakRange(delayedDestroyBlock.blockPos)) {
                 delayedDestroyBlock.startBreaking(true);
             }
@@ -237,11 +237,11 @@ public class SilentMine extends Module {
         }
     }
 
-    public void silentBreakBlock(BlockPos pos) {
-        silentBreakBlock(pos, Direction.UP);
+    public void silentBreakBlock(BlockPos pos, double priority) {
+        silentBreakBlock(pos, Direction.UP, priority);
     }
 
-    public void silentBreakBlock(BlockPos blockPos, Direction direction) {
+    public void silentBreakBlock(BlockPos blockPos, Direction direction, double priority) {
         if (!isActive()) {
             return;
         }
@@ -261,13 +261,19 @@ public class SilentMine extends Module {
         }
 
         if (!hasDelayedDestroy()) {
+            boolean willResetPrimary = rebreakBlock != null && !canRebreakRebreakBlock();
+            
+            if (willResetPrimary && rebreakBlock.priority < priority) {
+                return;
+            } 
+
             // Little leeway
             currentGameTickCalculated -= 0.1;
-            delayedDestroyBlock = new SilentMineBlock(blockPos, direction);
+            delayedDestroyBlock = new SilentMineBlock(blockPos, direction, priority);
 
             delayedDestroyBlock.startBreaking(true);
 
-            if (rebreakBlock != null) {
+            if (willResetPrimary) {
                 rebreakBlock.startBreaking(false);
             }
         }
@@ -276,12 +282,12 @@ public class SilentMine extends Module {
             return;
         }
 
-        if (rebreakBlock != null && delayedDestroyBlock != null) {
+        if (rebreakBlock != null && delayedDestroyBlock != null && priority >= rebreakBlock.priority) {
             rebreakBlock = null;
         }
 
         if (rebreakBlock == null) {
-            rebreakBlock = new SilentMineBlock(blockPos, direction);
+            rebreakBlock = new SilentMineBlock(blockPos, direction, priority);
 
             rebreakBlock.startBreaking(false);
         }
@@ -291,7 +297,7 @@ public class SilentMine extends Module {
     public void onStartBreakingBlock(StartBreakingBlockEvent event) {
         event.cancel();
 
-        silentBreakBlock(event.blockPos, event.direction);
+        silentBreakBlock(event.blockPos, event.direction, 100f);
     }
 
     public boolean hasDelayedDestroy() {
@@ -384,15 +390,18 @@ public class SilentMine extends Module {
 
     @EventHandler
     private void onPacket(PacketEvent.Send event) {
-        if (event.packet instanceof PlayerActionC2SPacket packet
-                && packet.getAction() == PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK
-                && antiRubberband.get()) {
-            mc.getNetworkHandler()
-                    .sendPacket(new PlayerActionC2SPacket(
-                            PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, packet.getPos(),
-                            packet.getDirection()));
-        }
+        /*
+         * if (event.packet instanceof PlayerActionC2SPacket packet && packet.getAction() ==
+         * PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK && antiRubberband.get() &&
+         * (packet.getPos().equals(getRebreakBlockPos()) ||
+         * packet.getPos().equals(getDelayedDestroyBlockPos()))) { mc.getNetworkHandler()
+         * .sendPacket(new PlayerActionC2SPacket( PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK,
+         * packet.getPos(), packet.getDirection())); }
+         */
+    }
 
+    private int getSeq() {
+        return mc.world.getPendingUpdateManager().incrementSequence().getSequence();
     }
 
     class SilentMineBlock {
@@ -408,10 +417,14 @@ public class SilentMine extends Module {
 
         private double destroyProgressStart = 0;
 
-        public SilentMineBlock(BlockPos blockPos, Direction direction) {
+        private double priority = 0;
+
+        public SilentMineBlock(BlockPos blockPos, Direction direction, double priority) {
             this.blockPos = blockPos;
 
             this.direction = direction;
+
+            this.priority = priority;
         }
 
         public boolean isReady(boolean isRebreak) {
@@ -425,43 +438,39 @@ public class SilentMine extends Module {
             timesBroken = 0;
             this.destroyProgressStart = currentGameTickCalculated;
 
-            if (isDelayedDestroy) {
-                int s1 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
-                int s2 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
-                int s3 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
-                int s4 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
-                int s5 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction,
+                            getSeq()));
 
-                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction, s1));
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, blockPos, direction,
+                            getSeq()));
 
-                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, blockPos, direction, s2));
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction,
+                            getSeq()));
 
-                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction, s3));
 
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction,
+                            getSeq()));
 
-                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, blockPos, direction, s4));
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, blockPos, direction,
+                            getSeq()));
 
-                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction, s5));
-            } else {
-                int s1 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
-                int s2 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
-                int s3 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction,
+                            getSeq()));
 
-                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction, s1));
-
-                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, blockPos, direction, s2));
-
-                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction, s3));
-
-            }
+            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
 
             destroyPos = blockPos;
 
@@ -469,10 +478,18 @@ public class SilentMine extends Module {
         }
 
         public void tryBreak() {
-            int s = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction,
+                            getSeq()));
+
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction,
+                            getSeq()));
 
             mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                    PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction, s));
+                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
 
             timesBroken++;
         }
@@ -503,6 +520,10 @@ public class SilentMine extends Module {
                     slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot, state);
 
             return Math.min(BlockUtils.getBreakDelta(breakingSpeed, state), 1.0);
+        }
+
+        public double getPriority() {
+            return priority;
         }
 
         public void render(Render3DEvent event, double currentTick, boolean isPrimary) {

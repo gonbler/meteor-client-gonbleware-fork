@@ -176,7 +176,7 @@ public class AutoMine extends Module {
 
                 if (BlockUtils.canBreak(mc.player.getBlockPos().offset(Direction.UP), selfHeadBlock)
                         && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)) {
-                    silentMine.silentBreakBlock(mc.player.getBlockPos().offset(Direction.UP));
+                    silentMine.silentBreakBlock(mc.player.getBlockPos().offset(Direction.UP), 20);
                 }
             }
         }
@@ -198,7 +198,7 @@ public class AutoMine extends Module {
                     && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
                     && (!silentMine.hasDelayedDestroy()
                             || silentMine.getRebreakBlockPos() == null)) {
-                silentMine.silentBreakBlock(mc.player.getBlockPos().offset(Direction.UP));
+                silentMine.silentBreakBlock(mc.player.getBlockPos().offset(Direction.UP), 20);
 
                 prioHead = true;
             }
@@ -210,7 +210,7 @@ public class AutoMine extends Module {
                     && (!silentMine.hasDelayedDestroy()
                             || silentMine.getRebreakBlockPos() == null)) {
 
-                silentMine.silentBreakBlock(mc.player.getBlockPos().offset(Direction.UP));
+                silentMine.silentBreakBlock(mc.player.getBlockPos().offset(Direction.UP), 20);
 
                 prioHead = true;
             }
@@ -229,10 +229,10 @@ public class AutoMine extends Module {
             return;
         }
 
-        if (!prioHead && !silentMine.hasRebreakBlock()) {
+        if (!prioHead && !silentMine.hasRebreakBlock() && silentMine.canRebreakRebreakBlock()) {
             findTargetBlocks();
-            silentMine.silentBreakBlock(target1);
-            silentMine.silentBreakBlock(target2);
+            silentMine.silentBreakBlock(target1, 10);
+            silentMine.silentBreakBlock(target2, 10);
         }
     }
 

@@ -280,9 +280,6 @@ public class AutoCrystal extends Module {
                     / placeSpeedLimit.get()) {
                 if (placeCrystal(bestPlacePos.blockPos.down(), bestPlacePos.placeDirection)) {
                     lastPlaceTimeMS = currentTime;
-
-                    renderPos = bestPlacePos.blockPos.down();
-                    renderTimer.reset();
                 }
             }
         }
@@ -352,7 +349,7 @@ public class AutoCrystal extends Module {
 
             rotatePos = pos.toCenterPos().add(0, 0.5, 0);
 
-            if (!MeteorClient.ROTATION.inFov(pos.toCenterPos().add(0, 0.5, 0), 20)) {
+            if (!MeteorClient.ROTATION.lookingAt(rotatePos, new Box(pos))) {
                 return false;
             }
         }
@@ -373,6 +370,9 @@ public class AutoCrystal extends Module {
                 }
             }
         }
+
+        renderPos = pos;
+        renderTimer.reset();
 
         Hand hand = Hand.MAIN_HAND;
 
@@ -501,7 +501,7 @@ public class AutoCrystal extends Module {
                         continue;
                     }
 
-                    Direction dir = getPlaceOnDirection(downPos);
+                    Direction dir = Direction.UP;
 
                     if (dir == null) {
                         continue;
@@ -520,17 +520,19 @@ public class AutoCrystal extends Module {
                     if (intersectsWithEntities(box))
                         continue;
 
-                    double selfDamage = DamageUtils.newCrystalDamage(mc.player,
-                            mc.player.getBoundingBox(),
-                            new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5), _calcIgnoreSet);
+                    double selfDamage =
+                            DamageUtils.newCrystalDamage(mc.player, mc.player.getBoundingBox(),
+                                    new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5),
+                                    _calcIgnoreSet);
 
                     if (selfDamage > maxPlace.get()) {
                         continue;
                     }
 
-                    double targetDamage = DamageUtils.newCrystalDamage(target,
-                            target.getBoundingBox(),
-                            new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5), _calcIgnoreSet);
+                    double targetDamage =
+                            DamageUtils.newCrystalDamage(target, target.getBoundingBox(),
+                                    new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5),
+                                    _calcIgnoreSet);
 
                     boolean shouldFacePlace = false;
 
