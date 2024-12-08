@@ -20,7 +20,6 @@ import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
@@ -84,7 +83,6 @@ public class SilentMine extends Module {
     private final long initTime = System.nanoTime();
     private double currentGameTickCalculated = 0;
 
-    private BlockPos destroyPos = BlockPos.ORIGIN;
 
     private boolean needSwapBack = false;
     private int delayedDestroyTicks = 0;
@@ -485,8 +483,6 @@ public class SilentMine extends Module {
                 mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                         PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
             }
-
-            destroyPos = blockPos;
 
             started = true;
         }

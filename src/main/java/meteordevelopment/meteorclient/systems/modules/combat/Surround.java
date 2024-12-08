@@ -51,9 +51,8 @@ public class Surround extends Module {
     private final Setting<Integer> places = sgGeneral.add(new IntSetting.Builder().name("places")
             .description("Places to do each tick.").min(1).defaultValue(1).build());
 
-    private final Setting<Boolean> pauseEat =
-            sgGeneral.add(new BoolSetting.Builder().name("pause-eat")
-                    .description("Pauses while eating.").defaultValue(true).build());
+    private final Setting<Boolean> pauseEat = sgGeneral.add(new BoolSetting.Builder()
+            .name("pause-eat").description("Pauses while eating.").defaultValue(true).build());
 
     private final Setting<Boolean> grimBypass =
             sgGeneral.add(new BoolSetting.Builder().name("grim-bypass")
@@ -67,6 +66,11 @@ public class Surround extends Module {
     private final Setting<Double> placeTime =
             sgGeneral.add(new DoubleSetting.Builder().name("place-time")
                     .description("Time between places").defaultValue(0.06).min(0).max(0.5).build());
+
+    private final Setting<AutoSelfTrapMode> autoSelfTrapMode =
+            sgRender.add(new EnumSetting.Builder<AutoSelfTrapMode>().name("auto-self-trap-mode")
+                    .description("When to build double high").defaultValue(AutoSelfTrapMode.Smart)
+                    .build());
 
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("render")
             .description("Renders a block overlay where the obsidian will be placed.")
@@ -86,8 +90,6 @@ public class Surround extends Module {
             .defaultValue(new SettingColor(0, 255, 238, 100))
             .visible(() -> render.get() && shapeMode.get() != ShapeMode.Sides).build());
 
-
-
     // private final BlockPos.Mutable placePos = new BlockPos.Mutable();
     // private final BlockPos.Mutable renderPos = new BlockPos.Mutable();
     // private final BlockPos.Mutable testPos = new BlockPos.Mutable();
@@ -98,6 +100,8 @@ public class Surround extends Module {
     private List<BlockPos> placePoses = new ArrayList<>();
 
     private Vec3d snapPos = null;
+
+    private long lastTimeOfCrystalNearHead = 0;
 
     public Surround() {
         super(Categories.Combat, "surround",
@@ -150,7 +154,7 @@ public class Surround extends Module {
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
                 BlockPos feetPos = new BlockPos(x, feetY, z);
-                BlockState feetState = mc.world.getBlockState(feetPos);
+                // BlockState feetState = mc.world.getBlockState(feetPos);
 
                 // Iterate over adjacent blocks around the player's feet
                 for (int offsetX = -1; offsetX <= 1; offsetX++) {
@@ -171,6 +175,45 @@ public class Surround extends Module {
                         if (adjacentState.isAir() || adjacentState.isReplaceable()) {
                             placePoses.add(adjacentPos);
                         }
+
+                        if (autoSelfTrapMode.get() == AutoSelfTrapMode.None) {
+                            continue;
+                        }
+
+                        BlockPos facePlacePos = adjacentPos.add(0, 1, 0);
+                        boolean shouldBuildDoubleHigh =
+                                autoSelfTrapMode.get() == AutoSelfTrapMode.Always;
+
+                        Box box = new Box(facePlacePos.getX() - 1, facePlacePos.getY() - 1,
+                                facePlacePos.getZ() - 1, facePlacePos.getX() + 1,
+                                facePlacePos.getY() + 1, facePlacePos.getZ() + 1);
+
+                        if (autoSelfTrapMode.get() == AutoSelfTrapMode.Smart) {
+                            Predicate<Entity> entityPredicate =
+                                    entity -> entity instanceof EndCrystalEntity;
+
+                            Long currentTime = System.currentTimeMillis();
+
+                            for (Entity crystal : mc.world.getOtherEntities(null, box,
+                                    entityPredicate)) {
+                                MeteorClient.ROTATION.snapAt(crystal.getPos(), true);
+
+                                lastTimeOfCrystalNearHead = currentTime;
+                            }
+
+                            if ((currentTime - lastTimeOfCrystalNearHead)
+                                    / 1000.0 < 1.0) {
+                                shouldBuildDoubleHigh = true;
+                            }
+                        }
+
+                        if (shouldBuildDoubleHigh) {
+                            BlockState facePlaceState = mc.world.getBlockState(facePlacePos);
+
+                            if (facePlaceState.isAir() || facePlaceState.isReplaceable()) {
+                                placePoses.add(facePlacePos);
+                            }
+                        }
                     }
                 }
 
@@ -187,6 +230,8 @@ public class Surround extends Module {
                 if (belowFeetState.isAir() || belowFeetState.isReplaceable()) {
                     placePoses.add(belowFeetPos);
                 }
+
+
             }
         }
 
@@ -294,5 +339,9 @@ public class Surround extends Module {
         }
 
         return true;
+    }
+
+    public enum AutoSelfTrapMode {
+        None, Smart, Always
     }
 }
