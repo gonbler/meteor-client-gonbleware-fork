@@ -128,9 +128,8 @@ public class SwordAura extends Module {
                 return false;
 
             Box hitbox = entity.getBoundingBox();
-            if (!PlayerUtils.isWithin(MathHelper.clamp(mc.player.getX(), hitbox.minX, hitbox.maxX),
-                    MathHelper.clamp(mc.player.getY(), hitbox.minY, hitbox.maxY),
-                    MathHelper.clamp(mc.player.getZ(), hitbox.minZ, hitbox.maxZ), range.get()))
+            Vec3d closestPointOnBoundingBox = getClosestPointOnBox(hitbox, mc.player.getEyePos());
+            if (!closestPointOnBoundingBox.isWithinRangeOf(mc.player.getEyePos(), range.get(), range.get()))
                 return false;
 
             if (!entities.get().contains(entity.getType()))
@@ -166,7 +165,7 @@ public class SwordAura extends Module {
             boolean didRotate = false;
 
             if (rotate.get()) {
-                rotatePos = target.getEyePos();
+                rotatePos = getClosestPointOnBox(target.getBoundingBox(), mc.player.getEyePos());
 
                 if (!MeteorClient.ROTATION.lookingAt(rotatePos, target.getBoundingBox())) {
                     return;
@@ -226,5 +225,12 @@ public class SwordAura extends Module {
         }
 
         return false;
+    }
+
+    public Vec3d getClosestPointOnBox(Box box, Vec3d point) {
+        double x = Math.max(box.minX, Math.min(point.x, box.maxX));
+        double y = Math.max(box.minY, Math.min(point.y, box.maxY));
+        double z = Math.max(box.minZ, Math.min(point.z, box.maxZ));
+        return new Vec3d(x, y, z);
     }
 }

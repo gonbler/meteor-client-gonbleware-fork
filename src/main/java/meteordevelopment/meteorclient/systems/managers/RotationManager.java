@@ -42,8 +42,6 @@ public class RotationManager {
 
     private final AntiCheatConfig antiCheatConfig = AntiCheatConfig.get();
 
-    public boolean sentRotationPacketThisMove = false;
-
     @EventHandler(priority = EventPriority.LOWEST)
     public void onLastRotation(RotateEvent event) {
         LookAtEvent lookAtEvent = new LookAtEvent();
@@ -115,13 +113,8 @@ public class RotationManager {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
-    private void onMovePre(SendMovementPacketsEvent.Pre event) {
-        sentRotationPacketThisMove = false;
-    }
-
     @EventHandler(priority = EventPriority.LOWEST)
-    public void update(SendMovementPacketsEvent.Post event) {
+    public void onMovePre(SendMovementPacketsEvent.Pre event) {
         if (MovementFix.MOVE_FIX.isActive()
                 && MovementFix.MOVE_FIX.updateMode.get() != MovementFix.UpdateMode.Mouse) {
                     moveFixRotation();
@@ -284,13 +277,6 @@ public class RotationManager {
         // If tMin > tMax, the ray misses the box
         return tMax >= 0 && tMin <= tMax;
     }
-
-    @EventHandler(priority = EventPriority.LOWEST)
-    public void update(SendMovementPacketsEvent.Pre event) {
-
-    }
-
-
 
     public void setRenderRotation(float yaw, float pitch, boolean force) {
         if (mc.player == null)

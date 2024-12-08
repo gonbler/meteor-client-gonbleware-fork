@@ -260,9 +260,7 @@ public class Surround extends Module {
                 Predicate<Entity> entityPredicate = entity -> entity instanceof EndCrystalEntity;
 
                 for (Entity crystal : mc.world.getOtherEntities(null, box, entityPredicate)) {
-                    MeteorClient.ROTATION.snapAt(crystal.getPos(), true);
-
-                    if (autoCrystal.breakCrystal(crystal, true)) {
+                    if (autoCrystal.breakCrystal(crystal)) {
                         crystal.discard();
                     }
                 }
