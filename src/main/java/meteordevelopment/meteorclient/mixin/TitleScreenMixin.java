@@ -41,7 +41,7 @@ public abstract class TitleScreenMixin extends Screen {
             if (!MeteorClient.VERSION.isZero()) {
                 MeteorClient.LOG.info("Checking latest version of Meteor Client");
 
-                MeteorExecutor.execute(() -> {
+                /*MeteorExecutor.execute(() -> {
                     String res = Http.get("https://meteorclient.com/api/stats")
                         .exceptionHandler(e -> MeteorClient.LOG.error("Could not fetch version information."))
                         .sendString();
@@ -67,7 +67,7 @@ public abstract class TitleScreenMixin extends Screen {
                             .id("new-update")
                             .show();
                     }
-                });
+                });*/
             }
         }
     }

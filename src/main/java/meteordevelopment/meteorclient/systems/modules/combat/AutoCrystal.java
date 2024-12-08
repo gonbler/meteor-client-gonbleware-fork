@@ -727,8 +727,7 @@ public class AutoCrystal extends Module {
     }
 
     private boolean intersectsWithEntities(Box box) {
-        return intersectsWithEntity(box, entity -> !entity.isSpectator()
-                && !(entity instanceof ItemEntity) && !explodedCrystals.contains(entity.getId()));
+        return intersectsWithEntity(box, entity -> !entity.isSpectator() && !explodedCrystals.contains(entity.getId()));
     }
 
     public boolean intersectsWithEntity(Box box, Predicate<Entity> predicate) {

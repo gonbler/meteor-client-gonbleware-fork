@@ -46,10 +46,11 @@ public class SilentMine extends Module {
             .name("auto-switch").description("Automatically switches to the best tool.")
             .defaultValue(true).build());
 
-    private final Setting<Boolean> antiRubberband =
-            sgGeneral.add(new BoolSetting.Builder().name("anti-rubberband")
-                    .description("Attempts to prevent you from rubberbanding when on the block.")
-                    .defaultValue(true).build());
+    private final Setting<Boolean> antiRubberband = sgGeneral.add(new BoolSetting.Builder()
+            .name("strict-anti-rubberband")
+            .description(
+                    "Attempts to prevent you from rubberbanding extra hard. May result in kicks.")
+            .defaultValue(true).build());
 
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("do-render")
             .description("Renders the blocks in queue to be broken.").defaultValue(true).build());
@@ -85,6 +86,9 @@ public class SilentMine extends Module {
 
     private BlockPos destroyPos = BlockPos.ORIGIN;
 
+    private boolean needSwapBack = false;
+    private int delayedDestroyTicks = 0;
+
     public SilentMine() {
         super(Categories.Player, "silent-mine",
                 "Allows you to mine blocks without holding a pickaxe");
@@ -97,9 +101,6 @@ public class SilentMine extends Module {
     public void onDeactivate() {
 
     }
-
-    int swapBackTimeout = 0;
-    boolean needSwapBack = false;
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
@@ -153,25 +154,6 @@ public class SilentMine extends Module {
             rebreakBlock = null;
         }
 
-        int tempSlot = -1;
-        if (hasDelayedDestroy()) {
-            BlockState blockState = mc.world.getBlockState(delayedDestroyBlock.blockPos);
-
-            if (!blockState.isAir()) {
-                FindItemResult result = InvUtils.findFastestTool(blockState);
-
-                if (result.found()) {
-                    tempSlot = result.slot();
-                }
-            }
-        }
-
-        if (mc.player.isOnGround()
-                && (tempSlot == -1 || tempSlot == mc.player.getInventory().selectedSlot)
-                && swapBackTimeout >= 0) {
-            swapBackTimeout--;
-        }
-
         // Update our doublemine block
         if (hasDelayedDestroy() && delayedDestroyBlock.timesBroken <= 5) {
             BlockState blockState = mc.world.getBlockState(delayedDestroyBlock.blockPos);
@@ -184,13 +166,20 @@ public class SilentMine extends Module {
                             && mc.player.getInventory().selectedSlot != slot.slot()) {
                         InvUtils.swap(slot.slot(), true);
 
-                        swapBackTimeout = 3;
                         needSwapBack = true;
+                    }
 
-                        delayedDestroyBlock.timesBroken++;
+                    MeteorClient.EVENT_BUS.post(
+                            new SilentMineFinishedEvent.Pre(delayedDestroyBlock.blockPos, false));
+                }
 
-                        MeteorClient.EVENT_BUS.post(new SilentMineFinishedEvent.Pre(
-                                delayedDestroyBlock.blockPos, false));
+                if (delayedDestroyBlock.isReady(false)) {
+                    if (!slot.found() || mc.player.getInventory().selectedSlot == slot.slot()) {
+                        delayedDestroyTicks++;
+
+                        if (delayedDestroyTicks >= 3) {
+                            delayedDestroyBlock.timesBroken++;
+                        }
                     }
                 }
             }
@@ -228,12 +217,16 @@ public class SilentMine extends Module {
         if (hasDelayedDestroy() && delayedDestroyBlock.timesBroken > 2) {
             if (inBreakRange(delayedDestroyBlock.blockPos)) {
                 delayedDestroyBlock.startBreaking(true);
+            } else {
+                delayedDestroyBlock.cancelBreaking();
+                delayedDestroyBlock = null;
             }
         }
 
-        if (needSwapBack && (swapBackTimeout <= 0 || delayedDestroyBlock == null)) {
+        if (canSwapBack()) {
             InvUtils.swapBack();
             needSwapBack = false;
+            delayedDestroyTicks = 0;
         }
     }
 
@@ -262,10 +255,10 @@ public class SilentMine extends Module {
 
         if (!hasDelayedDestroy()) {
             boolean willResetPrimary = rebreakBlock != null && !canRebreakRebreakBlock();
-            
+
             if (willResetPrimary && rebreakBlock.priority < priority) {
                 return;
-            } 
+            }
 
             // Little leeway
             currentGameTickCalculated -= 0.1;
@@ -282,8 +275,12 @@ public class SilentMine extends Module {
             return;
         }
 
-        if (rebreakBlock != null && delayedDestroyBlock != null && priority >= rebreakBlock.priority) {
-            rebreakBlock = null;
+        if (rebreakBlock != null && delayedDestroyBlock != null
+                && priority >= rebreakBlock.priority) {
+            // Don't reset rebreak block when were pretty close to finished
+            if (delayedDestroyBlock.getBreakProgress() <= 0.8) {
+                rebreakBlock = null;
+            }
         }
 
         if (rebreakBlock == null) {
@@ -298,6 +295,19 @@ public class SilentMine extends Module {
         event.cancel();
 
         silentBreakBlock(event.blockPos, event.direction, 100f);
+    }
+
+    public boolean canSwapBack() {
+        boolean result = false;
+        if (needSwapBack) {
+            result = true;
+        }
+
+        if (hasDelayedDestroy() && delayedDestroyTicks < 3) {
+            result = false;
+        }
+
+        return result;
     }
 
     public boolean hasDelayedDestroy() {
@@ -390,14 +400,16 @@ public class SilentMine extends Module {
 
     @EventHandler
     private void onPacket(PacketEvent.Send event) {
-        /*
-         * if (event.packet instanceof PlayerActionC2SPacket packet && packet.getAction() ==
-         * PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK && antiRubberband.get() &&
-         * (packet.getPos().equals(getRebreakBlockPos()) ||
-         * packet.getPos().equals(getDelayedDestroyBlockPos()))) { mc.getNetworkHandler()
-         * .sendPacket(new PlayerActionC2SPacket( PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK,
-         * packet.getPos(), packet.getDirection())); }
-         */
+        if (event.packet instanceof PlayerActionC2SPacket packet
+                && packet.getAction() == PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK
+                && antiRubberband.get() && (packet.getPos().equals(getRebreakBlockPos())
+                        || packet.getPos().equals(getDelayedDestroyBlockPos()))) {
+            mc.getNetworkHandler()
+                    .sendPacket(new PlayerActionC2SPacket(
+                            PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, packet.getPos(),
+                            packet.getDirection()));
+        }
+
     }
 
     private int getSeq() {
@@ -469,8 +481,10 @@ public class SilentMine extends Module {
                             PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction,
                             getSeq()));
 
-            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
+            if (!antiRubberband.get()) {
+                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                        PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
+            }
 
             destroyPos = blockPos;
 
@@ -488,8 +502,13 @@ public class SilentMine extends Module {
                             PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction,
                             getSeq()));
 
-            mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                    PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
+            if (!antiRubberband.get()) {
+                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                        PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
+
+                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                        PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
+            }
 
             timesBroken++;
         }

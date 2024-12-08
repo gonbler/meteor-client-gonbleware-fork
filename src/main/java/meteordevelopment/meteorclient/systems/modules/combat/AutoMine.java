@@ -5,19 +5,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
-import meteordevelopment.meteorclient.events.entity.player.StartBreakingBlockEvent;
 import meteordevelopment.meteorclient.events.meteor.SilentMineFinishedEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
-import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
@@ -29,7 +25,6 @@ import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.s2c.play.BlockBreakingProgressS2CPacket;
 import net.minecraft.util.math.BlockPos;
@@ -231,6 +226,11 @@ public class AutoMine extends Module {
 
         if (!prioHead && !silentMine.hasRebreakBlock() && silentMine.canRebreakRebreakBlock()) {
             findTargetBlocks();
+
+            if (target1 != null && target1.equals(silentMine.getRebreakBlockPos()) || target2 != null && target2.equals(silentMine.getRebreakBlockPos())) {
+                return;
+            }
+            
             silentMine.silentBreakBlock(target1, 10);
             silentMine.silentBreakBlock(target2, 10);
         }
@@ -263,16 +263,15 @@ public class AutoMine extends Module {
             }
 
             BlockState block = mc.world.getBlockState(pos);
+            boolean isPosGoodRebreak = silentMine.canRebreakRebreakBlock() && pos.equals(silentMine.getRebreakBlockPos()) && !pos.equals(targetPlayer.getBlockPos());
 
-            if (block.isAir()
-                    && !(silentMine.canRebreakRebreakBlock() && pos.equals(silentMine.getRebreakBlockPos()))) {
+            if (block.isAir() && !isPosGoodRebreak) {
                 continue;
             }
 
             double score = 0;
 
-            if (!BlockUtils.canBreak(pos, block)
-                    && !(silentMine.canRebreakRebreakBlock() && pos.equals(silentMine.getRebreakBlockPos()))) {
+            if (!BlockUtils.canBreak(pos, block) && !isPosGoodRebreak) {
                 continue;
             }
 
@@ -320,8 +319,8 @@ public class AutoMine extends Module {
                     }
                 }
 
-                if (silentMine.canRebreakRebreakBlock() && pos.equals(silentMine.getRebreakBlockPos())) {
-                    score += 40;
+                if (isPosGoodRebreak) {
+                    score += 100;
                 }
             }
 
