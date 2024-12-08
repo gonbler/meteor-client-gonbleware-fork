@@ -278,13 +278,15 @@ public abstract class EntityMixin {
         }
     }
 
+
     @Inject(method = "updateVelocity", at = {@At("HEAD")}, cancellable = true)
 	public void updateVelocityHook(float speed, Vec3d movementInput, CallbackInfo ci) {
 		if ((Object) this == mc.player) {
 			UpdatePlayerVelocity event = new UpdatePlayerVelocity(movementInput, speed, mc.player.getYaw(), PlayerUtils.movementInputToVelocity(movementInput, speed, mc.player.getYaw()));
-			MeteorClient.EVENT_BUS.post(event);
+            MeteorClient.EVENT_BUS.post(event);
 			if (event.isCancelled()) {
 				ci.cancel();
+
 				mc.player.setVelocity(mc.player.getVelocity().add(event.getVelocity()));
 			}
 		}

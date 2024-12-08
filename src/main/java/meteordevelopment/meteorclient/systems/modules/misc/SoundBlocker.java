@@ -26,6 +26,10 @@ public class SoundBlocker extends Module {
             sgGeneral.add(new SoundEventListSetting.Builder().name("sounds")
                     .description("Sounds to block.").build());
 
+    private final Setting<Double> crystalHitVolume = sgGeneral.add(new DoubleSetting.Builder()
+            .name("crystal-hit-volume").description("Sets the volume of hitting the crystals")
+            .min(0).defaultValue(0.2).sliderMax(1).build());
+
     private final Setting<Double> crystalVolume = sgGeneral.add(new DoubleSetting.Builder()
             .name("crystal-volume").description("Sets the volume of the crystals").min(0)
             .defaultValue(0.2).sliderMax(1).build());
@@ -51,5 +55,9 @@ public class SoundBlocker extends Module {
 
     public double getCrystalVolume() {
         return crystalVolume.get();
+    }
+
+    public double getCrystalHitVolume() {
+        return crystalHitVolume.get();
     }
 }

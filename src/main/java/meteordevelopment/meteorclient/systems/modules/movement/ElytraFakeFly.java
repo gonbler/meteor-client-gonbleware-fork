@@ -66,6 +66,9 @@ public class ElytraFakeFly extends Module {
     public void onActivate() {
         needsFirework = true;
         currentVelocity = mc.player.getVelocity();
+
+        mc.player.jump();
+        mc.player.setOnGround(false);
     }
 
     @Override
@@ -80,7 +83,7 @@ public class ElytraFakeFly extends Module {
         boolean isUsingFirework = getIsUsingFirework();
 
         // No fireworks, don't do anything
-        if (isUsingFirework && !InvUtils.find(Items.FIREWORK_ROCKET).found()) {
+        if (!isUsingFirework && !InvUtils.find(Items.FIREWORK_ROCKET).found()) {
             return;
         }
 

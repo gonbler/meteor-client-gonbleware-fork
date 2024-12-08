@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
-import de.florianmichael.viafabricplus.settings.base.BooleanSetting;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
@@ -49,7 +48,6 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Items;
@@ -312,11 +310,7 @@ public class AutoCrystal extends Module {
                     break;
                 }
 
-                if (breakCrystal(entity)) {
-                    explodedCrystals.add(entity.getId());
-
-                    lastBreakTimeMS = System.currentTimeMillis();
-                }
+                breakCrystal(entity);
             }
         }
 
@@ -433,6 +427,7 @@ public class AutoCrystal extends Module {
 
         crystalBreakDelays.put(entity.getId(), System.currentTimeMillis());
 
+
         PlayerInteractEntityC2SPacket packet =
                 PlayerInteractEntityC2SPacket.attack(entity, mc.player.isSneaking());
 
@@ -445,6 +440,10 @@ public class AutoCrystal extends Module {
             mc.getNetworkHandler().sendPacket(new HandSwingC2SPacket(Hand.MAIN_HAND));
 
         isExplodeEntity = true;
+
+        explodedCrystals.add(entity.getId());
+
+        lastBreakTimeMS = System.currentTimeMillis();
 
         return true;
     }
@@ -507,9 +506,9 @@ public class AutoCrystal extends Module {
 
                     Direction dir = Direction.UP;
 
-                    if (dir == null) {
-                        continue;
-                    }
+                    // if (dir == null) {
+                    // continue;
+                    // }
 
                     // Range check
                     if (!inPlaceRange(downPos) || !inBreakRange(
@@ -689,6 +688,11 @@ public class AutoCrystal extends Module {
                 return;
             }
 
+            BlockPos down = entity.getBlockPos().down();
+            if (crystalPlaceDelays.containsKey(down)) {
+                crystalPlaceDelays.remove(down);
+            }
+
             if (breakCrystals.get()) {
                 if (!(entity instanceof EndCrystalEntity))
                     return;
@@ -713,9 +717,7 @@ public class AutoCrystal extends Module {
                 }
 
                 if (breakCrystal(entity)) {
-                    explodedCrystals.add(entity.getId());
 
-                    lastBreakTimeMS = System.currentTimeMillis();
                 }
             }
         }
@@ -735,7 +737,8 @@ public class AutoCrystal extends Module {
     }
 
     private boolean intersectsWithEntities(Box box) {
-        return intersectsWithEntity(box, entity -> !entity.isSpectator() && !explodedCrystals.contains(entity.getId()));
+        return intersectsWithEntity(box,
+                entity -> !entity.isSpectator() && !explodedCrystals.contains(entity.getId()));
     }
 
     public boolean intersectsWithEntity(Box box, Predicate<Entity> predicate) {
@@ -837,6 +840,13 @@ public class AutoCrystal extends Module {
 
         // Len squared for optimization
         return dist.lengthSquared();
+    }
+
+    @Override
+    public String getInfoString() {
+        long currentTime = System.currentTimeMillis();
+        return String.format("%d",
+                crystalBreakDelays.values().stream().filter(x -> currentTime - x <= 1000).count());
     }
 
     private class PlacePosition {

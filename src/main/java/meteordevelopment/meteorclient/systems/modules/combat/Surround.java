@@ -6,8 +6,10 @@
 package meteordevelopment.meteorclient.systems.modules.combat;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
@@ -96,6 +98,7 @@ public class Surround extends Module {
     // private int ticks;
 
     private long lastPlaceTimeMS = 0;
+    private Map<BlockPos, Long> placeCooldowns = new HashMap<>();
 
     private List<BlockPos> placePoses = new ArrayList<>();
 
@@ -129,9 +132,26 @@ public class Surround extends Module {
     }
 
     private void draw(Render3DEvent event) {
-        for (BlockPos pos : placePoses) {
-            event.renderer.box(pos, normalSideColor.get(), normalLineColor.get(), shapeMode.get(),
+        Iterator<BlockPos> iterator = placePoses.iterator();
+
+        int placed = 0;
+        while (placed < places.get() && iterator.hasNext()) {
+            BlockPos placePos = iterator.next();
+
+            if (!BlockUtils.canPlace(placePos, true)) {
+                continue;
+            }
+
+            if (placeCooldowns.containsKey(placePos)) {
+                if (System.currentTimeMillis() - placeCooldowns.get(placePos) < 50) {
+                    continue;
+                }
+            }
+
+            event.renderer.box(placePos, normalSideColor.get(), normalLineColor.get(), shapeMode.get(),
                     0);
+
+            placed++;
         }
     }
 
@@ -282,7 +302,10 @@ public class Surround extends Module {
                 needSwapBack = true;
             }
 
-            place(placePos);
+            if (place(placePos)) {
+                placed++;
+            }
+
         }
 
         if (needSwapBack) {
@@ -303,6 +326,14 @@ public class Surround extends Module {
                 break;
             }
         }
+
+        if (placeCooldowns.containsKey(blockPos)) {
+            if (System.currentTimeMillis() - placeCooldowns.get(blockPos) < 50) {
+                return false;
+            }
+        }
+
+        placeCooldowns.put(blockPos, System.currentTimeMillis());
 
         Hand hand = Hand.MAIN_HAND;
 

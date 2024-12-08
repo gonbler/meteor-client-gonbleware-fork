@@ -17,6 +17,7 @@ import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 
 public class MovementFix extends Module {
     public static MovementFix MOVE_FIX;
@@ -44,8 +45,10 @@ public class MovementFix extends Module {
     public static float fixYaw;
     public static float fixPitch;
 
-    private float prevYaw;
-    private float prevPitch;
+    public static float prevYaw;
+    public static float prevPitch;
+
+    public static boolean setRot = false; 
 
     private boolean preJumpSprint = false;
 
@@ -70,6 +73,7 @@ public class MovementFix extends Module {
         prevPitch = mc.player.getPitch();
         mc.player.setYaw(fixYaw);
         mc.player.setPitch(fixPitch);
+        setRot = true;
 
         if (realInWebs && mc.player.isSprinting() && grimCobwebSprintJump.get()) {
             preJumpSprint = mc.player.isSprinting();
@@ -85,6 +89,7 @@ public class MovementFix extends Module {
 
         mc.player.setYaw(prevYaw);
         mc.player.setPitch(prevPitch);
+        setRot = false;
 
         if (realInWebs && grimCobwebSprintJump.get()) {
             mc.player.setSprinting(preJumpSprint);
@@ -100,6 +105,7 @@ public class MovementFix extends Module {
         prevPitch = mc.player.getPitch();
         mc.player.setYaw(fixYaw);
         mc.player.setPitch(fixPitch);
+        setRot = true;
     }
 
     @EventHandler
@@ -110,6 +116,7 @@ public class MovementFix extends Module {
 
         mc.player.setYaw(prevYaw);
         mc.player.setPitch(prevPitch);
+        setRot = false;
     }
 
     @EventHandler

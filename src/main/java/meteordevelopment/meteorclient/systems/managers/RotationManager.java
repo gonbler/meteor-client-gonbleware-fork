@@ -2,8 +2,11 @@ package meteordevelopment.meteorclient.systems.managers;
 
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.player.LookAtEvent;
+import meteordevelopment.meteorclient.events.entity.player.PlayerJumpEvent;
+import meteordevelopment.meteorclient.events.entity.player.PlayerTravelEvent;
 import meteordevelopment.meteorclient.events.entity.player.RotateEvent;
 import meteordevelopment.meteorclient.events.entity.player.SendMovementPacketsEvent;
+import meteordevelopment.meteorclient.events.entity.player.UpdatePlayerVelocity;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.systems.config.AntiCheatConfig;
@@ -113,15 +116,35 @@ public class RotationManager {
         }
     }
 
-    @EventHandler(priority = EventPriority.LOWEST)
-    public void onMovePre(SendMovementPacketsEvent.Pre event) {
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onUpdatePlayerVelocity(UpdatePlayerVelocity event) {
         if (MovementFix.MOVE_FIX.isActive()
                 && MovementFix.MOVE_FIX.updateMode.get() != MovementFix.UpdateMode.Mouse) {
-                    moveFixRotation();
+            moveFixRotation();
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPreJump(PlayerJumpEvent.Pre e) {
+        if (MovementFix.MOVE_FIX.isActive()
+                && MovementFix.MOVE_FIX.updateMode.get() != MovementFix.UpdateMode.Mouse) {
+            moveFixRotation();
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onTravel(PlayerTravelEvent.Pre e) {
+        if (MovementFix.MOVE_FIX.isActive()
+                && MovementFix.MOVE_FIX.updateMode.get() != MovementFix.UpdateMode.Mouse) {
+            moveFixRotation();
         }
     }
 
     private void moveFixRotation() {
+        if (MovementFix.setRot) {
+            mc.player.setYaw(MovementFix.prevYaw);
+            mc.player.setPitch(MovementFix.prevPitch);
+        }
         RotateEvent rotateEvent = new RotateEvent(mc.player.getYaw(), mc.player.getPitch());
         MeteorClient.EVENT_BUS.post(rotateEvent);
 
@@ -130,6 +153,11 @@ public class RotationManager {
 
         MovementFix.fixYaw = nextYaw;
         MovementFix.fixPitch = nextPitch;
+
+        if (MovementFix.setRot) {
+            mc.player.setYaw(MovementFix.fixYaw);
+            mc.player.setPitch(MovementFix.fixPitch);
+        }
     }
 
     public void snapBack() {
@@ -155,7 +183,8 @@ public class RotationManager {
 
     public void snapAt(float yaw, float pitch, boolean send) {
         if (send) {
-            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(), mc.player.getY(), mc.player.getZ(), yaw, pitch, lastGround));
+            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(),
+                    mc.player.getY(), mc.player.getZ(), yaw, pitch, lastGround));
         }
         setRenderRotation(yaw, pitch, true);
     }

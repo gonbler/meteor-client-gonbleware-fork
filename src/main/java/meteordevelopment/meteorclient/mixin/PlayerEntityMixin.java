@@ -13,6 +13,7 @@ import meteordevelopment.meteorclient.events.entity.player.ClipAtLedgeEvent;
 import meteordevelopment.meteorclient.events.entity.player.PlayerJumpEvent;
 import meteordevelopment.meteorclient.events.entity.player.PlayerTravelEvent;
 import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.misc.SoundBlocker;
 import meteordevelopment.meteorclient.systems.modules.movement.*;
 import meteordevelopment.meteorclient.systems.modules.player.Reach;
 import meteordevelopment.meteorclient.systems.modules.player.SpeedMine;
@@ -24,6 +25,8 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerAbilities;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvent;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -32,6 +35,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -187,5 +191,18 @@ public abstract class PlayerEntityMixin extends LivingEntity {
 
         PlayerTravelEvent.Post event = new PlayerTravelEvent.Post();
         MeteorClient.EVENT_BUS.post(event);
+    }
+
+    @Redirect(method = "attack", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/World;playSound(Lnet/minecraft/entity/player/PlayerEntity;DDDLnet/minecraft/sound/SoundEvent;Lnet/minecraft/sound/SoundCategory;FF)V"))
+    private void poseNotCollide(World instance, PlayerEntity except, double x, double y, double z, SoundEvent sound, SoundCategory category, float volume, float pitch) {
+        SoundBlocker soundBlocker = Modules.get().get(SoundBlocker.class);
+
+        if (soundBlocker.isActive()) {
+            instance.playSound(except, x, y, z, sound, category,
+                    (float) (volume * soundBlocker.getCrystalHitVolume()), pitch);
+            return;
+        }
+
+        instance.playSound(except, x, y, z, sound, category, volume, pitch);
     }
 }

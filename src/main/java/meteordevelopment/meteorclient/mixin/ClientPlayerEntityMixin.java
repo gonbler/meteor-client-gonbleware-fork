@@ -219,8 +219,7 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
     private void sendMovementPacketsHook(CallbackInfo ci) {
         ci.cancel();
 
-        SendMovementPacketsEvent.Pre updateEvent = new SendMovementPacketsEvent.Pre();
-        MeteorClient.EVENT_BUS.post(updateEvent);
+        
 
         this.sendSprintingPacket();
 
@@ -232,6 +231,9 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
         }
 
         if (this.isCamera()) {
+            SendMovementPacketsEvent.Pre updateEvent = new SendMovementPacketsEvent.Pre();
+            MeteorClient.EVENT_BUS.post(updateEvent);
+
             double d = this.getX() - this.lastX;
             double e = this.getY() - this.lastBaseY;
             double f = this.getZ() - this.lastZ;
@@ -292,95 +294,4 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
 
         MeteorClient.EVENT_BUS.post(new SendMovementPacketsEvent.Post());
     }
-
-    /*@Inject(method = "tick",
-            at = @At(value = "INVOKE",
-                    target = "Lnet/minecraft/client/network/ClientPlayerEntity;hasVehicle()Z",
-                    shift = At.Shift.AFTER),
-            cancellable = true)
-    private void tickHook(CallbackInfo ci) {
-        
-        ci.cancel();
-
-            if (this.hasVehicle()) {
-                UpdateWalkingPlayerEvent updateEvent =
-                        new UpdateWalkingPlayerEvent(Event.Stage.Pre);
-                Alien.EVENT_BUS.post(updateEvent);
-                float yaw = this.getYaw();
-                float pitch = this.getPitch();
-                MovementPacketsEvent movementPacketsEvent = new MovementPacketsEvent(yaw, pitch);
-                Alien.EVENT_BUS.post(movementPacketsEvent);
-                yaw = movementPacketsEvent.getYaw();
-                pitch = movementPacketsEvent.getPitch();
-                Alien.ROTATION.rotationYaw = yaw;
-                Alien.ROTATION.rotationPitch = pitch;
-
-                this.networkHandler.sendPacket(
-                        new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, this.isOnGround()));
-                Alien.EVENT_BUS.post(new UpdateWalkingPlayerEvent(Event.Stage.Post));
-                this.networkHandler.sendPacket(new PlayerInputC2SPacket(this.sidewaysSpeed,
-                        this.forwardSpeed, this.input.jumping, this.input.sneaking));
-                Entity entity = this.getRootVehicle();
-                if (entity != this && entity.isLogicalSideForUpdatingMovement()) {
-                    this.networkHandler.sendPacket(new VehicleMoveC2SPacket(entity));
-                    this.sendSprintingPacket();
-                }
-            } else {
-                this.sendMovementPackets();
-            }
-
-            for (ClientPlayerTickable clientPlayerTickable : this.tickables) {
-                clientPlayerTickable.tick();
-            }
-    }*/
-
-    /*
-     * @Inject(method = "sendMovementPackets", at = @At("HEAD")) private void
-     * onSendMovementPacketsHead(CallbackInfo info) {
-     * MeteorClient.EVENT_BUS.post(SendMovementPacketsEvent.Pre.get()); }
-     * 
-     * @Inject(method = "tick", at = @At(value = "INVOKE", target =
-     * "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V",
-     * ordinal = 0)) private void onTickHasVehicleBeforeSendPackets(CallbackInfo info) {
-     * MeteorClient.EVENT_BUS.post(SendMovementPacketsEvent.Pre.get()); }
-     * 
-     * @Inject(method = "sendMovementPackets", at = @At("TAIL")) private void
-     * onSendMovementPacketsTail(CallbackInfo info) {
-     * MeteorClient.EVENT_BUS.post(SendMovementPacketsEvent.Post.get()); }
-     * 
-     * @Inject(method = "tick", at = @At(value = "INVOKE", target =
-     * "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V",
-     * ordinal = 1, shift = At.Shift.AFTER)) private void
-     * onTickHasVehicleAfterSendPackets(CallbackInfo info) {
-     * MeteorClient.EVENT_BUS.post(SendMovementPacketsEvent.Post.get()); }
-     * 
-     * 
-     * @Redirect(method = "sendMovementPackets", at = @At(value = "INVOKE", target =
-     * "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V",
-     * ordinal = 2)) private void sendPacketFull(ClientPlayNetworkHandler instance, Packet<?>
-     * packet) { networkHandler.sendPacket(MeteorClient.EVENT_BUS.post(new
-     * SendMovementPacketsEvent.Packet((PlayerMoveC2SPacket.Full) packet)).packet); }
-     * 
-     * @Redirect(method = "sendMovementPackets", at = @At(value = "INVOKE", target =
-     * "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V",
-     * ordinal = 3)) private void sendPacketPosGround(ClientPlayNetworkHandler instance, Packet<?>
-     * packet) { networkHandler.sendPacket(MeteorClient.EVENT_BUS.post(new
-     * SendMovementPacketsEvent.Packet((PlayerMoveC2SPacket.PositionAndOnGround) packet)).packet); }
-     * 
-     * @Redirect(method = "sendMovementPackets", at = @At(value = "INVOKE", target =
-     * "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V",
-     * ordinal = 4)) private void sendPacketLookGround(ClientPlayNetworkHandler instance, Packet<?>
-     * packet) { PlayerMoveC2SPacket toSend = MeteorClient.EVENT_BUS.post(new
-     * SendMovementPacketsEvent.Packet((PlayerMoveC2SPacket.LookAndOnGround) packet)).packet;
-     * 
-     * if (toSend != null) { networkHandler.sendPacket(toSend); } }
-     * 
-     * @Redirect(method = "sendMovementPackets", at = @At(value = "INVOKE", target =
-     * "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V",
-     * ordinal = 5)) private void sendPacketGround(ClientPlayNetworkHandler instance, Packet<?>
-     * packet) { networkHandler.sendPacket(MeteorClient.EVENT_BUS.post(new
-     * SendMovementPacketsEvent.Packet((PlayerMoveC2SPacket.OnGroundOnly) packet)).packet); }
-     */
-
-
 }
