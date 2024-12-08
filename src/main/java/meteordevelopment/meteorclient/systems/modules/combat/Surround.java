@@ -68,7 +68,7 @@ public class Surround extends Module {
                     .description("Time between places").defaultValue(0.06).min(0).max(0.5).build());
 
     private final Setting<AutoSelfTrapMode> autoSelfTrapMode =
-            sgRender.add(new EnumSetting.Builder<AutoSelfTrapMode>().name("auto-self-trap-mode")
+            sgGeneral.add(new EnumSetting.Builder<AutoSelfTrapMode>().name("auto-self-trap-mode")
                     .description("When to build double high").defaultValue(AutoSelfTrapMode.Smart)
                     .build());
 

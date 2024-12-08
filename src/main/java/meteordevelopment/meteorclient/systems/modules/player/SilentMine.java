@@ -407,7 +407,6 @@ public class SilentMine extends Module {
                             PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, packet.getPos(),
                             packet.getDirection()));
         }
-
     }
 
     private int getSeq() {

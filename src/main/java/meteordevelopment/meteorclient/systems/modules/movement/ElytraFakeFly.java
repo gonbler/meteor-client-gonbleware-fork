@@ -66,20 +66,23 @@ public class ElytraFakeFly extends Module {
     public void onActivate() {
         needsFirework = true;
         currentVelocity = mc.player.getVelocity();
-
-        mc.player.jump();
-        mc.player.setOnGround(false);
-        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(false));
     }
 
     @Override
     public void onDeactivate() {
         equipChestplate(slotSwap);
+        
+        mc.player.setSneaking(false);
     }
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
         boolean isUsingFirework = getIsUsingFirework();
+
+        // No fireworks, don't do anything
+        if (isUsingFirework && !InvUtils.find(Items.FIREWORK_ROCKET).found()) {
+            return;
+        }
 
         Vec3d desiredVelocity = new Vec3d(0, 0, 0);
 
@@ -103,7 +106,6 @@ public class ElytraFakeFly extends Module {
                     direction.multiply(horizontalSpeed.get() / 20, 0, horizontalSpeed.get() / 20)
                             .rotateY((float) Math.PI / 2));
         }
-
 
         if (mc.options.rightKey.isPressed()) {
             desiredVelocity = desiredVelocity.add(
@@ -210,6 +212,11 @@ public class ElytraFakeFly extends Module {
             return;
         }
 
+        // No fireworks, don't do anything
+        if (!getIsUsingFirework() && !InvUtils.find(Items.FIREWORK_ROCKET).found()) {
+            return;
+        }
+
         if (lastMovement == null) {
             lastMovement = event.movement;
         }
@@ -230,7 +237,7 @@ public class ElytraFakeFly extends Module {
     @EventHandler
     public void onPacketReceive(PacketEvent.Receive event) {
         if (event.packet instanceof PlayerPositionLookS2CPacket packet) {
-            // rubberband = true;
+            // HMM
         }
     }
 

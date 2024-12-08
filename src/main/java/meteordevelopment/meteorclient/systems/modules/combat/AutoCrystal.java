@@ -266,6 +266,10 @@ public class AutoCrystal extends Module {
                         continue;
                 }
 
+                if (player.squaredDistanceTo(mc.player.getEyePos()) > 12 * 12) {
+                    continue;
+                }
+
                 PlacePosition testPos = findBestPlacePosition(player);
 
                 if (testPos != null
@@ -639,6 +643,10 @@ public class AutoCrystal extends Module {
             }
 
             if (Friends.get().isFriend(player)) {
+                continue;
+            }
+
+            if (player.squaredDistanceTo(mc.player.getEyePos()) > 14 * 14) {
                 continue;
             }
 
