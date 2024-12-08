@@ -45,7 +45,7 @@ public class SilentMine extends Module {
             .name("auto-switch").description("Automatically switches to the best tool.")
             .defaultValue(true).build());
 
-    private final Setting<Boolean> antiRubberband = sgGeneral.add(new BoolSetting.Builder()
+    public final Setting<Boolean> antiRubberband = sgGeneral.add(new BoolSetting.Builder()
             .name("strict-anti-rubberband")
             .description(
                     "Attempts to prevent you from rubberbanding extra hard. May result in kicks.")

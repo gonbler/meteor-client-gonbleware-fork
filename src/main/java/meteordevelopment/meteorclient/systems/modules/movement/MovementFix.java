@@ -4,6 +4,7 @@ import meteordevelopment.meteorclient.events.entity.player.PlayerJumpEvent;
 import meteordevelopment.meteorclient.events.entity.player.PlayerTravelEvent;
 import meteordevelopment.meteorclient.events.entity.player.UpdatePlayerVelocity;
 import meteordevelopment.meteorclient.events.input.KeyboardInputEvent;
+import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.Setting;
@@ -25,6 +26,11 @@ public class MovementFix extends Module {
     private final Setting<Boolean> grim = sgGeneral.add(new BoolSetting.Builder().name("grim")
             .description("Mode for grim.").defaultValue(true).build());
 
+    private final Setting<Boolean> grimCobwebSprintJump =
+            sgGeneral.add(new BoolSetting.Builder().name("grim-cobweb-sprint-jump-fix")
+                    .description("Fixes rubberbanding when sprint jumping in cobwebs with no slow.")
+                    .defaultValue(true).build());
+
     private final Setting<Boolean> travel = sgGeneral.add(new BoolSetting.Builder().name("travel")
             .description("Fixes rotation for travel events.").defaultValue(true).build());
 
@@ -32,15 +38,26 @@ public class MovementFix extends Module {
             sgGeneral.add(new EnumSetting.Builder<UpdateMode>().name("update-mode")
                     .description("When to fix movement.").defaultValue(UpdateMode.Packet).build());
 
+    public static boolean inWebs = false;
+    public static boolean realInWebs = false;
+
     public static float fixYaw;
     public static float fixPitch;
 
     private float prevYaw;
     private float prevPitch;
 
+    private boolean preJumpSprint = false;
+
     public MovementFix() {
         super(Categories.Movement, "movement-fix", "Fixes movement for rotations");
         MOVE_FIX = this;
+    }
+
+    @EventHandler
+    public void onTick(TickEvent.Post event) {
+        realInWebs = inWebs;
+        inWebs = false;
     }
 
     @EventHandler
@@ -53,6 +70,11 @@ public class MovementFix extends Module {
         prevPitch = mc.player.getPitch();
         mc.player.setYaw(fixYaw);
         mc.player.setPitch(fixPitch);
+
+        if (realInWebs && mc.player.isSprinting() && grimCobwebSprintJump.get()) {
+            preJumpSprint = mc.player.isSprinting();
+            mc.player.setSprinting(false);
+        }
     }
 
     @EventHandler
@@ -63,6 +85,10 @@ public class MovementFix extends Module {
 
         mc.player.setYaw(prevYaw);
         mc.player.setPitch(prevPitch);
+
+        if (realInWebs && grimCobwebSprintJump.get()) {
+            mc.player.setSprinting(preJumpSprint);
+        }
     }
 
     @EventHandler

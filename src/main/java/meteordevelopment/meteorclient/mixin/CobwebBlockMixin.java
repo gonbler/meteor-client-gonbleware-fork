@@ -6,7 +6,9 @@
 package meteordevelopment.meteorclient.mixin;
 
 import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.movement.MovementFix;
 import meteordevelopment.meteorclient.systems.modules.movement.NoSlow;
+import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.CobwebBlock;
 import net.minecraft.entity.Entity;
@@ -39,10 +41,17 @@ public abstract class CobwebBlockMixin {
                 int s1 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
                 //int s2 = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
                 mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, pos, Direction.UP));
+                        PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, pos, Direction.UP, s1));
 
+                MovementFix.inWebs = true;
+
+                if (Modules.get().get(SilentMine.class).isActive() && Modules.get().get(SilentMine.class).antiRubberband.get()) {
+                    return;
+                }
+                
                 mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, pos, Direction.UP, s1));
+                        PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, pos, Direction.UP));
+
             }
         }
     }
