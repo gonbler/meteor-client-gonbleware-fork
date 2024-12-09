@@ -61,8 +61,8 @@ public class AutoMine extends Module {
 
     private PlayerEntity targetPlayer = null;
 
-    private BlockPos target1 = null;
-    private BlockPos target2 = null;
+    private CityBlock target1 = null;
+    private CityBlock target2 = null;
 
     private Map<BlockPos, Long> crystalSpamTargets = new HashMap<>();
 
@@ -226,8 +226,9 @@ public class AutoMine extends Module {
         if (!prioHead) {
             findTargetBlocks();
 
-            if (target1 != null && target1.equals(silentMine.getRebreakBlockPos())
-                    || target2 != null && target2.equals(silentMine.getRebreakBlockPos())) {
+            boolean isTargetingFeetBlock = (target1 != null && target1.isFeetBlock) || (target2 != null && target2.isFeetBlock);
+
+            if (!isTargetingFeetBlock && (target1 != null && target1.blockPos.equals(silentMine.getRebreakBlockPos()) || target2 != null && target2.blockPos.equals(silentMine.getRebreakBlockPos()))) {
                 return;
             }
 
@@ -239,11 +240,11 @@ public class AutoMine extends Module {
             }
 
             if (silentMine.hasDelayedDestroy()) {
-                silentMine.silentBreakBlock(target1, 10);
+                silentMine.silentBreakBlock(target1.blockPos, 10);
             }
 
             if (!silentMine.hasRebreakBlock() || silentMine.canRebreakRebreakBlock()) {
-                silentMine.silentBreakBlock(target2, 10);
+                silentMine.silentBreakBlock(target2.blockPos, 10);
             }
         }
     }
@@ -254,16 +255,16 @@ public class AutoMine extends Module {
 
     private void findTargetBlocks() {
         target1 = findCityBlock(null);
-        target2 = findCityBlock(target1);
+        target2 = findCityBlock(target1.blockPos);
     }
 
-    private BlockPos findCityBlock(BlockPos exclude) {
+    private CityBlock findCityBlock(BlockPos exclude) {
         if (targetPlayer == null) {
             return null;
         }
 
-        BlockPos bestPos = null;
-        double bestScore = 0;
+        CityBlock bestBlock = new CityBlock();
+        
         List<BlockPos> checkPos = Direction.Type.HORIZONTAL.stream()
                 .map(x -> targetPlayer.getBlockPos().offset(x)).collect(Collectors.toList());
         checkPos.add(targetPlayer.getBlockPos());
@@ -289,6 +290,8 @@ public class AutoMine extends Module {
                 continue;
             }
 
+            boolean isFeetBlock = false;
+
             // Feet / swim case
             if (pos.equals(targetPlayer.getBlockPos())) {
                 BlockState headBlock = mc.world.getBlockState(pos.offset(Direction.UP));
@@ -299,8 +302,10 @@ public class AutoMine extends Module {
                     score += 100;
                 } else {
                     // Mine out their feet-only phase
-                    score += 6.0;
+                    score += 30;
                 }
+
+                isFeetBlock = true;
             } else {
                 BlockState selfFeetBlock = mc.world.getBlockState(mc.player.getBlockPos());
                 BlockState selfHeadBlock =
@@ -334,7 +339,7 @@ public class AutoMine extends Module {
                 }
 
                 if (isPosGoodRebreak) {
-                    score += 100;
+                    score += 50;
                 }
             }
 
@@ -348,50 +353,27 @@ public class AutoMine extends Module {
                 continue;
             }
 
-            double d = mc.player.getEyePos().distanceTo(Vec3d.ofCenter(pos));
+            double d = targetPlayer.getPos().distanceTo(Vec3d.ofCenter(pos));
 
             // The closer the block is, the higher score it gets
             score += 10 / d;
 
-            if (score > bestScore) {
-                bestScore = score;
-                bestPos = pos;
+            if (score > bestBlock.score) {
+                bestBlock.score = score;
+                bestBlock.blockPos = pos;
+                bestBlock.isFeetBlock = isFeetBlock;
             }
         }
 
-        return bestPos;
+        return bestBlock;
     }
 
     public boolean isTargetedPos(BlockPos pos) {
-        return (target1 != null && target1.equals(pos)) || (target2 != null && target2.equals(pos));
+        return (target1 != null && target1.blockPos.equals(pos)) || (target2 != null && target2.blockPos.equals(pos));
     }
 
     public boolean isTargetingAnything() {
         return target1 != null && target2 != null;
-    }
-
-    public BlockPos getPrimaryBreakBos() {
-        if (target1 != null && target1.equals(silentMine.getRebreakBlockPos())) {
-            return target1;
-        }
-
-        if (target2 != null && target2.equals(silentMine.getRebreakBlockPos())) {
-            return target2;
-        }
-
-        return null;
-    }
-
-    public double getPrimaryBreakProgress() {
-        if (target1 != null && target1.equals(silentMine.getRebreakBlockPos())) {
-            return silentMine.getRebreakBlockProgress();
-        }
-
-        if (target2 != null && target2.equals(silentMine.getRebreakBlockPos())) {
-            return silentMine.getRebreakBlockProgress();
-        }
-
-        return 0;
     }
 
     @EventHandler
@@ -401,6 +383,14 @@ public class AutoMine extends Module {
 
         update();
         render(event);
+    }
+
+    private class CityBlock {
+        public BlockPos blockPos;
+
+        public double score;
+
+        public boolean isFeetBlock = false;
     }
 
     private enum AntiSwimMode {
