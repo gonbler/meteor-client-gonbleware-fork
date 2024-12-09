@@ -377,7 +377,7 @@ public class BetterChat extends Module {
     }
 
     static {
-        registerCustomHead("[Meteor]", MeteorClient.identifier("textures/icons/chat/meteor.png"));
+        //registerCustomHead("[GWare]", MeteorClient.identifier("textures/icons/chat/gware.png"));
         registerCustomHead("[Baritone]",
                 MeteorClient.identifier("textures/icons/chat/baritone.png"));
     }
@@ -404,7 +404,10 @@ public class BetterChat extends Module {
         }
 
         // Offset
-        context.getMatrices().translate(10, 0, 0);
+        // Dont offset when it's the GWare
+        if (!((IChatHudLine) (Object) line).meteor$getText().trim().startsWith("[GWare]")) {
+            context.getMatrices().translate(10, 0, 0);
+        }
     }
 
     private void drawTexture(DrawContext context, IChatHudLine line, int y) {

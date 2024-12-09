@@ -122,6 +122,21 @@ public class AutoCrystal extends Module {
             sgFacePlace.add(new KeybindSetting.Builder().name("force-face-place")
                     .description("Keybind to force face place").build());
 
+    private final Setting<Boolean> slowPlace = sgFacePlace.add(new BoolSetting.Builder()
+            .name("slow-place").description(".").defaultValue(true).build());
+
+    private final Setting<Double> slowPlaceMinDamage = sgFacePlace.add(new DoubleSetting.Builder()
+            .name("slow-place-min-place").description("Minimum damage to slow place.")
+            .defaultValue(4).min(0).sliderRange(0, 20).visible(() -> slowPlace.get()).build());
+
+    private final Setting<Double> slowPlaceMaxDamage = sgFacePlace.add(new DoubleSetting.Builder()
+            .name("slow-place-max-place").description("Maximum damage to slow place.")
+            .defaultValue(8.8).min(0).sliderRange(0, 20).visible(() -> slowPlace.get()).build());
+
+    private final Setting<Double> slowPlaceSpeed = sgFacePlace.add(new DoubleSetting.Builder()
+            .name("slow-place-speed").description("Speed at which to slow place.").defaultValue(1.5)
+            .min(0).sliderRange(0, 20).visible(() -> slowPlace.get()).build());
+
     // -- Break -- //
     private final Setting<Double> breakSpeedLimit =
             sgBreak.add(new DoubleSetting.Builder().name("break-speed-limit")
@@ -186,6 +201,7 @@ public class AutoCrystal extends Module {
     private final Map<Integer, Long> crystalBreakDelays = new HashMap<>();
     private final Map<BlockPos, Long> crystalPlaceDelays = new HashMap<>();
 
+    private long lastSlowPlaceTimeMS = 0;
     private long lastPlaceTimeMS = 0;
     private long lastBreakTimeMS = 0;
 
@@ -271,10 +287,24 @@ public class AutoCrystal extends Module {
 
             long currentTime = System.currentTimeMillis();
 
-            if (bestPlacePos != null && ((double) (currentTime - lastPlaceTimeMS)) / 1000.0 > 1.0
-                    / placeSpeedLimit.get()) {
-                if (placeCrystal(bestPlacePos.blockPos.down(), bestPlacePos.placeDirection)) {
-                    lastPlaceTimeMS = currentTime;
+            if (bestPlacePos != null) {
+                if (bestPlacePos.isSlowPlace) {
+                    if (((double) (currentTime - lastSlowPlaceTimeMS)) / 1000.0 > 1.0
+                            / slowPlaceSpeed.get()) {
+                        if (placeCrystal(bestPlacePos.blockPos.down(),
+                                bestPlacePos.placeDirection)) {
+                            lastSlowPlaceTimeMS = currentTime;
+                        }
+                    }
+                } else {
+                    if (((double) (currentTime - lastPlaceTimeMS)) / 1000.0 > 1.0
+                            / placeSpeedLimit.get()) {
+
+                        if (placeCrystal(bestPlacePos.blockPos.down(),
+                                bestPlacePos.placeDirection)) {
+                            lastPlaceTimeMS = currentTime;
+                        }
+                    }
                 }
             }
         }
@@ -307,8 +337,8 @@ public class AutoCrystal extends Module {
                     break;
                 }
 
-                if (!breakCrystal(entity) && rotateBreak.get() && !MeteorClient.ROTATION
-                        .lookingAt(entity.getBoundingBox())) {
+                if (!breakCrystal(entity) && rotateBreak.get()
+                        && !MeteorClient.ROTATION.lookingAt(entity.getBoundingBox())) {
                     break;
                 }
             }
@@ -348,14 +378,12 @@ public class AutoCrystal extends Module {
             MeteorClient.ROTATION.requestRotation(pos.toCenterPos().add(0, 0.5, 0), 10);
 
             if (!MeteorClient.ROTATION.lookingAt(new Box(pos))) {
-                info("Not looking at block");
                 return false;
             }
         }
 
         if (crystalPlaceDelays.containsKey(pos)) {
             if (System.currentTimeMillis() - crystalPlaceDelays.get(pos) < 50) {
-                info("Place on cooldown");
                 return false;
             }
         }
@@ -415,14 +443,12 @@ public class AutoCrystal extends Module {
             MeteorClient.ROTATION.requestRotation(entity.getPos(), 10);
 
             if (!MeteorClient.ROTATION.lookingAt(entity.getBoundingBox())) {
-                info("Not looking at crystal");
                 return false;
             }
         }
 
         if (crystalBreakDelays.containsKey(entity.getId())) {
             if (System.currentTimeMillis() - crystalBreakDelays.get(entity.getId()) < 50) {
-                info("Crystal on cooldown");
                 return false;
             }
         }
@@ -554,12 +580,24 @@ public class AutoCrystal extends Module {
                         shouldFacePlace = true;
                     }
 
-                    if (targetDamage >= (shouldFacePlace ? 1.0 : minPlace.get())
-                            && targetDamage > bestPos.damage) {
+                    boolean shouldSet = targetDamage >= (shouldFacePlace ? 1.0 : minPlace.get())
+                            && targetDamage > bestPos.damage;
+                    boolean isSlowPlace = false;
+
+                    if (slowPlace.get()) {
+                        if (targetDamage <= slowPlaceMaxDamage.get()
+                                && targetDamage >= slowPlaceMinDamage.get()) {
+                            shouldSet = true;
+                            isSlowPlace = true;
+                        }
+                    }
+
+                    if (shouldSet) {
                         bestPos.blockPos = pos;
                         bestPos.placeDirection = dir;
                         bestPos.damage = targetDamage;
                         bestPos.selfDamage = selfDamage;
+                        bestPos.isSlowPlace = isSlowPlace;
 
                         set = true;
                     }
@@ -814,9 +852,9 @@ public class AutoCrystal extends Module {
             for (Direction dir : Direction.values()) {
 
                 // Can't place on air lol
-                /*if (MeteorClient.mc.world.getBlockState(pos.offset(dir)).isAir()) {
-                    continue;
-                }*/
+                /*
+                 * if (MeteorClient.mc.world.getBlockState(pos.offset(dir)).isAir()) { continue; }
+                 */
 
                 // Only accepts if closer than last accepted direction
                 double dist = getDistanceForDir(pos, dir);
@@ -857,6 +895,8 @@ public class AutoCrystal extends Module {
         public double damage = 0.0;
 
         public double selfDamage = 0.0;
+
+        public boolean isSlowPlace = false;
     }
 
     private enum SwitchMode {

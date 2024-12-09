@@ -217,22 +217,34 @@ public class AutoMine extends Module {
             return;
         }
 
-        if (silentMine.hasDelayedDestroy()
-                && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN) && selfFeetBlock.isAir()
-                && silentMine.getRebreakBlockPos() == mc.player.getBlockPos()
-                        .offset(Direction.UP)) {
+        if (silentMine.hasDelayedDestroy() && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
+                && selfFeetBlock.isAir() && silentMine.getRebreakBlockPos() == mc.player
+                        .getBlockPos().offset(Direction.UP)) {
             return;
         }
 
-        if (!prioHead && !silentMine.hasRebreakBlock() && silentMine.canRebreakRebreakBlock()) {
+        if (!prioHead) {
             findTargetBlocks();
 
-            if (target1 != null && target1.equals(silentMine.getRebreakBlockPos()) || target2 != null && target2.equals(silentMine.getRebreakBlockPos())) {
+            if (target1 != null && target1.equals(silentMine.getRebreakBlockPos())
+                    || target2 != null && target2.equals(silentMine.getRebreakBlockPos())) {
                 return;
             }
-            
-            silentMine.silentBreakBlock(target1, 10);
-            silentMine.silentBreakBlock(target2, 10);
+
+            boolean hasBothInProgress = silentMine.hasDelayedDestroy()
+                    && silentMine.hasRebreakBlock() && !silentMine.canRebreakRebreakBlock();
+
+            if (hasBothInProgress) {
+                return;
+            }
+
+            if (silentMine.hasDelayedDestroy()) {
+                silentMine.silentBreakBlock(target1, 10);
+            }
+
+            if (!silentMine.hasRebreakBlock() || silentMine.canRebreakRebreakBlock()) {
+                silentMine.silentBreakBlock(target2, 10);
+            }
         }
     }
 
@@ -263,7 +275,9 @@ public class AutoMine extends Module {
             }
 
             BlockState block = mc.world.getBlockState(pos);
-            boolean isPosGoodRebreak = silentMine.canRebreakRebreakBlock() && pos.equals(silentMine.getRebreakBlockPos()) && !pos.equals(targetPlayer.getBlockPos());
+            boolean isPosGoodRebreak = silentMine.canRebreakRebreakBlock()
+                    && pos.equals(silentMine.getRebreakBlockPos())
+                    && !pos.equals(targetPlayer.getBlockPos());
 
             if (block.isAir() && !isPosGoodRebreak) {
                 continue;

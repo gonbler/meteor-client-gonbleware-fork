@@ -496,15 +496,7 @@ public class SilentMine extends Module {
                             PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction,
                             getSeq()));
 
-            mc.getNetworkHandler()
-                    .sendPacket(new PlayerActionC2SPacket(
-                            PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, blockPos, direction,
-                            getSeq()));
-
             if (!antiRubberband.get()) {
-                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
-
                 mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                         PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
             }

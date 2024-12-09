@@ -5,6 +5,7 @@
 
 package meteordevelopment.meteorclient.systems.modules.combat;
 
+import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
@@ -121,6 +122,12 @@ public class AutoTrap extends Module {
         }
 
         if (pauseEat.get() && mc.player.isUsingItem()) {
+            return;
+        }
+
+        long currentTime = System.currentTimeMillis();
+        long placeCount = placeCooldowns.values().stream().filter(x -> currentTime - x <= 1000).count();
+        if (placeCount > 30) {
             return;
         }
 
@@ -243,20 +250,38 @@ public class AutoTrap extends Module {
             return false;
         }
 
+        Direction dir = null;
+        for (Direction test : Direction.values()) {
+            Direction placeOnDir = getPlaceOnDirection(blockPos.offset(test));
+            if (placeOnDir != null && blockPos.offset(test).offset(placeOnDir).equals(blockPos)) {
+                dir = placeOnDir;
+                break;
+            }
+        }
+
         if (placeCooldowns.containsKey(blockPos)) {
-            if (System.currentTimeMillis() - placeCooldowns.get(blockPos) < 50) {
+            if (System.currentTimeMillis() - placeCooldowns.get(blockPos) < 100) {
                 return false;
             }
         }
 
         placeCooldowns.put(blockPos, System.currentTimeMillis());
 
-        if (grimBypass.get()) {
+        Hand hand = Hand.MAIN_HAND;
+
+        if (dir == null && grimBypass.get()) {
             mc.getNetworkHandler()
                     .sendPacket(new PlayerActionC2SPacket(
                             PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
                             new BlockPos(0, 0, 0), Direction.DOWN));
+
+            hand = Hand.OFF_HAND;
         }
+
+        /*
+         * boolean grr = BlockUtils.place(blockPos, grimBypass.get() ? Hand.OFF_HAND :
+         * Hand.MAIN_HAND, mc.player.getInventory().selectedSlot, false, 0, true, true, false);
+         */
 
         Vec3d eyes = mc.player.getEyePos();
         boolean inside = eyes.x > blockPos.getX() && eyes.x < blockPos.getX() + 1
@@ -264,11 +289,10 @@ public class AutoTrap extends Module {
                 && eyes.z > blockPos.getZ() && eyes.z < blockPos.getZ() + 1;
         int s = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
 
-        mc.getNetworkHandler().sendPacket(new PlayerInteractBlockC2SPacket(
-                grimBypass.get() ? Hand.OFF_HAND : Hand.MAIN_HAND,
-                new BlockHitResult(blockPos.toCenterPos(), Direction.DOWN, blockPos, inside), s));
+        mc.getNetworkHandler().sendPacket(new PlayerInteractBlockC2SPacket(hand, new BlockHitResult(
+                blockPos.toCenterPos(), dir == null ? Direction.DOWN : dir, blockPos, inside), s));
 
-        if (grimBypass.get()) {
+        if (dir == null && grimBypass.get()) {
             mc.getNetworkHandler()
                     .sendPacket(new PlayerActionC2SPacket(
                             PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
@@ -276,6 +300,45 @@ public class AutoTrap extends Module {
         }
 
         return true;
+    }
+
+    public static Direction getPlaceOnDirection(BlockPos pos) {
+        if (pos == null) {
+            return null;
+        }
+
+        Direction best = null;
+        if (MeteorClient.mc.world != null && MeteorClient.mc.player != null) {
+            double cDist = -1;
+            for (Direction dir : Direction.values()) {
+
+                // Can't place on air lol
+                if (MeteorClient.mc.world.getBlockState(pos.offset(dir)).isAir()) {
+                    continue;
+                }
+
+                // Only accepts if closer than last accepted direction
+                double dist = getDistanceForDir(pos, dir);
+                if (dist >= 0 && (cDist < 0 || dist < cDist)) {
+                    best = dir;
+                    cDist = dist;
+                }
+            }
+        }
+        return best;
+    }
+
+    private static double getDistanceForDir(BlockPos pos, Direction dir) {
+        if (MeteorClient.mc.player == null) {
+            return 0.0;
+        }
+
+        Vec3d vec = new Vec3d(pos.getX() + dir.getOffsetX() / 2f,
+                pos.getY() + dir.getOffsetY() / 2f, pos.getZ() + dir.getOffsetZ() / 2f);
+        Vec3d dist = MeteorClient.mc.player.getEyePos().add(-vec.x, -vec.y, -vec.z);
+
+        // Len squared for optimization
+        return dist.lengthSquared();
     }
 
     private void endPlace() {
