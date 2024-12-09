@@ -3,8 +3,10 @@ package meteordevelopment.meteorclient.systems.modules.combat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.stream.Collectors;
 import meteordevelopment.meteorclient.events.meteor.SilentMineFinishedEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
@@ -228,7 +230,7 @@ public class AutoMine extends Module {
 
             boolean isTargetingFeetBlock = (target1 != null && target1.isFeetBlock) || (target2 != null && target2.isFeetBlock);
 
-            if (!isTargetingFeetBlock && (target1 != null && target1.blockPos.equals(silentMine.getRebreakBlockPos()) || target2 != null && target2.blockPos.equals(silentMine.getRebreakBlockPos()))) {
+            if (!isTargetingFeetBlock && ((target1 != null && target1.blockPos.equals(silentMine.getRebreakBlockPos())) || (target2 != null && target2.blockPos.equals(silentMine.getRebreakBlockPos())))) {
                 return;
             }
 
@@ -239,12 +241,22 @@ public class AutoMine extends Module {
                 return;
             }
 
-            if (silentMine.hasDelayedDestroy()) {
-                silentMine.silentBreakBlock(target1.blockPos, 10);
+            Queue<BlockPos> targetBlocks = new LinkedList<>();
+            if (target1 != null) {
+                targetBlocks.add(target1.blockPos);
             }
 
-            if (!silentMine.hasRebreakBlock() || silentMine.canRebreakRebreakBlock()) {
-                silentMine.silentBreakBlock(target2.blockPos, 10);
+            if (target2 != null) {
+                targetBlocks.add(target2.blockPos);
+            }
+
+
+            if (!targetBlocks.isEmpty() && silentMine.hasDelayedDestroy()) {
+                silentMine.silentBreakBlock(targetBlocks.remove(), 10);
+            }
+
+            if (!targetBlocks.isEmpty() && (!silentMine.hasRebreakBlock() || silentMine.canRebreakRebreakBlock())) {
+                silentMine.silentBreakBlock(targetBlocks.remove(), 10);
             }
         }
     }
@@ -255,7 +267,7 @@ public class AutoMine extends Module {
 
     private void findTargetBlocks() {
         target1 = findCityBlock(null);
-        target2 = findCityBlock(target1.blockPos);
+        target2 = findCityBlock(target1 != null ? target1.blockPos : null);
     }
 
     private CityBlock findCityBlock(BlockPos exclude) {
@@ -263,6 +275,7 @@ public class AutoMine extends Module {
             return null;
         }
 
+        boolean set = false;
         CityBlock bestBlock = new CityBlock();
         
         List<BlockPos> checkPos = Direction.Type.HORIZONTAL.stream()
@@ -362,10 +375,15 @@ public class AutoMine extends Module {
                 bestBlock.score = score;
                 bestBlock.blockPos = pos;
                 bestBlock.isFeetBlock = isFeetBlock;
+                set = true;
             }
         }
 
-        return bestBlock;
+        if (set) {
+            return bestBlock;
+        } else {
+            return null;
+        }
     }
 
     public boolean isTargetedPos(BlockPos pos) {
