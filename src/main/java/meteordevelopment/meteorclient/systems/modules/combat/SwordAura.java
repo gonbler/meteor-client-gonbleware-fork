@@ -3,8 +3,6 @@ package meteordevelopment.meteorclient.systems.modules.combat;
 import java.util.Set;
 import org.apache.commons.lang3.mutable.MutableDouble;
 import meteordevelopment.meteorclient.MeteorClient;
-import meteordevelopment.meteorclient.events.entity.player.LookAtEvent;
-import meteordevelopment.meteorclient.events.entity.player.SendMovementPacketsEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
@@ -13,14 +11,12 @@ import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.friends.Friends;
-import meteordevelopment.meteorclient.systems.managers.RotationManager;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
-import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.AttributeModifiersComponent;
@@ -80,7 +76,6 @@ public class SwordAura extends Module {
 
     private long lastAttackTime = 0;
     private Entity target = null;
-    private Vec3d rotatePos = null;
 
     public SwordAura() {
         super(Categories.Combat, "sword-aura", "Automatically attacks entities with your sword");
@@ -162,12 +157,10 @@ public class SwordAura extends Module {
             return;
 
         if (delayCheck(result.slot())) {
-            boolean didRotate = false;
-
             if (rotate.get()) {
-                rotatePos = getClosestPointOnBox(target.getBoundingBox(), mc.player.getEyePos());
+                MeteorClient.ROTATION.requestRotation(getClosestPointOnBox(target.getBoundingBox(), mc.player.getEyePos()), 9);
 
-                if (!MeteorClient.ROTATION.lookingAt(rotatePos, target.getBoundingBox())) {
+                if (!MeteorClient.ROTATION.lookingAt(target.getBoundingBox())) {
                     return;
                 }
             }
@@ -189,13 +182,6 @@ public class SwordAura extends Module {
         mc.player.swingHand(Hand.MAIN_HAND);
 
         lastAttackTime = System.currentTimeMillis();
-    }
-
-    @EventHandler
-    public void onRotate(LookAtEvent event) {
-        if (target != null) {
-            event.setTarget(target.getEyePos(), 9);
-        }
     }
 
     private boolean delayCheck(int slot) {

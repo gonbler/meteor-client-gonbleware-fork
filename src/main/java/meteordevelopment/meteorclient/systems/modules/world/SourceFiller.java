@@ -87,8 +87,6 @@ public class SourceFiller extends Module {
 
     private List<BlockPos> placePoses = new ArrayList<>();
 
-    private Vec3d snapPos = null;
-
     public SourceFiller() {
         super(Categories.World, "source-filler",
                 "Places blocks in water and lava source blocks around you.");
@@ -96,11 +94,7 @@ public class SourceFiller extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (snapPos != null) {
-            MeteorClient.ROTATION.snapAt(snapPos, true);
-
-            snapPos = null;
-        }
+        
     }
 
     // Render

@@ -274,7 +274,7 @@ public class SilentMine extends Module {
         }
 
         if (rebreakBlock != null && delayedDestroyBlock != null
-                && priority >= rebreakBlock.priority) {
+                && (priority >= rebreakBlock.priority || canRebreakRebreakBlock())) {
             // Don't reset rebreak block when were pretty close to finished
             if (delayedDestroyBlock.getBreakProgress() <= 0.8) {
                 rebreakBlock = null;
@@ -446,6 +446,10 @@ public class SilentMine extends Module {
         public void startBreaking(boolean isDelayedDestroy) {
             timesBroken = 0;
             this.destroyProgressStart = currentGameTickCalculated;
+
+            if (isDelayedDestroy && canRebreakRebreakBlock()) {
+                rebreakBlock = null;
+            }
 
             mc.getNetworkHandler()
                     .sendPacket(new PlayerActionC2SPacket(

@@ -1,8 +1,11 @@
 package meteordevelopment.meteorclient.systems.modules.combat;
 
+import baritone.api.utils.RotationUtils;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.player.LookAtEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
+import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.gui.WidgetScreen;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.KeybindSetting;
@@ -12,10 +15,12 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.misc.Keybind;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
+import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
+import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractItemC2SPacket;
 import net.minecraft.util.Hand;
@@ -40,11 +45,8 @@ public class PearlPhase extends Module {
                     .description("How far to predict your movement ahead").defaultValue(0)
                     .range(-5, 5).sliderRange(-5, 5).build());
 
-    private boolean needRotation = false;
     private boolean active = false;
     private boolean keyUnpressed = false;
-
-    private int rotationSetTicks = 0;
 
     public PearlPhase() {
         super(Categories.Combat, "pearl-phase", "Phases into walls using pearls");
@@ -85,10 +87,6 @@ public class PearlPhase extends Module {
             deactivate(false);
             return;
         }
-
-        rotationSetTicks = 0;
-        MeteorClient.ROTATION.snapAt(calculateTargetPos(), true);
-        needRotation = true;
     }
 
     private void deactivate(boolean phased) {
@@ -96,8 +94,6 @@ public class PearlPhase extends Module {
 
         if (phased) {
             info("Phased");
-        } else {
-            needRotation = false;
         }
     }
 
@@ -106,7 +102,7 @@ public class PearlPhase extends Module {
             keyUnpressed = true;
         }
 
-        if (phaseBind.get().isPressed() && keyUnpressed) {
+        if (phaseBind.get().isPressed() && keyUnpressed && !(mc.currentScreen instanceof ChatScreen)) {
             activate();
             keyUnpressed = false;
         }
@@ -146,14 +142,25 @@ public class PearlPhase extends Module {
             return;
         }
 
-        needRotation = true;
+        
+    }
 
-        float[] dir = MeteorClient.ROTATION.getRotation(calculateTargetPos());
-        if (rotationSetTicks > 1) {
-            throwPearl(dir[0], dir[1]);
-            rotationSetTicks = 0;
+    @EventHandler
+    private void onTick(TickEvent.Pre event) {
+        if (!active) {
+            return;
+        }
+        
+        Vec3d targetPos = calculateTargetPos();
+
+        MeteorClient.ROTATION.requestRotation(targetPos, 1000f);
+
+        if (MeteorClient.ROTATION.lookingAt(Box.of(targetPos, 0.05, 0.05, 0.05))) {
+            float[] angle = MeteorClient.ROTATION.getRotation(targetPos);
+            throwPearl(angle[0], angle[1]);
         }
     }
+    
 
     private void throwPearl(float yaw, float pitch) {
         switch (switchMode.get()) {
@@ -174,17 +181,6 @@ public class PearlPhase extends Module {
         }
     }
 
-    @EventHandler()
-    public void onRotate(LookAtEvent event) {
-        if (needRotation) {
-            event.setTarget(calculateTargetPos(), 100f);
-            rotationSetTicks++;
-
-            if (!active) {
-                needRotation = false;
-            }
-        }
-    }
 
     @EventHandler(priority = EventPriority.HIGHEST)
     private void onRender(Render3DEvent event) {

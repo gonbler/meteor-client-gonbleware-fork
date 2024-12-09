@@ -7,6 +7,7 @@ import meteordevelopment.meteorclient.events.entity.player.PlayerTravelEvent;
 import meteordevelopment.meteorclient.events.entity.player.RotateEvent;
 import meteordevelopment.meteorclient.events.entity.player.SendMovementPacketsEvent;
 import meteordevelopment.meteorclient.events.entity.player.UpdatePlayerVelocity;
+import meteordevelopment.meteorclient.events.input.KeyboardInputEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.systems.config.AntiCheatConfig;
@@ -43,12 +44,54 @@ public class RotationManager {
     public static Vec3d targetVec = null;
     public static boolean lastGround;
 
+    private boolean shouldFulfilRequest = false;
+    private boolean lateRequestFulfilled = false;
+    private static RotationRequest request = new RotationRequest();
+
     private final AntiCheatConfig antiCheatConfig = AntiCheatConfig.get();
+
+    public void requestRotation(Vec3d target, double priority) {
+        float[] angle = getRotation(target);
+
+        requestRotation(angle[0], angle[1], priority, null);
+    }
+
+    public void requestRotation(Vec3d target, double priority, Runnable callback) {
+        float[] angle = getRotation(target);
+
+        requestRotation(angle[0], angle[1], priority, callback);
+    }
+
+    public void requestRotation(float yaw, float pitch, double priority) {
+        requestRotation(yaw, pitch, priority, null);
+    }
+
+    public void requestRotation(float yaw, float pitch, double priority, Runnable callback) {
+        if (request.priority > priority && !request.fulfilled) {
+            return;
+        }
+
+        request.fulfilled = false;
+        request.yaw = yaw;
+        request.pitch = pitch;
+        request.priority = priority;
+        request.callback = callback;
+    }
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onLastRotation(RotateEvent event) {
         LookAtEvent lookAtEvent = new LookAtEvent();
         MeteorClient.EVENT_BUS.post(lookAtEvent);
+
+        shouldFulfilRequest = false;
+        if (request != null && !request.fulfilled && request.priority > lookAtEvent.priority) {
+            event.setYaw(request.yaw);
+            event.setPitch(request.pitch);
+
+            shouldFulfilRequest = true;
+            return;
+        }
+
         if (lookAtEvent.getRotation()) {
             event.setYaw(lookAtEvent.getYaw());
             event.setPitch(lookAtEvent.getPitch());
@@ -67,6 +110,7 @@ public class RotationManager {
             if (packet.changesLook()) {
                 lastYaw = packet.getYaw(lastYaw);
                 lastPitch = packet.getPitch(lastPitch);
+
                 setRenderRotation(lastYaw, lastPitch, false);
             }
             lastGround = packet.isOnGround();
@@ -105,6 +149,11 @@ public class RotationManager {
 
     @EventHandler
     public void onMovementPacket(SendMovementPacketsEvent.Rotation event) {
+        if (shouldFulfilRequest && !request.fulfilled) {
+            request.fulfilled = true;
+            shouldFulfilRequest = false;
+        }
+
         if (MovementFix.MOVE_FIX.isActive()) {
             event.yaw = nextYaw;
             event.pitch = nextPitch;
@@ -116,7 +165,7 @@ public class RotationManager {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onUpdatePlayerVelocity(UpdatePlayerVelocity event) {
         if (MovementFix.MOVE_FIX.isActive()
                 && MovementFix.MOVE_FIX.updateMode.get() != MovementFix.UpdateMode.Mouse) {
@@ -124,7 +173,7 @@ public class RotationManager {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onPreJump(PlayerJumpEvent.Pre e) {
         if (MovementFix.MOVE_FIX.isActive()
                 && MovementFix.MOVE_FIX.updateMode.get() != MovementFix.UpdateMode.Mouse) {
@@ -132,8 +181,16 @@ public class RotationManager {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onTravel(PlayerTravelEvent.Pre e) {
+        if (MovementFix.MOVE_FIX.isActive()
+                && MovementFix.MOVE_FIX.updateMode.get() != MovementFix.UpdateMode.Mouse) {
+            moveFixRotation();
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onKeyInput(KeyboardInputEvent e) {
         if (MovementFix.MOVE_FIX.isActive()
                 && MovementFix.MOVE_FIX.updateMode.get() != MovementFix.UpdateMode.Mouse) {
             moveFixRotation();
@@ -160,44 +217,6 @@ public class RotationManager {
         }
     }
 
-    public void snapBack() {
-        mc.getNetworkHandler()
-                .sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(), mc.player.getY(),
-                        mc.player.getZ(), rotationYaw, rotationPitch, mc.player.isOnGround()));
-    }
-
-    public void lookAt(Vec3d targetVec) {
-        rotationTo(targetVec);
-        snapAt(targetVec);
-    }
-
-    public void lookAt(BlockPos pos, Direction side) {
-        final Vec3d hitVec = pos.toCenterPos().add(new Vec3d(side.getVector().getX() * 0.5,
-                side.getVector().getY() * 0.5, side.getVector().getZ() * 0.5));
-        lookAt(hitVec);
-    }
-
-    public void snapAt(float yaw, float pitch) {
-        snapAt(yaw, pitch, false);
-    }
-
-    public void snapAt(float yaw, float pitch, boolean send) {
-        if (send) {
-            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(),
-                    mc.player.getY(), mc.player.getZ(), yaw, pitch, lastGround));
-        }
-        setRenderRotation(yaw, pitch, true);
-    }
-
-    public void snapAt(Vec3d targetVec) {
-        snapAt(targetVec, false);
-    }
-
-    public void snapAt(Vec3d targetVec, boolean send) {
-        float[] angle = getRotation(targetVec);
-        snapAt(angle[0], angle[1], send);
-    }
-
     public float[] getRotation(Vec3d eyesPos, Vec3d vec) {
         double diffX = vec.x - eyesPos.x;
         double diffY = vec.y - eyesPos.y;
@@ -213,27 +232,8 @@ public class RotationManager {
         return getRotation(eyesPos, vec);
     }
 
-    public void rotationTo(Vec3d vec3d) {
-        targetVec = vec3d;
-    }
-
-    public boolean inFov(Vec3d targetVec, float fov) {
-        float[] angle = getRotation(new Vec3d(mc.player.getX(),
-                mc.player.getY() + mc.player.getEyeHeight(mc.player.getPose()), mc.player.getZ()),
-                targetVec);
-
-        return inFov(angle[0], angle[1], fov);
-    }
-
-    public boolean inFov(float yaw, float pitch, float fov) {
-        return MathHelper.angleBetween(yaw, rotationYaw) + Math.abs(pitch - rotationPitch) <= fov;
-    }
-
-
-    public boolean lookingAt(Vec3d targetVec, Box box) {
-        float[] angle = getRotation(targetVec);
-
-        return lookingAt(angle[0], angle[1], box);
+    public boolean lookingAt(Box box) {
+        return lookingAt(lastYaw, lastPitch, box);
     }
 
     public boolean lookingAt(float yaw, float pitch, Box box) {
@@ -386,5 +386,17 @@ public class RotationManager {
         }
 
         return result;
+    }
+
+    public static class RotationRequest {
+        public double priority;
+
+        public float yaw;
+
+        public float pitch;
+
+        public boolean fulfilled = false;
+
+        public Runnable callback = null;
     }
 }

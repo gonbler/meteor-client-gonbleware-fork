@@ -37,6 +37,7 @@ import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractBlockC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
@@ -102,9 +103,8 @@ public class Surround extends Module {
 
     private List<BlockPos> placePoses = new ArrayList<>();
 
-    private Vec3d snapPos = null;
-
     private long lastTimeOfCrystalNearHead = 0;
+    private long lastAttackTime = 0;
 
     public Surround() {
         super(Categories.Combat, "surround",
@@ -113,11 +113,7 @@ public class Surround extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (snapPos != null) {
-            MeteorClient.ROTATION.snapAt(snapPos, true);
 
-            snapPos = null;
-        }
     }
 
     // Render
@@ -148,8 +144,8 @@ public class Surround extends Module {
                 }
             }
 
-            event.renderer.box(placePos, normalSideColor.get(), normalLineColor.get(), shapeMode.get(),
-                    0);
+            event.renderer.box(placePos, normalSideColor.get(), normalLineColor.get(),
+                    shapeMode.get(), 0);
 
             placed++;
         }
@@ -158,12 +154,17 @@ public class Surround extends Module {
     private void update() {
         placePoses.clear();
 
+        long currentTime = System.currentTimeMillis();
+        long placeCount = placeCooldowns.values().stream().filter(x -> currentTime - x <= 1000).count();
+        if (placeCount > 40) {
+            return;
+        }
+
         Box boundingBox = mc.player.getBoundingBox().shrink(0.05, 0.1, 0.05); // Tighter bounding
                                                                               // box
         int feetY = mc.player.getBlockPos().getY();
 
         SilentMine silentMine = Modules.get().get(SilentMine.class);
-        AutoCrystal autoCrystal = Modules.get().get(AutoCrystal.class);
 
         // Calculate the corners of the bounding box at the feet level
         int minX = (int) Math.floor(boundingBox.minX);
@@ -212,17 +213,12 @@ public class Surround extends Module {
                             Predicate<Entity> entityPredicate =
                                     entity -> entity instanceof EndCrystalEntity;
 
-                            Long currentTime = System.currentTimeMillis();
-
                             for (Entity crystal : mc.world.getOtherEntities(null, box,
                                     entityPredicate)) {
-                                MeteorClient.ROTATION.snapAt(crystal.getPos(), true);
-
                                 lastTimeOfCrystalNearHead = currentTime;
                             }
 
-                            if ((currentTime - lastTimeOfCrystalNearHead)
-                                    / 1000.0 < 1.0) {
+                            if ((currentTime - lastTimeOfCrystalNearHead) / 1000.0 < 1.0) {
                                 shouldBuildDoubleHigh = true;
                             }
                         }
@@ -255,7 +251,6 @@ public class Surround extends Module {
             }
         }
 
-        long currentTime = System.currentTimeMillis();
         if ((currentTime - lastPlaceTimeMS) / 1000.0 > placeTime.get()) {
             lastPlaceTimeMS = currentTime;
         } else {
@@ -279,9 +274,19 @@ public class Surround extends Module {
 
                 Predicate<Entity> entityPredicate = entity -> entity instanceof EndCrystalEntity;
 
+                Entity blocking = null;
+
                 for (Entity crystal : mc.world.getOtherEntities(null, box, entityPredicate)) {
-                    if (autoCrystal.breakCrystal(crystal)) {
-                        crystal.discard();
+                    blocking = crystal;
+                    break;
+                }
+
+                if (blocking != null && System.currentTimeMillis() - lastAttackTime >= 50) {
+                    MeteorClient.ROTATION.requestRotation(blocking.getPos(), 11);
+
+                    if (MeteorClient.ROTATION.lookingAt(blocking.getBoundingBox())) {
+                        mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket
+                                .attack(blocking, mc.player.isSneaking()));
                     }
                 }
             }
@@ -320,7 +325,7 @@ public class Surround extends Module {
 
         Direction dir = null;
         for (Direction test : Direction.values()) {
-            Direction placeOnDir = AutoCrystal.getPlaceOnDirection(blockPos.offset(test));
+            Direction placeOnDir = getPlaceOnDirection(blockPos.offset(test));
             if (placeOnDir != null && blockPos.offset(test).offset(placeOnDir).equals(blockPos)) {
                 dir = placeOnDir;
                 break;
@@ -368,6 +373,45 @@ public class Surround extends Module {
         }
 
         return true;
+    }
+
+    public static Direction getPlaceOnDirection(BlockPos pos) {
+        if (pos == null) {
+            return null;
+        }
+
+        Direction best = null;
+        if (MeteorClient.mc.world != null && MeteorClient.mc.player != null) {
+            double cDist = -1;
+            for (Direction dir : Direction.values()) {
+
+                // Can't place on air lol
+                if (MeteorClient.mc.world.getBlockState(pos.offset(dir)).isAir()) {
+                    continue;
+                }
+
+                // Only accepts if closer than last accepted direction
+                double dist = getDistanceForDir(pos, dir);
+                if (dist >= 0 && (cDist < 0 || dist < cDist)) {
+                    best = dir;
+                    cDist = dist;
+                }
+            }
+        }
+        return best;
+    }
+
+    private static double getDistanceForDir(BlockPos pos, Direction dir) {
+        if (MeteorClient.mc.player == null) {
+            return 0.0;
+        }
+
+        Vec3d vec = new Vec3d(pos.getX() + dir.getOffsetX() / 2f,
+                pos.getY() + dir.getOffsetY() / 2f, pos.getZ() + dir.getOffsetZ() / 2f);
+        Vec3d dist = MeteorClient.mc.player.getEyePos().add(-vec.x, -vec.y, -vec.z);
+
+        // Len squared for optimization
+        return dist.lengthSquared();
     }
 
     public enum AutoSelfTrapMode {

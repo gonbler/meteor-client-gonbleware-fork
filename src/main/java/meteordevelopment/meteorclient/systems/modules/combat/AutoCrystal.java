@@ -177,6 +177,8 @@ public class AutoCrystal extends Module {
             .name("break-range").description("Maximum distance to break crystals for")
             .defaultValue(4.0).build());
 
+    public final List<Entity> forceBreakCrystals = new ArrayList<>();
+
     private final Pool<PlacePosition> placePositionPool = new Pool<>(PlacePosition::new);
     private final List<PlacePosition> _placePositions = new ArrayList<>();
 
@@ -186,8 +188,6 @@ public class AutoCrystal extends Module {
 
     private long lastPlaceTimeMS = 0;
     private long lastBreakTimeMS = 0;
-
-    private Vec3d rotatePos = null;
 
     private BlockPos renderPos = null;
     private Timer renderTimer = new Timer();
@@ -214,13 +214,6 @@ public class AutoCrystal extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-
-        // Move fix
-        if (mc.player.isSprinting() && rotatePos != null && !MeteorClient.ROTATION
-                .inFov(mc.player.getYaw(), MeteorClient.ROTATION.rotationPitch, 10)) {
-            mc.player.setSprinting(false);
-        }
-
         isExplodeEntity = false;
     }
 
@@ -295,8 +288,12 @@ public class AutoCrystal extends Module {
                     continue;
                 }
 
-                if (!shouldBreakCrystal(entity)) {
-                    continue;
+                if (forceBreakCrystals.contains(entity)) {
+                    forceBreakCrystals.remove(entity);
+                } else {
+                    if (!shouldBreakCrystal(entity)) {
+                        continue;
+                    }
                 }
 
                 isExplodeEntity = true;
@@ -310,14 +307,19 @@ public class AutoCrystal extends Module {
                     break;
                 }
 
-                breakCrystal(entity);
+                if (!breakCrystal(entity) && rotateBreak.get() && !MeteorClient.ROTATION
+                        .lookingAt(entity.getBoundingBox())) {
+                    break;
+                }
             }
         }
+
+        forceBreakCrystals.clear();
 
         boolean rotateBreakThisUpdate = isExplodeEntity && rotateBreak.get();
         boolean rotatePlaceThisUpdate = bestPlacePos != null && rotatePlace.get();
         if (!rotateBreakThisUpdate && !rotatePlaceThisUpdate) {
-            rotatePos = null;
+
         }
     }
 
@@ -343,17 +345,17 @@ public class AutoCrystal extends Module {
         }
 
         if (rotatePlace.get()) {
-            MeteorClient.ROTATION.lookAt(pos.toCenterPos().add(0, 0.5, 0));
+            MeteorClient.ROTATION.requestRotation(pos.toCenterPos().add(0, 0.5, 0), 10);
 
-            rotatePos = pos.toCenterPos().add(0, 0.5, 0);
-
-            if (!MeteorClient.ROTATION.lookingAt(rotatePos, new Box(pos))) {
+            if (!MeteorClient.ROTATION.lookingAt(new Box(pos))) {
+                info("Not looking at block");
                 return false;
             }
         }
 
         if (crystalPlaceDelays.containsKey(pos)) {
             if (System.currentTimeMillis() - crystalPlaceDelays.get(pos) < 50) {
+                info("Place on cooldown");
                 return false;
             }
         }
@@ -410,17 +412,17 @@ public class AutoCrystal extends Module {
         }
 
         if (!overrideRotate && rotateBreak.get()) {
-            MeteorClient.ROTATION.lookAt(entity.getPos());
+            MeteorClient.ROTATION.requestRotation(entity.getPos(), 10);
 
-            rotatePos = entity.getPos();
-
-            if (!MeteorClient.ROTATION.lookingAt(entity.getPos(), entity.getBoundingBox())) {
+            if (!MeteorClient.ROTATION.lookingAt(entity.getBoundingBox())) {
+                info("Not looking at crystal");
                 return false;
             }
         }
 
         if (crystalBreakDelays.containsKey(entity.getId())) {
             if (System.currentTimeMillis() - crystalBreakDelays.get(entity.getId()) < 50) {
+                info("Crystal on cooldown");
                 return false;
             }
         }
@@ -504,11 +506,11 @@ public class AutoCrystal extends Module {
                         continue;
                     }
 
-                    Direction dir = Direction.UP;
+                    Direction dir = getPlaceOnDirection(downPos);
 
-                    // if (dir == null) {
-                    // continue;
-                    // }
+                    if (dir == null) {
+                        dir = Direction.UP;
+                    }
 
                     // Range check
                     if (!inPlaceRange(downPos) || !inBreakRange(
@@ -576,6 +578,10 @@ public class AutoCrystal extends Module {
     private Set<BlockPos> _preplaceSet = new HashSet<>();
 
     public void preplaceCrystal(BlockPos pos) {
+        if (!mc.world.getBlockState(pos).isAir()) {
+            return;
+        }
+
         BlockPos downPos = pos.down();
         BlockState downState = mc.world.getBlockState(downPos);
         Block downBlock = downState.getBlock();
@@ -632,6 +638,13 @@ public class AutoCrystal extends Module {
     public boolean shouldBreakCrystal(Entity entity) {
         boolean damageCheck = false;
 
+        double selfDamage = DamageUtils.newCrystalDamage(mc.player, mc.player.getBoundingBox(),
+                entity.getPos(), null);
+
+        if (selfDamage > maxBreak.get()) {
+            return false;
+        }
+
         for (PlayerEntity player : mc.world.getPlayers()) {
             if (player == mc.player) {
                 continue;
@@ -646,13 +659,6 @@ public class AutoCrystal extends Module {
             }
 
             if (player.squaredDistanceTo(mc.player.getEyePos()) > 14 * 14) {
-                continue;
-            }
-
-            double selfDamage = DamageUtils.newCrystalDamage(mc.player, mc.player.getBoundingBox(),
-                    entity.getPos(), null);
-
-            if (selfDamage > maxBreak.get()) {
                 continue;
             }
 
@@ -671,13 +677,6 @@ public class AutoCrystal extends Module {
         }
 
         return true;
-    }
-
-    @EventHandler()
-    public void onRotate(LookAtEvent event) {
-        if (rotatePos != null) {
-            event.setTarget(rotatePos, 10f);
-        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
@@ -808,15 +807,16 @@ public class AutoCrystal extends Module {
         if (pos == null) {
             return null;
         }
+
         Direction best = null;
         if (MeteorClient.mc.world != null && MeteorClient.mc.player != null) {
             double cDist = -1;
             for (Direction dir : Direction.values()) {
 
                 // Can't place on air lol
-                if (MeteorClient.mc.world.getBlockState(pos.offset(dir)).isAir()) {
+                /*if (MeteorClient.mc.world.getBlockState(pos.offset(dir)).isAir()) {
                     continue;
-                }
+                }*/
 
                 // Only accepts if closer than last accepted direction
                 double dist = getDistanceForDir(pos, dir);
