@@ -198,7 +198,7 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
 	private boolean lastOnGround;
 
 	@Shadow
-	private boolean lastSneaking;
+	public boolean lastSneaking;
 
 	@Shadow
 	private int ticksSinceLastPositionPacketSent;
