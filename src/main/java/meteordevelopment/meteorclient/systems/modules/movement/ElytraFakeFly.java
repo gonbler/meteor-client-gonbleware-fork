@@ -75,6 +75,7 @@ public class ElytraFakeFly extends Module {
     public void onDeactivate() {
         equipChestplate(slotSwap);
         
+        mc.player.setSneaking(true);
         mc.player.setSneaking(false);
     }
 

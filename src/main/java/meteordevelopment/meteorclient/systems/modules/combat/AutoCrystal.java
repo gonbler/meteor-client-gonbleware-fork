@@ -454,7 +454,10 @@ public class AutoCrystal extends Module {
         }
 
         crystalBreakDelays.put(entity.getId(), System.currentTimeMillis());
-
+        
+        if (crystalPlaceDelays.containsKey(entity.getBlockPos().down())) {
+            crystalPlaceDelays.remove(entity.getBlockPos().down());
+        }
 
         PlayerInteractEntityC2SPacket packet =
                 PlayerInteractEntityC2SPacket.attack(entity, mc.player.isSneaking());

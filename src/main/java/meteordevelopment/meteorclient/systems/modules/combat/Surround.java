@@ -22,6 +22,7 @@ import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.IntSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
+import meteordevelopment.meteorclient.systems.managers.RotationManager;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
@@ -38,6 +39,7 @@ import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractBlockC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
@@ -284,9 +286,18 @@ public class Surround extends Module {
                 if (blocking != null && System.currentTimeMillis() - lastAttackTime >= 50) {
                     MeteorClient.ROTATION.requestRotation(blocking.getPos(), 11);
 
-                    if (MeteorClient.ROTATION.lookingAt(blocking.getBoundingBox())) {
+                    boolean snapped = false;
+                    if (mc.player.isOnGround()) {
+                        snapped = true;
+                        float[] angle = MeteorClient.ROTATION.getRotation(blocking.getPos());
+                        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(), mc.player.getY(), mc.player.getZ(), angle[0], angle[1], RotationManager.lastGround));
+                        snapped = true;
+                    }
+ 
+                    if (snapped || MeteorClient.ROTATION.lookingAt(blocking.getBoundingBox())) {
                         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket
                                 .attack(blocking, mc.player.isSneaking()));
+                        blocking.discard();
                     }
                 }
             }
