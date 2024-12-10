@@ -26,6 +26,7 @@ public class GuiThemes {
 
     private static final List<GuiTheme> themes = new ArrayList<>();
     private static GuiTheme theme;
+    private static boolean hadGonbleWareTheme = false;
 
     private GuiThemes() {
     }
@@ -49,6 +50,21 @@ public class GuiThemes {
         }
 
         if (theme == null) select("GonbleWare");
+
+        if (FILE.exists()) {
+            try {
+                NbtCompound tag = NbtIo.read(FILE.toPath());
+
+                if (tag != null) {
+                    if (!tag.getBoolean("hadGonbleWareTheme")) {
+                        select("GonbleWare");
+                        hadGonbleWareTheme = true;
+                    }
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     public static void add(GuiTheme theme) {
@@ -132,6 +148,7 @@ public class GuiThemes {
         try {
             NbtCompound tag = new NbtCompound();
             tag.putString("currentTheme", get().name);
+            tag.putBoolean("hadGonbleWareTheme", hadGonbleWareTheme);
 
             FOLDER.mkdirs();
             NbtIo.write(tag, FILE.toPath());

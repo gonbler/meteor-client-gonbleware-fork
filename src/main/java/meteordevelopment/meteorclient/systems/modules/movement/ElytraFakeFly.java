@@ -75,9 +75,10 @@ public class ElytraFakeFly extends Module {
     @Override
     public void onDeactivate() {
         equipChestplate(slotSwap);
-        
+
         // Force a sync of the sneaking
-        ((ClientPlayerEntityMixin)((AbstractClientPlayerEntity)mc.player)).lastSneaking = true;
+        mc.getNetworkHandler().sendPacket(
+                new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY));
         mc.player.setSneaking(false);
     }
 
@@ -284,8 +285,8 @@ public class ElytraFakeFly extends Module {
 
             if (slotSwap != null) {
                 // Move elytra to inventory slot
-                mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, slotSwap.inventorySlot,
-                    result.slot(), SlotActionType.SWAP, mc.player);
+                mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                        slotSwap.inventorySlot, result.slot(), SlotActionType.SWAP, mc.player);
             }
             return;
         }
