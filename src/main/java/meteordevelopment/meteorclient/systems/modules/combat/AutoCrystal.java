@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
+import org.joml.Vector3d;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
@@ -15,7 +16,7 @@ import it.unimi.dsi.fastutil.longs.LongBidirectionalIterator;
 import it.unimi.dsi.fastutil.longs.LongSortedSet;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.EntityAddedEvent;
-import meteordevelopment.meteorclient.events.entity.player.LookAtEvent;
+import meteordevelopment.meteorclient.events.render.Render2DEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.mixin.EntityTrackingSectionAccessor;
@@ -24,6 +25,7 @@ import meteordevelopment.meteorclient.mixin.SimpleEntityLookupAccessor;
 import meteordevelopment.meteorclient.mixin.WorldAccessor;
 import meteordevelopment.meteorclient.mixininterface.IBox;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
+import meteordevelopment.meteorclient.renderer.text.TextRenderer;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
@@ -34,6 +36,7 @@ import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.combat.CrystalAura.RenderMode;
 import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
 import meteordevelopment.meteorclient.utils.entity.DamageUtils;
 import meteordevelopment.meteorclient.utils.misc.Keybind;
@@ -41,6 +44,7 @@ import meteordevelopment.meteorclient.utils.misc.Pool;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.player.Timer;
+import meteordevelopment.meteorclient.utils.render.NametagUtils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
@@ -490,6 +494,7 @@ public class AutoCrystal extends Module {
         bestPos.selfDamage = 0.0;
         bestPos.placeDirection = null;
         bestPos.blockPos = null;
+        bestPos.isSlowPlace = false;
 
         int r = (int) Math.floor(placeRange.get());
 
@@ -551,8 +556,9 @@ public class AutoCrystal extends Module {
                     ((IBox) box).set(pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 1,
                             pos.getY() + 2, pos.getZ() + 1);
 
-                    if (intersectsWithEntities(box))
+                    if (intersectsWithEntities(box)){
                         continue;
+                    }
 
                     double selfDamage =
                             DamageUtils.newCrystalDamage(mc.player, mc.player.getBoundingBox(),
@@ -587,7 +593,7 @@ public class AutoCrystal extends Module {
                             && targetDamage > bestPos.damage;
                     boolean isSlowPlace = false;
 
-                    if (slowPlace.get()) {
+                    if (slowPlace.get() && targetDamage > bestPos.damage) {
                         if (targetDamage <= slowPlaceMaxDamage.get()
                                 && targetDamage >= slowPlaceMinDamage.get()) {
                             shouldSet = true;
@@ -775,6 +781,21 @@ public class AutoCrystal extends Module {
             event.renderer.box(renderPos, Color.RED.a(30), Color.RED.a(30), ShapeMode.Both, 0);
         }
     }
+
+    // @EventHandler
+    // private void onRender2D(Render2DEvent event) {
+    //     if (NametagUtils.to2D(vec3, 1.0)) {
+    //         NametagUtils.begin(vec3);
+    //         TextRenderer.get().begin(1, false, true);
+        
+    //         String text = String.format("%.1f", bestPos.damage);
+    //         double w = TextRenderer.get().getWidth(text) / 2;
+    //         TextRenderer.get().render(text, -w, 0, Color.WHITE.a(100), true);
+        
+    //         TextRenderer.get().end();
+    //         NametagUtils.end();
+    //     }
+    // }
 
     private boolean intersectsWithEntities(Box box) {
         return intersectsWithEntity(box,

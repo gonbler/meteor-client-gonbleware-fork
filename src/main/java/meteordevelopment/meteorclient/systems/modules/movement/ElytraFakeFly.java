@@ -145,21 +145,13 @@ public class ElytraFakeFly extends Module {
             desiredVelocity = desiredVelocity.add(0, -verticalSpeed.get() / 20, 0);
         }
 
-        double actualAccelTime = accelTime.get();
-
-        boolean desiredVelocityReset = false;
-
-        if (desiredVelocity.y == 0) {
-            desiredVelocity.add(0, 1e-5, 0);
-        }
-
-        if (!isUsingFirework) {
+        /*if (!isUsingFirework) {
             desiredVelocity = new Vec3d(0, 0, 0);
 
             desiredVelocityReset = true;
 
             actualAccelTime = 2.0;
-        }
+        }*/
 
         // Accelerate or decelerate toward desired velocity
         currentVelocity =
@@ -215,7 +207,7 @@ public class ElytraFakeFly extends Module {
         }
 
         if (needsFirework) {
-            if (currentVelocity.length() > 1e-7 || desiredVelocityReset) {
+            if (currentVelocity.length() > 1e-7) {
                 useFirework();
                 needsFirework = false;
             }
