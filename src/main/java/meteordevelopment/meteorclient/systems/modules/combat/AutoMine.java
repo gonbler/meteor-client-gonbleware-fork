@@ -71,7 +71,7 @@ public class AutoMine extends Module {
     private List<BlockPos> removePoses = new ArrayList<>();
 
     public AutoMine() {
-        super(Categories.Combat, "auto-mine", "Automatically mines blocks");
+        super(Categories.Combat, "auto-mine", "Automatically mines blocks. Requires SilentMine to work.");
 
         silentMine = (SilentMine) Modules.get().get(SilentMine.class);
     }

@@ -307,6 +307,10 @@ public class InvUtils {
             if (type == SlotActionType.SWAP) {
                 data = from;
                 from = to;
+
+                mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                    from, data, type, mc.player);
+                return;
             }
 
             if (type != null && from != -1 && to != -1) {

@@ -108,6 +108,8 @@ public class MiddleClickExtra extends Module {
                 mc.interactionManager.interactItem(mc.player, Hand.MAIN_HAND);
                 swapBack(false);
             }
+
+            event.cancel();
             return;
         }
 
@@ -128,6 +130,7 @@ public class MiddleClickExtra extends Module {
                 info("Removed %s from friends", player.getName().getString());
             }
 
+            event.cancel();
             return;
         }
 
@@ -156,6 +159,8 @@ public class MiddleClickExtra extends Module {
             mc.options.useKey.setPressed(true);
             isUsing = true;
         }
+        
+        event.cancel();
     }
 
     @EventHandler

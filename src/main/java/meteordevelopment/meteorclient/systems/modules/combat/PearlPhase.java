@@ -1,11 +1,8 @@
 package meteordevelopment.meteorclient.systems.modules.combat;
 
-import baritone.api.utils.RotationUtils;
 import meteordevelopment.meteorclient.MeteorClient;
-import meteordevelopment.meteorclient.events.entity.player.LookAtEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.gui.WidgetScreen;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.KeybindSetting;
@@ -15,7 +12,6 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.misc.Keybind;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
-import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
 import net.minecraft.block.Block;
@@ -35,7 +31,7 @@ public class PearlPhase extends Module {
     private final Setting<SwitchMode> switchMode =
             sgGeneral.add(new EnumSetting.Builder<SwitchMode>().name("Switch Mode")
                     .description("Which method of switching should be used.")
-                    .defaultValue(SwitchMode.Silent).build());
+                    .defaultValue(SwitchMode.SilentHotbar).build());
 
     private final Setting<Keybind> phaseBind = sgGeneral.add(new KeybindSetting.Builder()
             .name("key-bind").description("Phase on keybind press").build());
@@ -77,7 +73,8 @@ public class PearlPhase extends Module {
         }
 
         if (switch (switchMode.get()) {
-            case Silent -> !InvUtils.findInHotbar(Items.ENDER_PEARL).found();
+            case SilentHotbar -> !InvUtils.findInHotbar(Items.ENDER_PEARL).found();
+            case SilentSwap -> !InvUtils.find(Items.ENDER_PEARL).found();
         }) {
             deactivate(false);
             return;
@@ -102,7 +99,8 @@ public class PearlPhase extends Module {
             keyUnpressed = true;
         }
 
-        if (phaseBind.get().isPressed() && keyUnpressed && !(mc.currentScreen instanceof ChatScreen)) {
+        if (phaseBind.get().isPressed() && keyUnpressed
+                && !(mc.currentScreen instanceof ChatScreen)) {
             activate();
             keyUnpressed = false;
         }
@@ -131,7 +129,8 @@ public class PearlPhase extends Module {
 
 
         if (switch (switchMode.get()) {
-            case Silent -> !InvUtils.findInHotbar(Items.ENDER_PEARL).found();
+            case SilentHotbar -> !InvUtils.findInHotbar(Items.ENDER_PEARL).found();
+            case SilentSwap -> !InvUtils.find(Items.ENDER_PEARL).found();
         }) {
             deactivate(false);
             return;
@@ -142,7 +141,7 @@ public class PearlPhase extends Module {
             return;
         }
 
-        
+
     }
 
     @EventHandler
@@ -150,7 +149,7 @@ public class PearlPhase extends Module {
         if (!active) {
             return;
         }
-        
+
         Vec3d targetPos = calculateTargetPos();
 
         MeteorClient.ROTATION.requestRotation(targetPos, 1000f);
@@ -160,12 +159,22 @@ public class PearlPhase extends Module {
             throwPearl(angle[0], angle[1]);
         }
     }
-    
+
 
     private void throwPearl(float yaw, float pitch) {
+        int invSlot = InvUtils.find(Items.ENDER_PEARL).slot();
+        int selectedSlot = mc.player.getInventory().selectedSlot;
+        boolean didSilentSwap = false;
+
         switch (switchMode.get()) {
-            case Silent -> {
+            case SilentHotbar -> {
                 InvUtils.swap(InvUtils.findInHotbar(Items.ENDER_PEARL).slot(), true);
+            }
+            case SilentSwap -> {
+                if (invSlot != mc.player.getInventory().selectedSlot) {
+                    InvUtils.quickSwap().fromId(selectedSlot).to(invSlot);
+                    didSilentSwap = true;
+                }
             }
         }
 
@@ -177,7 +186,12 @@ public class PearlPhase extends Module {
         deactivate(true);
 
         switch (switchMode.get()) {
-            case Silent -> InvUtils.swapBack();
+            case SilentHotbar -> InvUtils.swapBack();
+            case SilentSwap -> {
+                if (didSilentSwap) {
+                    InvUtils.quickSwap().fromId(selectedSlot).to(invSlot);
+                }
+            }
         }
     }
 
@@ -227,6 +241,6 @@ public class PearlPhase extends Module {
     }
 
     public enum SwitchMode {
-        Silent
+        SilentHotbar, SilentSwap
     }
 }

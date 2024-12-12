@@ -27,7 +27,6 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
-import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
@@ -71,6 +70,11 @@ public class Surround extends Module {
     private final Setting<Double> placeTime =
             sgGeneral.add(new DoubleSetting.Builder().name("place-time")
                     .description("Time between places").defaultValue(0.06).min(0).max(0.5).build());
+
+    private final Setting<SwitchMode> switchMode =
+            sgGeneral.add(new EnumSetting.Builder<SwitchMode>().name("Switch Mode")
+                    .description("Which method of switching should be used.")
+                    .defaultValue(SwitchMode.SilentHotbar).build());
 
     private final Setting<AutoSelfTrapMode> autoSelfTrapMode =
             sgGeneral.add(new EnumSetting.Builder<AutoSelfTrapMode>().name("auto-self-trap-mode")
@@ -156,6 +160,13 @@ public class Surround extends Module {
     private void update() {
         placePoses.clear();
 
+        if (switch (switchMode.get()) {
+            case SilentHotbar -> !InvUtils.findInHotbar(Items.OBSIDIAN).found();
+            case SilentSwap -> !InvUtils.find(Items.OBSIDIAN).found();
+        }) {
+            return;
+        }
+
         long currentTime = System.currentTimeMillis();
         long placeCount =
                 placeCooldowns.values().stream().filter(x -> currentTime - x <= 1000).count();
@@ -219,6 +230,7 @@ public class Surround extends Module {
                             for (Entity crystal : mc.world.getOtherEntities(null, box,
                                     entityPredicate)) {
                                 lastTimeOfCrystalNearHead = currentTime;
+                                break;
                             }
 
                             if ((currentTime - lastTimeOfCrystalNearHead) / 1000.0 < 1.0) {
@@ -264,9 +276,17 @@ public class Surround extends Module {
             return;
         }
 
+        if (placePoses.isEmpty()) {
+            return;
+        }
+
+        int invSlot = InvUtils.find(Items.OBSIDIAN).slot();
+        int selectedSlot = mc.player.getInventory().selectedSlot;
+        boolean didSilentSwap = false;
+        boolean needSwapBack = false;
+
         Iterator<BlockPos> iterator = placePoses.iterator();
 
-        boolean needSwapBack = false;
         int placed = 0;
         while (placed < places.get() && iterator.hasNext()) {
             BlockPos placePos = iterator.next();
@@ -310,14 +330,18 @@ public class Surround extends Module {
                 continue;
             }
 
-            FindItemResult result = InvUtils.findInHotbar(Items.OBSIDIAN);
-
-            if (!result.found()) {
-                break;
-            }
-
-            if (!needSwapBack && mc.player.getInventory().selectedSlot != result.slot()) {
-                InvUtils.swap(result.slot(), true);
+            if (!needSwapBack) {
+                switch (switchMode.get()) {
+                    case SilentHotbar -> {
+                        InvUtils.swap(InvUtils.findInHotbar(Items.OBSIDIAN).slot(), true);
+                    }
+                    case SilentSwap -> {
+                        if (invSlot != mc.player.getInventory().selectedSlot) {
+                            InvUtils.quickSwap().fromId(selectedSlot).to(invSlot);
+                            didSilentSwap = true;
+                        }
+                    }
+                }
 
                 needSwapBack = true;
             }
@@ -328,8 +352,13 @@ public class Surround extends Module {
 
         }
 
-        if (needSwapBack) {
-            InvUtils.swapBack();
+        switch (switchMode.get()) {
+            case SilentHotbar -> InvUtils.swapBack();
+            case SilentSwap -> {
+                if (didSilentSwap) {
+                    InvUtils.quickSwap().fromId(selectedSlot).to(invSlot);
+                }
+            }
         }
     }
 
@@ -423,6 +452,10 @@ public class Surround extends Module {
 
         // Len squared for optimization
         return dist.lengthSquared();
+    }
+
+    public enum SwitchMode {
+        SilentHotbar, SilentSwap
     }
 
     public enum AutoSelfTrapMode {
