@@ -169,6 +169,9 @@ public class DamageUtils {
     public static double newCrystalDamage(PlayerEntity player, Box boundingBox, Vec3d crystal, Set<BlockPos> ignorePos) {
         if (player == null) return 0;
         if (EntityUtils.getGameMode(player) == GameMode.CREATIVE && !(player instanceof FakePlayerEntity)) return 0;
+        if (ignorePos != null && ignorePos.isEmpty()) {
+            ignorePos = null;
+        }
 
         ((IVec3d) vec3d).set((boundingBox.minX + boundingBox.maxX) / 2, boundingBox.minY, (boundingBox.minZ + boundingBox.maxZ) / 2);
 

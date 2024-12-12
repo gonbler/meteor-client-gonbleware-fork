@@ -157,8 +157,9 @@ public class Surround extends Module {
         placePoses.clear();
 
         long currentTime = System.currentTimeMillis();
-        long placeCount = placeCooldowns.values().stream().filter(x -> currentTime - x <= 1000).count();
-        if (placeCount > 40) {
+        long placeCount =
+                placeCooldowns.values().stream().filter(x -> currentTime - x <= 1000).count();
+        if (placeCount > 20) {
             return;
         }
 
@@ -290,10 +291,13 @@ public class Surround extends Module {
                     if (mc.player.isOnGround()) {
                         snapped = true;
                         float[] angle = MeteorClient.ROTATION.getRotation(blocking.getPos());
-                        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(), mc.player.getY(), mc.player.getZ(), angle[0], angle[1], RotationManager.lastGround));
+                        mc.getNetworkHandler()
+                                .sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(),
+                                        mc.player.getY(), mc.player.getZ(), angle[0], angle[1],
+                                        RotationManager.lastGround));
                         snapped = true;
                     }
- 
+
                     if (snapped || MeteorClient.ROTATION.lookingAt(blocking.getBoundingBox())) {
                         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket
                                 .attack(blocking, mc.player.isSneaking()));
@@ -334,14 +338,18 @@ public class Surround extends Module {
             return false;
         }
 
-        Direction dir = null;
-        for (Direction test : Direction.values()) {
-            Direction placeOnDir = getPlaceOnDirection(blockPos.offset(test));
-            if (placeOnDir != null && blockPos.offset(test).offset(placeOnDir).equals(blockPos)) {
-                dir = placeOnDir;
-                break;
-            }
+        BlockPos neighbour;
+        Direction dir = BlockUtils.getPlaceSide(blockPos);
+
+        Vec3d hitPos = blockPos.toCenterPos();
+        if (dir == null) {
+            neighbour = blockPos;
+        } else {
+            neighbour = blockPos.offset(dir);
+            hitPos = hitPos.add(dir.getOffsetX() * 0.5, dir.getOffsetY() * 0.5,
+                    dir.getOffsetZ() * 0.5);
         }
+
 
         if (placeCooldowns.containsKey(blockPos)) {
             if (System.currentTimeMillis() - placeCooldowns.get(blockPos) < 50) {
@@ -362,19 +370,11 @@ public class Surround extends Module {
             hand = Hand.OFF_HAND;
         }
 
-        /*
-         * boolean grr = BlockUtils.place(blockPos, grimBypass.get() ? Hand.OFF_HAND :
-         * Hand.MAIN_HAND, mc.player.getInventory().selectedSlot, false, 0, true, true, false);
-         */
-
-        Vec3d eyes = mc.player.getEyePos();
-        boolean inside = eyes.x > blockPos.getX() && eyes.x < blockPos.getX() + 1
-                && eyes.y > blockPos.getY() && eyes.y < blockPos.getY() + 1
-                && eyes.z > blockPos.getZ() && eyes.z < blockPos.getZ() + 1;
         int s = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
 
-        mc.getNetworkHandler().sendPacket(new PlayerInteractBlockC2SPacket(hand, new BlockHitResult(
-                blockPos.toCenterPos(), dir == null ? Direction.DOWN : dir, blockPos, inside), s));
+        mc.getNetworkHandler()
+                .sendPacket(new PlayerInteractBlockC2SPacket(hand, new BlockHitResult(hitPos,
+                        (dir == null ? Direction.DOWN : dir.getOpposite()), neighbour, false), s));
 
         if (dir == null && grimBypass.get()) {
             mc.getNetworkHandler()

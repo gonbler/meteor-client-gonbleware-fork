@@ -6,6 +6,7 @@
 package meteordevelopment.meteorclient.systems.modules.player;
 
 import meteordevelopment.meteorclient.MeteorClient;
+import meteordevelopment.meteorclient.events.entity.player.BreakBlockEvent;
 import meteordevelopment.meteorclient.events.entity.player.StartBreakingBlockEvent;
 import meteordevelopment.meteorclient.events.meteor.SilentMineFinishedEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
@@ -27,7 +28,9 @@ import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
+import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
@@ -58,9 +61,9 @@ public class SilentMine extends Module {
             .name("render-block").description("Whether to render the block being broken.")
             .defaultValue(true).build());
 
-    private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builder<ShapeMode>()
-            .name("shape-mode").description("How the shapes are rendered.")
-            .defaultValue(ShapeMode.Both).visible(renderBlock::get).build());
+private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builder<ShapeMode>()
+        .name("shape-mode").description("How the shapes are rendered.")
+        .defaultValue(ShapeMode.Both).visible(renderBlock::get).build());
 
     private final Setting<SettingColor> sideColor = sgRender.add(new ColorSetting.Builder()
             .name("side-color").description("The side color of the rendering.")
@@ -83,6 +86,7 @@ public class SilentMine extends Module {
     private final long initTime = System.nanoTime();
     private double currentGameTickCalculated = 0;
 
+    private long lastTimeBreak = 0;
 
     private boolean needSwapBack = false;
     private int delayedDestroyTicks = 0;
@@ -105,43 +109,12 @@ public class SilentMine extends Module {
         currentGameTickCalculated = (double) (System.nanoTime() - initTime)
                 / (double) (java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50L));
 
-        // if (hasRebreakBlock()) {
-        // if (mc.world.getBlockState(rebreakBlock.blockPos).isAir()) {
-        // rebreakBlock.beenAir = true;
-
-        // MeteorClient.EVENT_BUS
-        // .post(new SilentMineFinishedEvent.Post(rebreakBlock.blockPos, true));
-        // }
-
-        // boolean outOfRange = Utils.distance(mc.player.getX() - 0.5,
-        // mc.player.getY() + mc.player.getEyeHeight(mc.player.getPose()),
-        // mc.player.getZ() - 0.5, rebreakBlock.blockPos.getX(),
-        // rebreakBlock.blockPos.getY(),
-        // rebreakBlock.blockPos.getZ()) > mc.player.getBlockInteractionRange() + 1.0;
-
-        // if (outOfRange) {
-        // rebreakBlock.cancelBreaking();
-        // rebreakBlock = null;
-        // }
-        // }
-
         if (hasDelayedDestroy() && mc.world.getBlockState(delayedDestroyBlock.blockPos).isAir()) {
             MeteorClient.EVENT_BUS
                     .post(new SilentMineFinishedEvent.Post(delayedDestroyBlock.blockPos, false));
 
             removeDelayedDestroy(false);
         }
-
-
-
-        /*
-         * if (hasDelayedDestroy() && delayedDestroyBlock.timesBroken > 5) { StartBreakingBlockEvent
-         * newEvent = new StartBreakingBlockEvent(); newEvent.blockPos =
-         * delayedDestroyBlock.blockPos; newEvent.direction = delayedDestroyBlock.breakDreiction;
-         * 
-         * delayedDestroyBlock = new SilentMineBlock(newEvent, currentGameTickCalculated);
-         * delayedDestroyBlock.startBreaking(); }
-         */
 
         if (rebreakBlock != null && mc.world.getBlockState(rebreakBlock.blockPos).isAir()) {
             rebreakBlock.beenAir = true;
@@ -225,6 +198,34 @@ public class SilentMine extends Module {
             InvUtils.swapBack();
             needSwapBack = false;
             delayedDestroyTicks = 0;
+        }
+    }
+
+    @EventHandler
+    private void onPacketReceive(PacketEvent.Receive event) {
+        if (event.packet instanceof BlockUpdateS2CPacket packet) {
+            if (canRebreakRebreakBlock() && packet.getPos().equals(rebreakBlock.blockPos)) {
+                BlockState blockState = mc.world.getBlockState(rebreakBlock.blockPos);
+
+                if (!blockState.isAir()) {
+                    FindItemResult slot = InvUtils.findFastestTool(blockState);
+
+                    if (autoSwitch.get() && slot.found()
+                            && mc.player.getInventory().selectedSlot != slot.slot()
+                            && !needSwapBack) {
+                        InvUtils.swap(slot.slot(), true);
+                    }
+
+                    MeteorClient.EVENT_BUS
+                            .post(new SilentMineFinishedEvent.Pre(rebreakBlock.blockPos, true));
+                    
+                    rebreakBlock.tryBreak();
+
+                    if (autoSwitch.get() && slot.found()) {
+                        InvUtils.swapBack();
+                    }
+                }
+            }
         }
     }
 

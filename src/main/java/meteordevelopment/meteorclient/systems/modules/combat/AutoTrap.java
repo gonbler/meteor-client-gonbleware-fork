@@ -250,14 +250,7 @@ public class AutoTrap extends Module {
             return false;
         }
 
-        Direction dir = null;
-        for (Direction test : Direction.values()) {
-            Direction placeOnDir = getPlaceOnDirection(blockPos.offset(test));
-            if (placeOnDir != null && blockPos.offset(test).offset(placeOnDir).equals(blockPos)) {
-                dir = placeOnDir;
-                break;
-            }
-        }
+        Direction dir = BlockUtils.getPlaceSide(blockPos);
 
         if (placeCooldowns.containsKey(blockPos)) {
             if (System.currentTimeMillis() - placeCooldowns.get(blockPos) < 100) {

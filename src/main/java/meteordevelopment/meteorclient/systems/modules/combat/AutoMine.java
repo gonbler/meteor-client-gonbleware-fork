@@ -349,6 +349,22 @@ public class AutoMine extends Module {
                     if (isPosSurroundBlock) {
                         score -= 5;
                     }
+
+                    boolean isPosAntiSurround = false;
+                    for (Direction dir : Direction.Type.HORIZONTAL) {
+                        if (pos.offset(dir).equals(pos) || pos.offset(dir).equals(targetPlayer.getBlockPos())) {
+                            continue;
+                        }
+
+                        if (mc.world.getBlockState(pos.offset(dir)).isAir()) {
+                            isPosAntiSurround = true;
+                            break;
+                        }
+                    }
+
+                    if (isPosAntiSurround) {
+                        score += 15;
+                    }
                 }
 
                 if (isPosGoodRebreak) {
