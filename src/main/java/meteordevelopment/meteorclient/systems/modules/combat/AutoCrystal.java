@@ -126,7 +126,8 @@ public class AutoCrystal extends Module {
                     .description("Keybind to force face place").build());
 
     private final Setting<Boolean> slowPlace = sgFacePlace.add(new BoolSetting.Builder()
-            .name("slow-place").description("Slowly places crystals at lower damages.").defaultValue(true).build());
+            .name("slow-place").description("Slowly places crystals at lower damages.")
+            .defaultValue(true).build());
 
     private final Setting<Double> slowPlaceMinDamage = sgFacePlace.add(new DoubleSetting.Builder()
             .name("slow-place-min-place").description("Minimum damage to slow place.")
@@ -221,14 +222,15 @@ public class AutoCrystal extends Module {
                     .description("How the shapes are rendered.").defaultValue(ShapeMode.Both)
                     .visible(() -> renderMode.get() == RenderMode.DelayDraw).build());
 
-    private final Setting<SettingColor> placeDelayColor =
-            sgRender.add(new ColorSetting.Builder().name("place-delay-color")
-                    .description("Color to render place delays in").defaultValue(new Color(110, 0, 255, 40))
-                    .visible(() -> renderMode.get() == RenderMode.DelayDraw).build());
+    private final Setting<SettingColor> placeDelayColor = sgRender.add(new ColorSetting.Builder()
+            .name("place-delay-color").description("Color to render place delays in")
+            .defaultValue(new Color(110, 0, 255, 40))
+            .visible(() -> renderMode.get() == RenderMode.DelayDraw).build());
 
     private final Setting<Double> placeDelayFadeTime = sgRender.add(new DoubleSetting.Builder()
             .name("place-delay-fade-time").description("How long to fade the box").defaultValue(0.7)
-            .min(0.0).sliderMax(2.0).visible(() -> renderMode.get() == RenderMode.DelayDraw).build());
+            .min(0.0).sliderMax(2.0).visible(() -> renderMode.get() == RenderMode.DelayDraw)
+            .build());
 
     private final Setting<ShapeMode> breakDelayShapeMode =
             sgRender.add(new EnumSetting.Builder<ShapeMode>().name("break-delay-shape-mode")
@@ -242,7 +244,8 @@ public class AutoCrystal extends Module {
 
     private final Setting<Double> breakDelayFadeTime = sgRender.add(new DoubleSetting.Builder()
             .name("break-delay-fade-time").description("How long to fade the box").defaultValue(0.4)
-            .min(0.0).sliderMax(2.0).visible(() -> renderMode.get() == RenderMode.DelayDraw).build());
+            .min(0.0).sliderMax(2.0).visible(() -> renderMode.get() == RenderMode.DelayDraw)
+            .build());
 
     public final List<Entity> forceBreakCrystals = new ArrayList<>();
 
@@ -258,14 +261,14 @@ public class AutoCrystal extends Module {
     private final Map<BlockPos, Long> crystalRenderPlaceDelays = new HashMap<>();
     private final Map<BlockPos, Long> crystalRenderBreakDelays = new HashMap<>();
 
+    private final List<Boolean> cachedValidSpots = new ArrayList<>();
+
     private long lastSlowPlaceTimeMS = 0;
     private long lastPlaceTimeMS = 0;
     private long lastBreakTimeMS = 0;
 
     private BlockPos simpleRenderPos = null;
     private Timer simpleRenderTimer = new Timer();
-
-    private boolean isExplodeEntity = false;
 
     private AutoMine autoMine;
 
@@ -291,7 +294,7 @@ public class AutoCrystal extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        isExplodeEntity = false;
+
     }
 
     private void update(Render3DEvent event) {
@@ -313,6 +316,8 @@ public class AutoCrystal extends Module {
 
         PlacePosition bestPlacePos = null;
         if (placeCrystals.get()) {
+            cachedValidPlaceSpots();
+
             for (PlayerEntity player : mc.world.getPlayers()) {
                 if (player == mc.player) {
                     continue;
@@ -337,6 +342,7 @@ public class AutoCrystal extends Module {
                 if (player.squaredDistanceTo(mc.player.getEyePos()) > 12 * 12) {
                     continue;
                 }
+
 
                 PlacePosition testPos = findBestPlacePosition(player);
 
@@ -387,8 +393,6 @@ public class AutoCrystal extends Module {
                     }
                 }
 
-                isExplodeEntity = true;
-
                 long currentTime = System.currentTimeMillis();
 
                 boolean speedCheck = ((double) (currentTime - lastBreakTimeMS)) / 1000.0 > 1.0
@@ -406,12 +410,6 @@ public class AutoCrystal extends Module {
         }
 
         forceBreakCrystals.clear();
-
-        boolean rotateBreakThisUpdate = isExplodeEntity && rotateBreak.get();
-        boolean rotatePlaceThisUpdate = bestPlacePos != null && rotatePlace.get();
-        if (!rotateBreakThisUpdate && !rotatePlaceThisUpdate) {
-
-        }
     }
 
     public boolean placeCrystal(BlockPos pos, Direction dir) {
@@ -533,8 +531,6 @@ public class AutoCrystal extends Module {
         if (breakSwingMode.get().packet())
             mc.getNetworkHandler().sendPacket(new HandSwingC2SPacket(Hand.MAIN_HAND));
 
-        isExplodeEntity = true;
-
         explodedCrystals.add(entity.getId());
 
         lastBreakTimeMS = System.currentTimeMillis();
@@ -550,7 +546,6 @@ public class AutoCrystal extends Module {
         _placePositions.add(bestPos);
 
         bestPos.damage = 0.0;
-        bestPos.selfDamage = 0.0;
         bestPos.placeDirection = null;
         bestPos.blockPos = null;
         bestPos.isSlowPlace = false;
@@ -563,7 +558,6 @@ public class AutoCrystal extends Module {
         int ez = eyePos.getZ();
         // BlockState obstate = Blocks.OBSIDIAN.getDefaultState();
         // boolean airPlace = allowAirPlace.get().isPressed();
-        Box box = new Box(0, 0, 0, 0, 0, 0);
 
         boolean set = false;
 
@@ -579,6 +573,103 @@ public class AutoCrystal extends Module {
                     _calcIgnoreSet.add(silentMine.getRebreakBlockPos());
                 }
             }
+        }
+
+        for (int x = -r; x <= r; x++) {
+            for (int y = -r; y <= r; y++) {
+                for (int z = -r; z <= r; z++) {
+                    if (!cachedValidSpots.get((x + r) * ((2 * r) * (2 * r)) + (y + r) * (2 * r) + (z + r))) {
+                        continue;
+                    }
+
+                    BlockPos pos = mutablePos.set(ex + x, ey + y, ez + z);
+                    BlockPos downPos = downMutablePos.set(ex + x, ey + y - 1, ez + z);
+
+                    double targetDamage =
+                            DamageUtils.newCrystalDamage(target, target.getBoundingBox(),
+                                    new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5),
+                                    _calcIgnoreSet);
+
+                    boolean shouldFacePlace = false;
+
+                    if (facePlaceMissingArmor.get()) {
+                        if (target.getInventory().armor.get(0).isEmpty()
+                                || target.getInventory().armor.get(1).isEmpty()
+                                || target.getInventory().armor.get(2).isEmpty()
+                                || target.getInventory().armor.get(3).isEmpty()) {
+                            shouldFacePlace = true;
+                        }
+                    }
+
+                    if (forceFacePlaceKeybind.get().isPressed()) {
+                        shouldFacePlace = true;
+                    }
+
+                    boolean shouldSet = targetDamage >= (shouldFacePlace ? 1.0 : minPlace.get())
+                            && targetDamage > bestPos.damage;
+                    boolean isSlowPlace = false;
+
+                    if (slowPlace.get() && targetDamage > bestPos.damage) {
+                        if (targetDamage <= slowPlaceMaxDamage.get()
+                                && targetDamage >= slowPlaceMinDamage.get()) {
+                            shouldSet = true;
+                            isSlowPlace = true;
+                        }
+                    }
+
+                    Direction dir = getPlaceOnDirection(downPos);
+
+                    if (dir == null) {
+                        dir = Direction.UP;
+                    }
+
+                    if (shouldSet) {
+                        bestPos.blockPos = pos.toImmutable();
+                        bestPos.placeDirection = dir;
+                        bestPos.damage = targetDamage;
+                        bestPos.isSlowPlace = isSlowPlace;
+
+                        set = true;
+                    }
+                }
+            }
+        }
+
+        // Return null if we never actually found a good position
+        if (set) {
+            return bestPos;
+        } else {
+            return null;
+        }
+    }
+
+    private void cachedValidPlaceSpots() {
+        int r = (int) Math.floor(placeRange.get());
+
+        BlockPos eyePos = BlockPos.ofFloored(mc.player.getEyePos());
+        int ex = eyePos.getX();
+        int ey = eyePos.getY();
+        int ez = eyePos.getZ();
+        Box box = new Box(0, 0, 0, 0, 0, 0);
+
+        _calcIgnoreSet.clear();
+        if (antiSurroundPlace.get()) {
+            SilentMine silentMine = Modules.get().get(SilentMine.class);
+            if (silentMine.isActive()) {
+                if (silentMine.getDelayedDestroyBlockPos() != null) {
+                    _calcIgnoreSet.add(silentMine.getDelayedDestroyBlockPos());
+                }
+
+                if (silentMine.getRebreakBlockPos() != null) {
+                    _calcIgnoreSet.add(silentMine.getRebreakBlockPos());
+                }
+            }
+        }
+
+        // Reset the list
+        cachedValidSpots.clear();
+        while (cachedValidSpots.size() < (2 * r + 1) * (2 * r + 1) * (2 * r + 1)) {
+            cachedValidSpots.add(false);
         }
 
         for (int x = -r; x <= r; x++) {
@@ -625,62 +716,9 @@ public class AutoCrystal extends Module {
                         continue;
                     }
 
-                    double targetDamage =
-                            DamageUtils.newCrystalDamage(target, target.getBoundingBox(),
-                                    new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5),
-                                    _calcIgnoreSet);
-
-                    boolean shouldFacePlace = false;
-
-                    if (facePlaceMissingArmor.get()) {
-                        if (target.getInventory().armor.get(0).isEmpty()
-                                || target.getInventory().armor.get(1).isEmpty()
-                                || target.getInventory().armor.get(2).isEmpty()
-                                || target.getInventory().armor.get(3).isEmpty()) {
-                            shouldFacePlace = true;
-                        }
-                    }
-
-                    if (forceFacePlaceKeybind.get().isPressed()) {
-                        shouldFacePlace = true;
-                    }
-
-                    boolean shouldSet = targetDamage >= (shouldFacePlace ? 1.0 : minPlace.get())
-                            && targetDamage > bestPos.damage;
-                    boolean isSlowPlace = false;
-
-                    if (slowPlace.get() && targetDamage > bestPos.damage) {
-                        if (targetDamage <= slowPlaceMaxDamage.get()
-                                && targetDamage >= slowPlaceMinDamage.get()) {
-                            shouldSet = true;
-                            isSlowPlace = true;
-                        }
-                    }
-
-                    Direction dir = getPlaceOnDirection(downPos);
-
-                    if (dir == null) {
-                        dir = Direction.UP;
-                    }
-
-                    if (shouldSet) {
-                        bestPos.blockPos = pos.toImmutable();
-                        bestPos.placeDirection = dir;
-                        bestPos.damage = targetDamage;
-                        bestPos.selfDamage = selfDamage;
-                        bestPos.isSlowPlace = isSlowPlace;
-
-                        set = true;
-                    }
+                    cachedValidSpots.set((x + r) * ((2 * r) * (2 * r)) + (y + r) * (2 * r) + (z + r), true);
                 }
             }
-        }
-
-        // Return null if we never actually found a good position
-        if (set) {
-            return bestPos;
-        } else {
-            return null;
         }
     }
 
@@ -813,8 +851,6 @@ public class AutoCrystal extends Module {
                     return;
                 }
 
-                isExplodeEntity = true;
-
                 long currentTime = System.currentTimeMillis();
 
                 boolean speedCheck = ((double) (currentTime - lastBreakTimeMS)) / 1000.0 > 1.0
@@ -843,6 +879,7 @@ public class AutoCrystal extends Module {
         switch (renderMode.get()) {
             case Simple -> drawSimple(event);
             case DelayDraw -> drawDelay(event);
+            case Debug -> drawDebug(event);
         }
     }
 
@@ -879,6 +916,28 @@ public class AutoCrystal extends Module {
 
             renderBoxSized(event, breakDelay.getKey(), 1.0, 1 - timeCompletion,
                     breakDelayColor.get(), breakDelayColor.get(), breakDelayShapeMode.get());
+        }
+    }
+
+    private void drawDebug(Render3DEvent event) {
+        int r = (int) Math.floor(placeRange.get());
+
+        BlockPos eyePos = BlockPos.ofFloored(mc.player.getEyePos());
+        int ex = eyePos.getX();
+        int ey = eyePos.getY();
+        int ez = eyePos.getZ();
+
+        for (int x = -r; x <= r; x++) {
+            for (int y = -r; y <= r; y++) {
+                for (int z = -r; z <= r; z++) {
+                    if (cachedValidSpots.get((x + r) * ((2 * r) * (2 * r)) + (y + r) * (2 * r) + (z + r))) {
+                        BlockPos pos = mutablePos.set(ex + x, ey + y, ez + z);
+
+                        event.renderer.box(pos, simpleColor.get(), simpleColor.get(),
+                                simpleShapeMode.get(), 0);
+                    }
+                }
+            }
         }
     }
 
@@ -1042,8 +1101,6 @@ public class AutoCrystal extends Module {
 
         public double damage = 0.0;
 
-        public double selfDamage = 0.0;
-
         public boolean isSlowPlace = false;
     }
 
@@ -1064,6 +1121,6 @@ public class AutoCrystal extends Module {
     }
 
     private enum RenderMode {
-        DelayDraw, Simple
+        DelayDraw, Simple, Debug
     }
 }

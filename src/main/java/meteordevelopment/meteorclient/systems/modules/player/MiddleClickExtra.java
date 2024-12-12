@@ -1,6 +1,6 @@
 /*
- * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/meteor-client).
- * Copyright (c) Meteor Development.
+ * This file is part of the Meteor Client distribution
+ * (https://github.com/MeteorDevelopment/meteor-client). Copyright (c) Meteor Development.
  */
 
 package meteordevelopment.meteorclient.systems.modules.player;
@@ -36,47 +36,37 @@ import static org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_MIDDLE;
 public class MiddleClickExtra extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    private final Setting<Mode> mode = sgGeneral.add(new EnumSetting.Builder<Mode>()
-        .name("mode")
-        .description("Which item to use when you middle click.")
-        .defaultValue(Mode.Pearl)
-        .build()
-    );
+    private final Setting<Mode> mode = sgGeneral.add(new EnumSetting.Builder<Mode>().name("mode")
+            .description("Which item to use when you middle click.").defaultValue(Mode.Pearl)
+            .build());
 
-    private final Setting<Boolean> message = sgGeneral.add(new BoolSetting.Builder()
-        .name("message")
-        .description("Sends a message to the player when you add them as a friend.")
-        .defaultValue(false)
-        .visible(() -> mode.get() == Mode.AddFriend)
-        .build()
-    );
+    private final Setting<Boolean> message = sgGeneral.add(new BoolSetting.Builder().name("message")
+            .description("Sends a message to the player when you add them as a friend.")
+            .defaultValue(false).visible(() -> mode.get() == Mode.AddFriend).build());
 
     private final Setting<Boolean> quickSwap = sgGeneral.add(new BoolSetting.Builder()
-        .name("quick-swap")
-        .description("Allows you to use items in your inventory by simulating hotbar key presses. May get flagged by anticheats.")
-        .defaultValue(false)
-        .visible(() -> mode.get() != Mode.AddFriend)
-        .build()
-    );
+            .name("quick-swap")
+            .description(
+                    "Allows you to use items in your inventory by simulating hotbar key presses. May get flagged by anticheats.")
+            .defaultValue(false).visible(() -> mode.get() != Mode.AddFriend).build());
 
-    private final Setting<Boolean> swapBack = sgGeneral.add(new BoolSetting.Builder()
-        .name("swap-back")
-        .description("Swap back to your original slot when you finish using an item.")
-        .defaultValue(false)
-        .visible(() -> mode.get() != Mode.AddFriend && !quickSwap.get())
-        .build()
-    );
+    private final Setting<Boolean> swapBack =
+            sgGeneral.add(new BoolSetting.Builder().name("swap-back")
+                    .description("Swap back to your original slot when you finish using an item.")
+                    .defaultValue(false)
+                    .visible(() -> mode.get() != Mode.AddFriend && !quickSwap.get()).build());
 
-    private final Setting<Boolean> notify = sgGeneral.add(new BoolSetting.Builder()
-        .name("notify")
-        .description("Notifies you when you do not have the specified item in your hotbar.")
-        .defaultValue(true)
-        .visible(() -> mode.get() != Mode.AddFriend)
-        .build()
-    );
+    private final Setting<Boolean> notify = sgGeneral.add(new BoolSetting.Builder().name("notify")
+            .description("Notifies you when you do not have the specified item in your hotbar.")
+            .defaultValue(true).visible(() -> mode.get() != Mode.AddFriend).build());
+
+    private final Setting<Boolean> rocketInAir =
+            sgGeneral.add(new BoolSetting.Builder().name("rocker-in-air")
+                    .description("Uses a rocket when flying.").defaultValue(true).build());
 
     public MiddleClickExtra() {
-        super(Categories.Player, "middle-click-extra", "Perform various actions when you middle click.");
+        super(Categories.Player, "middle-click-extra",
+                "Perform various actions when you middle click.");
     }
 
     private boolean isUsing;
@@ -91,16 +81,48 @@ public class MiddleClickExtra extends Module {
 
     @EventHandler
     private void onMouseButton(MouseButtonEvent event) {
-        if (event.action != KeyAction.Press || event.button != GLFW_MOUSE_BUTTON_MIDDLE || mc.currentScreen != null) return;
+        if (event.action != KeyAction.Press || event.button != GLFW_MOUSE_BUTTON_MIDDLE
+                || mc.currentScreen != null)
+            return;
+
+        if (rocketInAir.get() && mc.player.isFallFlying()) {
+            FindItemResult result = InvUtils.find(Items.FIREWORK_ROCKET);
+            if (!result.found() || !result.isHotbar() && !quickSwap.get()) {
+                if (notify.get())
+                    warning("Unable to find specified item.");
+                return;
+            }
+
+            selectedSlot = mc.player.getInventory().selectedSlot;
+            itemSlot = result.slot();
+            wasHeld = result.isMainHand();
+
+            if (!wasHeld) {
+                if (!quickSwap.get())
+                    InvUtils.swap(result.slot(), swapBack.get());
+                else
+                    InvUtils.quickSwap().fromId(selectedSlot).to(itemSlot);
+            }
+
+            if (mode.get().immediate) {
+                mc.interactionManager.interactItem(mc.player, Hand.MAIN_HAND);
+                swapBack(false);
+            }
+            return;
+        }
 
         if (mode.get() == Mode.AddFriend) {
-            if (mc.targetedEntity == null) return;
-            if (!(mc.targetedEntity instanceof PlayerEntity player)) return;
+            if (mc.targetedEntity == null)
+                return;
+            if (!(mc.targetedEntity instanceof PlayerEntity player))
+                return;
 
             if (!Friends.get().isFriend(player)) {
                 Friends.get().add(new Friend(player, FriendType.Friend));
                 info("Added %s to friends", player.getName().getString());
-                if (message.get()) ChatUtils.sendPlayerMsg("/msg " + player.getName() + " I just friended you on Meteor.");
+                if (message.get())
+                    ChatUtils.sendPlayerMsg(
+                            "/msg " + player.getName() + " I just friended you on Meteor.");
             } else {
                 Friends.get().remove(Friends.get().get(player));
                 info("Removed %s from friends", player.getName().getString());
@@ -111,7 +133,8 @@ public class MiddleClickExtra extends Module {
 
         FindItemResult result = InvUtils.find(mode.get().item);
         if (!result.found() || !result.isHotbar() && !quickSwap.get()) {
-            if (notify.get()) warning("Unable to find specified item.");
+            if (notify.get())
+                warning("Unable to find specified item.");
             return;
         }
 
@@ -120,8 +143,10 @@ public class MiddleClickExtra extends Module {
         wasHeld = result.isMainHand();
 
         if (!wasHeld) {
-            if (!quickSwap.get()) InvUtils.swap(result.slot(), swapBack.get());
-            else InvUtils.quickSwap().fromId(selectedSlot).to(itemSlot);
+            if (!quickSwap.get())
+                InvUtils.swap(result.slot(), swapBack.get());
+            else
+                InvUtils.quickSwap().fromId(selectedSlot).to(itemSlot);
         }
 
         if (mode.get().immediate) {
@@ -135,7 +160,8 @@ public class MiddleClickExtra extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (!isUsing) return;
+        if (!isUsing)
+            return;
         boolean pressed = true;
 
         if (mc.player.getMainHandStack().getItem() instanceof BowItem) {
@@ -171,25 +197,24 @@ public class MiddleClickExtra extends Module {
     }
 
     void swapBack(boolean wasCancelled) {
-        if (wasHeld) return;
+        if (wasHeld)
+            return;
 
         if (quickSwap.get()) {
             InvUtils.quickSwap().fromId(selectedSlot).to(itemSlot);
         } else {
-            if (!swapBack.get() || wasCancelled) return;
+            if (!swapBack.get() || wasCancelled)
+                return;
             InvUtils.swapBack();
         }
     }
 
     public enum Mode {
-        Pearl(Items.ENDER_PEARL, true),
-        XP(Items.EXPERIENCE_BOTTLE, true),
-        Rocket(Items.FIREWORK_ROCKET, true),
+        Pearl(Items.ENDER_PEARL, true), XP(Items.EXPERIENCE_BOTTLE,
+                true), Rocket(Items.FIREWORK_ROCKET, true),
 
-        Bow(Items.BOW, false),
-        Gap(Items.GOLDEN_APPLE, false),
-        EGap(Items.ENCHANTED_GOLDEN_APPLE, false),
-        Chorus(Items.CHORUS_FRUIT, false),
+        Bow(Items.BOW, false), Gap(Items.GOLDEN_APPLE, false), EGap(Items.ENCHANTED_GOLDEN_APPLE,
+                false), Chorus(Items.CHORUS_FRUIT, false),
 
         AddFriend(null, true);
 
