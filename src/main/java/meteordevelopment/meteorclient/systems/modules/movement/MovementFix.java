@@ -65,7 +65,7 @@ public class MovementFix extends Module {
 
     @EventHandler
     public void onPreJump(PlayerJumpEvent.Pre e) {
-        if (!grim.get() || mc.player.isRiding()) {
+        if (!grim.get() || mc.player.isRiding() || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation()) {
             return;
         }
 
@@ -83,7 +83,7 @@ public class MovementFix extends Module {
 
     @EventHandler
     public void onPostJump(PlayerJumpEvent.Post e) {
-        if (!grim.get() || mc.player.isRiding()) {
+        if (!grim.get() || mc.player.isRiding() || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation()) {
             return;
         }
 
@@ -98,7 +98,7 @@ public class MovementFix extends Module {
 
     @EventHandler
     public void onPreTravel(PlayerTravelEvent.Pre e) {
-        if (!grim.get() || !travel.get() || mc.player.isRiding()) {
+        if (!grim.get() || !travel.get() || mc.player.isRiding() || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation()) {
             return;
         }
         prevYaw = mc.player.getYaw();
@@ -110,7 +110,7 @@ public class MovementFix extends Module {
 
     @EventHandler
     public void onPostTravel(PlayerTravelEvent.Post e) {
-        if (!grim.get() || !travel.get() || mc.player.isRiding()) {
+        if (!grim.get() || !travel.get() || mc.player.isRiding() || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation()) {
             return;
         }
 
@@ -121,7 +121,7 @@ public class MovementFix extends Module {
 
     @EventHandler
     public void onPlayerMove(UpdatePlayerVelocity event) {
-        if (!grim.get() || mc.player.isRiding())
+        if (!grim.get() || mc.player.isRiding() || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation())
             return;
 
         event.cancel();
@@ -133,7 +133,7 @@ public class MovementFix extends Module {
     @EventHandler(priority = EventPriority.LOW)
     public void onKeyInput(KeyboardInputEvent e) {
         if (!grim.get() || mc.player.isRiding() || Modules.get().get(Freecam.class).isActive()
-                || mc.player.isFallFlying())
+                || mc.player.isFallFlying() || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation())
             return;
 
         float mF = mc.player.input.movementForward;

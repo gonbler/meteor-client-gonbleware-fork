@@ -511,6 +511,7 @@ public class Modules extends System<Modules> {
 
         add(new ElytraFakeFly());
         add(new MovementFix());
+        add(new GrimDisabler());
     }
 
     private void initRender() {

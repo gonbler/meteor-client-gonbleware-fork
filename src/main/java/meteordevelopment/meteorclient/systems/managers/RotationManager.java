@@ -9,7 +9,6 @@ import meteordevelopment.meteorclient.events.entity.player.SendMovementPacketsEv
 import meteordevelopment.meteorclient.events.entity.player.UpdatePlayerVelocity;
 import meteordevelopment.meteorclient.events.input.KeyboardInputEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
-import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.systems.config.AntiCheatConfig;
 import meteordevelopment.meteorclient.systems.modules.movement.MovementFix;
 import meteordevelopment.orbit.EventHandler;
@@ -39,6 +38,10 @@ public class RotationManager {
     private static float prevRenderYawOffset;
     private static float prevRotationYawHead;
     private static float rotationYawHead;
+
+    public static boolean sendDisablerPacket = false;
+    public static float lastActualYaw = 0f;
+
     private int ticksExisted;
 
     public static Vec3d targetVec = null;
@@ -109,6 +112,10 @@ public class RotationManager {
         if (event.packet instanceof PlayerMoveC2SPacket packet) {
             if (packet.changesLook()) {
                 lastYaw = packet.getYaw(lastYaw);
+                if (sendDisablerPacket) {
+                    sendDisablerPacket = false;
+                    lastYaw = lastActualYaw;
+                }
                 lastPitch = packet.getPitch(lastPitch);
 
                 setRenderRotation(lastYaw, lastPitch, false);
@@ -140,11 +147,6 @@ public class RotationManager {
     @EventHandler
     public void onUpdateWalkingPost(SendMovementPacketsEvent.Post event) {
         setRenderRotation(lastYaw, lastPitch, false);
-    }
-
-    @EventHandler
-    private void onTick(TickEvent.Pre event) {
-
     }
 
     @EventHandler

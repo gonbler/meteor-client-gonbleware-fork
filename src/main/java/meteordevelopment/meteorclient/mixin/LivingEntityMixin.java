@@ -12,6 +12,7 @@ import meteordevelopment.meteorclient.events.entity.DamageEvent;
 import meteordevelopment.meteorclient.events.entity.player.CanWalkOnFluidEvent;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.movement.ElytraFakeFly;
+import meteordevelopment.meteorclient.systems.modules.movement.GrimDisabler;
 import meteordevelopment.meteorclient.systems.modules.movement.Sprint;
 import meteordevelopment.meteorclient.systems.modules.movement.Velocity;
 import meteordevelopment.meteorclient.systems.modules.movement.elytrafly.ElytraFlightModes;
@@ -32,7 +33,6 @@ import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.item.ItemStack;
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.util.Hand;
 import net.minecraft.world.World;
@@ -123,9 +123,11 @@ public abstract class LivingEntityMixin extends Entity {
         boolean elytra = cir.getReturnValue();
         ElytraFly elytraFly = Modules.get().get(ElytraFly.class);
         ElytraFakeFly fakeFly = Modules.get().get(ElytraFakeFly.class);
-
+        GrimDisabler grimDisabler = Modules.get().get(GrimDisabler.class);
+        
         if ((Object) this == mc.player && fakeFly.isFlying()) {
             cir.setReturnValue(false);
+            return;
         }
 
         if (previousElytra && !elytra && (elytraFly.isActive())

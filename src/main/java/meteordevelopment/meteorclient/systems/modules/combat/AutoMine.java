@@ -169,11 +169,11 @@ public class AutoMine extends Module {
 
                 BlockState selfFeetBlock = mc.world.getBlockState(mc.player.getBlockPos());
                 BlockState selfHeadBlock =
-                        mc.world.getBlockState(mc.player.getBlockPos().offset(Direction.UP));
+                        mc.world.getBlockState(mc.player.getBlockPos().up());
 
-                if (BlockUtils.canBreak(mc.player.getBlockPos().offset(Direction.UP), selfHeadBlock)
+                if (BlockUtils.canBreak(mc.player.getBlockPos().up(), selfHeadBlock)
                         && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)) {
-                    silentMine.silentBreakBlock(mc.player.getBlockPos().offset(Direction.UP), 20);
+                    silentMine.silentBreakBlock(mc.player.getBlockPos().up(), 20);
                 }
             }
         }
@@ -186,28 +186,28 @@ public class AutoMine extends Module {
 
         BlockState selfFeetBlock = mc.world.getBlockState(mc.player.getBlockPos());
         BlockState selfHeadBlock =
-                mc.world.getBlockState(mc.player.getBlockPos().offset(Direction.UP));
+                mc.world.getBlockState(mc.player.getBlockPos().up());
 
         boolean prioHead = false;
 
         if (antiSwim.get() == AntiSwimMode.Always) {
-            if (BlockUtils.canBreak(mc.player.getBlockPos().offset(Direction.UP), selfHeadBlock)
+            if (BlockUtils.canBreak(mc.player.getBlockPos().up(), selfHeadBlock)
                     && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
                     && (!silentMine.hasDelayedDestroy()
                             || silentMine.getRebreakBlockPos() == null)) {
-                silentMine.silentBreakBlock(mc.player.getBlockPos().offset(Direction.UP), 20);
+                silentMine.silentBreakBlock(mc.player.getBlockPos().up(), 20);
 
                 prioHead = true;
             }
         }
 
         if (antiSwim.get() == AntiSwimMode.OnMineAndSwim && mc.player.isCrawling()) {
-            if (BlockUtils.canBreak(mc.player.getBlockPos().offset(Direction.UP), selfHeadBlock)
+            if (BlockUtils.canBreak(mc.player.getBlockPos().up(), selfHeadBlock)
                     && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
                     && (!silentMine.hasDelayedDestroy()
                             || silentMine.getRebreakBlockPos() == null)) {
 
-                silentMine.silentBreakBlock(mc.player.getBlockPos().offset(Direction.UP), 20);
+                silentMine.silentBreakBlock(mc.player.getBlockPos().up(), 20);
 
                 prioHead = true;
             }
@@ -221,7 +221,7 @@ public class AutoMine extends Module {
 
         if (silentMine.hasDelayedDestroy() && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
                 && selfFeetBlock.isAir() && silentMine.getRebreakBlockPos() == mc.player
-                        .getBlockPos().offset(Direction.UP)) {
+                        .getBlockPos().up()) {
             return;
         }
 
@@ -307,7 +307,7 @@ public class AutoMine extends Module {
 
             // Feet / swim case
             if (pos.equals(targetPlayer.getBlockPos())) {
-                BlockState headBlock = mc.world.getBlockState(pos.offset(Direction.UP));
+                BlockState headBlock = mc.world.getBlockState(pos.up());
 
                 // If their in 2-tall bedrock, mine out their feet
                 if (headBlock.getBlock().equals(Blocks.OBSIDIAN)) {
@@ -322,7 +322,7 @@ public class AutoMine extends Module {
             } else {
                 BlockState selfFeetBlock = mc.world.getBlockState(mc.player.getBlockPos());
                 BlockState selfHeadBlock =
-                        mc.world.getBlockState(mc.player.getBlockPos().offset(Direction.UP));
+                        mc.world.getBlockState(mc.player.getBlockPos().up());
 
                 if (pos.equals(mc.player.getBlockPos())
                         && (selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)

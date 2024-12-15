@@ -11,12 +11,10 @@ import com.mojang.authlib.GameProfile;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.DamageEvent;
 import meteordevelopment.meteorclient.events.entity.DropItemsEvent;
-import meteordevelopment.meteorclient.events.entity.player.PlayerJumpEvent;
 import meteordevelopment.meteorclient.events.entity.player.PlayerTickMovementEvent;
 import meteordevelopment.meteorclient.events.entity.player.SendMovementPacketsEvent;
 import meteordevelopment.meteorclient.systems.managers.RotationManager;
 import meteordevelopment.meteorclient.systems.modules.Modules;
-import meteordevelopment.meteorclient.systems.modules.combat.AutoCrystal;
 import meteordevelopment.meteorclient.systems.modules.movement.*;
 import meteordevelopment.meteorclient.systems.modules.player.Portals;
 import meteordevelopment.meteorclient.utils.Utils;
@@ -29,11 +27,8 @@ import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.util.ClientPlayerTickable;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerInputC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.network.packet.c2s.play.VehicleMoveC2SPacket;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import static meteordevelopment.meteorclient.MeteorClient.mc;
@@ -256,21 +251,32 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
 
             boolean positionChanged = MathHelper.squaredMagnitude(d, e, f) > MathHelper.square(2.0E-4) || this.ticksSinceLastPositionPacketSent >= 20;
             boolean rotationChanged = (deltaYaw != 0.0 || deltaPitch != 0.0);
+
+            float sendYaw = yaw;
+            boolean forceFull = false;
+
+            if (Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation()) {
+                sendYaw = encodeDegrees(yaw, 100000);
+
+                // Visual rotation fix
+                RotationManager.sendDisablerPacket = true;
+                RotationManager.lastActualYaw = yaw;
+            }
             
             if (this.hasVehicle()) {
                 Vec3d vec3d = this.getVelocity();
                 this.networkHandler.sendPacket(new PlayerMoveC2SPacket.Full(vec3d.x, -999.0,
-                        vec3d.z, yaw, pitch, this.isOnGround()));
+                        vec3d.z, sendYaw, pitch, this.isOnGround()));
                 positionChanged = false;
-            } else if (positionChanged && rotationChanged) {
+            } else if (forceFull || (positionChanged && rotationChanged)) {
                 this.networkHandler.sendPacket(new PlayerMoveC2SPacket.Full(this.getX(),
-                        this.getY(), this.getZ(), yaw, pitch, this.isOnGround()));
+                        this.getY(), this.getZ(), sendYaw, pitch, this.isOnGround()));
             } else if (positionChanged) {
                 this.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
                         this.getX(), this.getY(), this.getZ(), this.isOnGround()));
             } else if (rotationChanged) {
                 this.networkHandler.sendPacket(
-                        new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, this.isOnGround()));
+                        new PlayerMoveC2SPacket.LookAndOnGround(sendYaw, pitch, this.isOnGround()));
             } else if (this.lastOnGround != this.isOnGround()) {
                 this.networkHandler
                         .sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(this.isOnGround()));
@@ -293,5 +299,11 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
         }
 
         MeteorClient.EVENT_BUS.post(new SendMovementPacketsEvent.Post());
+    }
+
+    // Credit to TylerTheDev
+    // Just makes the player appear to have the correct rotation, allows phasing and XP throwing and etc
+    private static float encodeDegrees(float degrees, int multiplier) {
+        return degrees + (multiplier * 360.0F);
     }
 }
