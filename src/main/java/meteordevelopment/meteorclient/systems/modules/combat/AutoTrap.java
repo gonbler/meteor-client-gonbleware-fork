@@ -127,7 +127,7 @@ public class AutoTrap extends Module {
 
         long currentTime = System.currentTimeMillis();
         long placeCount = placeCooldowns.values().stream().filter(x -> currentTime - x <= 1000).count();
-        if (placeCount > 30) {
+        if (placeCount > 20) {
             return;
         }
 
@@ -253,7 +253,7 @@ public class AutoTrap extends Module {
         Direction dir = BlockUtils.getPlaceSide(blockPos);
 
         if (placeCooldowns.containsKey(blockPos)) {
-            if (System.currentTimeMillis() - placeCooldowns.get(blockPos) < 100) {
+            if (System.currentTimeMillis() - placeCooldowns.get(blockPos) < 200) {
                 return false;
             }
         }

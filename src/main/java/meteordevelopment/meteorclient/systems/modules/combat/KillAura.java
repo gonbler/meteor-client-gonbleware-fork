@@ -190,13 +190,6 @@ public class KillAura extends Module {
         .build()
     );
 
-    private final Setting<Boolean> pauseOnCA = sgTiming.add(new BoolSetting.Builder()
-        .name("pause-on-CA")
-        .description("Does not attack while CA is placing.")
-        .defaultValue(true)
-        .build()
-    );
-
     private final Setting<Boolean> tpsSync = sgTiming.add(new BoolSetting.Builder()
         .name("TPS-sync")
         .description("Tries to sync attack delay with the server's TPS.")
@@ -251,7 +244,6 @@ public class KillAura extends Module {
         if (pauseOnUse.get() && (mc.interactionManager.isBreakingBlock() || mc.player.isUsingItem())) return;
         if (onlyOnClick.get() && !mc.options.attackKey.isPressed()) return;
         if (TickRate.INSTANCE.getTimeSinceLastTick() >= 1f && pauseOnLag.get()) return;
-        if (pauseOnCA.get() && Modules.get().get(CrystalAura.class).isActive() && Modules.get().get(CrystalAura.class).kaTimer > 0) return;
 
         if (onlyOnLook.get()) {
             Entity targeted = mc.targetedEntity;

@@ -22,9 +22,9 @@ public class ActiveModulesHud extends HudElement {
 
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    private final Setting<List<Module>> hiddenModules = sgGeneral.add(new ModuleListSetting.Builder()
-        .name("hidden-modules")
-        .description("Which modules not to show in the list.")
+    private final Setting<List<Module>> shownModules = sgGeneral.add(new ModuleListSetting.Builder()
+        .name("visible-modules")
+        .description("Which modules to show in the list")
         .build()
     );
 
@@ -170,7 +170,7 @@ public class ActiveModulesHud extends HudElement {
         modules.clear();
 
         for (Module module : Modules.get().getActive()) {
-            if (!hiddenModules.get().contains(module)) modules.add(module);
+            if (shownModules.get().contains(module)) modules.add(module);
         }
 
         if (modules.isEmpty()) {
@@ -242,6 +242,9 @@ public class ActiveModulesHud extends HudElement {
                 rainbow.g = Color.toRGBAG(c);
                 rainbow.b = Color.toRGBAB(c);
                 color = rainbow;
+            }
+            default -> {
+                
             }
         }
 

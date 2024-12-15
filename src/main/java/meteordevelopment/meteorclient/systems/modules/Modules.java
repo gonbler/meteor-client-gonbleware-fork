@@ -412,7 +412,6 @@ public class Modules extends System<Modules> {
         add(new ArrowDodge());
         add(new AutoAnvil());
         add(new AutoArmor());
-        add(new AutoCity());
         add(new AutoEXP());
         add(new AutoTotem());
         add(new AutoTrap());
@@ -423,7 +422,6 @@ public class Modules extends System<Modules> {
         add(new BowSpam());
         add(new Burrow());
         add(new Criticals());
-        add(new CrystalAura());
         add(new Hitboxes());
         add(new HoleFiller());
         add(new KillAura());
@@ -576,7 +574,6 @@ public class Modules extends System<Modules> {
         add(new MountBypass());
         add(new NoGhostBlocks());
         add(new Nuker());
-        add(new PacketMine());
         add(new SilentMine());
         add(new StashFinder());
         add(new SpawnProofer());
