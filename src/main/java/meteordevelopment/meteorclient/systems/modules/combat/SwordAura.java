@@ -3,8 +3,11 @@ package meteordevelopment.meteorclient.systems.modules.combat;
 import java.util.Set;
 import org.apache.commons.lang3.mutable.MutableDouble;
 import meteordevelopment.meteorclient.MeteorClient;
+import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.BoolSetting;
+import meteordevelopment.meteorclient.settings.ColorSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EntityTypeListSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
@@ -13,10 +16,12 @@ import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.entity.EntityUtils;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
+import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.AttributeModifiersComponent;
@@ -36,10 +41,12 @@ import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.Box;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
 public class SwordAura extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
+    private final SettingGroup sgRender = settings.createGroup("Render");
 
     private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder().name("range")
             .description("The maximum range the entity can be to attack it.").defaultValue(4.0)
@@ -73,8 +80,30 @@ public class SwordAura extends Module {
             .name("pause-in-air").description("Does not attack while jumping or falling")
             .defaultValue(true).build());
 
+    private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("render")
+            .description("Whether or not to render attacks").defaultValue(true).build());
+
+    private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builder<ShapeMode>()
+            .name("shape-mode").description("How the shapes are rendered.")
+            .defaultValue(ShapeMode.Both).visible(() -> render.get()).build());
+
+    private final Setting<SettingColor> sideColor = sgRender.add(new ColorSetting.Builder()
+            .name("side-color").description("The side color of the rendering.")
+            .defaultValue(new SettingColor(160, 0, 225, 35)).visible(() -> shapeMode.get().sides())
+            .build());
+
+    private final Setting<SettingColor> lineColor = sgRender.add(new ColorSetting.Builder()
+            .name("line-color").description("The line color of the rendering.")
+            .defaultValue(new SettingColor(120, 0, 225, 50))
+            .visible(() -> render.get() && shapeMode.get().lines()).build());
+
+    private final Setting<Double> fadeTime = sgRender.add(new DoubleSetting.Builder()
+            .name("fade-time").description("How long to fade the bounding box render.").min(0)
+            .sliderMax(2.0).defaultValue(0.8).build());
+
     private long lastAttackTime = 0;
     private Entity target = null;
+    private Entity lastAttackedEntity = null;
 
     public SwordAura() {
         super(Categories.Combat, "sword-aura", "Automatically attacks entities with your sword");
@@ -123,7 +152,8 @@ public class SwordAura extends Module {
 
             Box hitbox = entity.getBoundingBox();
             Vec3d closestPointOnBoundingBox = getClosestPointOnBox(hitbox, mc.player.getEyePos());
-            if (!closestPointOnBoundingBox.isWithinRangeOf(mc.player.getEyePos(), range.get(), range.get()))
+            if (!closestPointOnBoundingBox.isWithinRangeOf(mc.player.getEyePos(), range.get(),
+                    range.get()))
                 return false;
 
             if (!entities.get().contains(entity.getType()))
@@ -157,7 +187,8 @@ public class SwordAura extends Module {
 
         if (delayCheck(result.slot())) {
             if (rotate.get()) {
-                MeteorClient.ROTATION.requestRotation(getClosestPointOnBox(target.getBoundingBox(), mc.player.getEyePos()), 9);
+                MeteorClient.ROTATION.requestRotation(
+                        getClosestPointOnBox(target.getBoundingBox(), mc.player.getEyePos()), 9);
 
                 if (!MeteorClient.ROTATION.lookingAt(target.getBoundingBox())) {
                     return;
@@ -176,10 +207,41 @@ public class SwordAura extends Module {
         }
     }
 
+    @EventHandler
+    private void onRender3D(Render3DEvent event) {
+        if (!render.get() || lastAttackedEntity == null) {
+            return;
+        }
+
+        double secondsSinceAttack = (System.currentTimeMillis() - lastAttackTime) / 1000.0;
+
+        if (secondsSinceAttack > fadeTime.get()) {
+            return;
+        }
+
+        double alpha = 1 - (secondsSinceAttack / fadeTime.get());
+
+        // Bounding box interpolation
+        double x = MathHelper.lerp(event.tickDelta, lastAttackedEntity.lastRenderX,
+                lastAttackedEntity.getX()) - lastAttackedEntity.getX();
+        double y = MathHelper.lerp(event.tickDelta, lastAttackedEntity.lastRenderY,
+                lastAttackedEntity.getY()) - lastAttackedEntity.getY();
+        double z = MathHelper.lerp(event.tickDelta, lastAttackedEntity.lastRenderZ,
+                lastAttackedEntity.getZ()) - lastAttackedEntity.getZ();
+
+        Box box = lastAttackedEntity.getBoundingBox();
+
+        event.renderer.box(x + box.minX, y + box.minY, z + box.minZ, x + box.maxX, y + box.maxY,
+                z + box.maxZ, sideColor.get().copy().a((int) (sideColor.get().a * alpha)),
+                lineColor.get().copy().a((int) (lineColor.get().a * alpha)), shapeMode.get(), 0);
+    }
+
     public void attack() {
-        mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
+        mc.getNetworkHandler()
+                .sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
         mc.player.swingHand(Hand.MAIN_HAND);
 
+        lastAttackedEntity = target;
         lastAttackTime = System.currentTimeMillis();
     }
 

@@ -61,24 +61,24 @@ public class SilentMine extends Module {
             .name("render-block").description("Whether to render the block being broken.")
             .defaultValue(true).build());
 
-private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builder<ShapeMode>()
-        .name("shape-mode").description("How the shapes are rendered.")
-        .defaultValue(ShapeMode.Both).visible(renderBlock::get).build());
+    private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builder<ShapeMode>()
+            .name("shape-mode").description("How the shapes are rendered.")
+            .defaultValue(ShapeMode.Both).visible(renderBlock::get).build());
 
     private final Setting<SettingColor> sideColor = sgRender.add(new ColorSetting.Builder()
             .name("side-color").description("The side color of the rendering.")
-            .defaultValue(new SettingColor(225, 0, 0, 75))
+            .defaultValue(new SettingColor(255, 180, 255, 15))
             .visible(() -> renderBlock.get() && shapeMode.get().sides()).build());
 
     private final Setting<SettingColor> lineColor = sgRender.add(new ColorSetting.Builder()
             .name("line-color").description("The line color of the rendering.")
-            .defaultValue(new SettingColor(225, 0, 0, 255))
+            .defaultValue(new SettingColor(255, 255, 255, 60))
             .visible(() -> renderBlock.get() && shapeMode.get().lines()).build());
 
     private final Setting<Boolean> debugRenderPrimary =
             sgRender.add(new BoolSetting.Builder().name("debug-render-primary")
                     .description("Render the primary block differently for debugging.")
-                    .defaultValue(true).build());
+                    .defaultValue(false).build());
 
     private SilentMineBlock rebreakBlock = null;
     private SilentMineBlock delayedDestroyBlock = null;
@@ -218,7 +218,7 @@ private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builde
 
                     MeteorClient.EVENT_BUS
                             .post(new SilentMineFinishedEvent.Pre(rebreakBlock.blockPos, true));
-                    
+
                     rebreakBlock.tryBreak();
 
                     if (autoSwitch.get() && slot.found()) {
@@ -387,12 +387,15 @@ private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builde
     @EventHandler
     private void onRender(Render3DEvent event) {
         if (render.get()) {
+            double calculatedDrawGameTick = (double) (System.nanoTime() - initTime)
+                / (double) (java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50L));
+
             if (rebreakBlock != null) {
-                rebreakBlock.render(event, currentGameTickCalculated, true);
+                rebreakBlock.render(event, calculatedDrawGameTick, true);
             }
 
             if (delayedDestroyBlock != null) {
-                delayedDestroyBlock.render(event, currentGameTickCalculated, false);
+                delayedDestroyBlock.render(event, calculatedDrawGameTick, false);
             }
         }
     }
@@ -511,6 +514,10 @@ private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builde
         }
 
         public double getBreakProgress() {
+            return getBreakProgress(currentGameTickCalculated);
+        }
+
+        public double getBreakProgress(double gameTick) {
             BlockState state = mc.world.getBlockState(blockPos);
 
             FindItemResult slot = InvUtils.findFastestTool(mc.world.getBlockState(blockPos));
@@ -519,25 +526,18 @@ private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builde
                     slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot, state);
 
             return Math.min(BlockUtils.getBreakDelta(breakingSpeed, state)
-                    * (double) (currentGameTickCalculated - destroyProgressStart), 1.0);
+                    * (double) (gameTick - destroyProgressStart), 1.0);
         }
 
         public double getBreakProgressSingleTick() {
-            BlockState state = mc.world.getBlockState(blockPos);
-
-            FindItemResult slot = InvUtils.findFastestTool(mc.world.getBlockState(blockPos));
-
-            double breakingSpeed = BlockUtils.getBlockBreakingSpeed(
-                    slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot, state);
-
-            return Math.min(BlockUtils.getBreakDelta(breakingSpeed, state), 1.0);
+            return getBreakProgress(destroyProgressStart + 1);
         }
 
         public double getPriority() {
             return priority;
         }
 
-        public void render(Render3DEvent event, double currentTick, boolean isPrimary) {
+        public void render(Render3DEvent event, double renderTick, boolean isPrimary) {
             VoxelShape shape = mc.world.getBlockState(blockPos).getOutlineShape(mc.world, blockPos);
             if (shape == null || shape.isEmpty()) {
                 event.renderer.box(blockPos, sideColor.get(), lineColor.get(), shapeMode.get(), 0);
@@ -549,7 +549,7 @@ private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builde
             // The primary block can be broken at 0.7 completion, so speed up the visual by the
             // reciprical
             double shrinkFactor =
-                    1d - (isPrimary ? getBreakProgress() * (1 / 0.7) : getBreakProgress());
+                    1d - (isPrimary ? getBreakProgress(renderTick) * (1 / 0.7) : getBreakProgress(renderTick));
             BlockPos pos = blockPos;
 
 
