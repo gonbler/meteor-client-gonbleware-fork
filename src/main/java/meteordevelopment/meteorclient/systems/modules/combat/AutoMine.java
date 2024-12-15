@@ -25,11 +25,13 @@ import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
+import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.s2c.play.BlockBreakingProgressS2CPacket;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 
@@ -278,10 +280,36 @@ public class AutoMine extends Module {
         boolean set = false;
         CityBlock bestBlock = new CityBlock();
         
-        List<BlockPos> checkPos = Direction.Type.HORIZONTAL.stream()
-                .map(x -> targetPlayer.getBlockPos().offset(x)).collect(Collectors.toList());
-        checkPos.add(targetPlayer.getBlockPos());
+        List<BlockPos> checkPos = new ArrayList<>();
 
+        Box boundingBox = targetPlayer.getBoundingBox().shrink(0.01, 0.1, 0.01);
+        double feetY = targetPlayer.getY();
+        Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
+                feetY + 0.1, boundingBox.maxZ);
+
+        for (BlockPos pos : BlockPos.iterate((int) Math.floor(feetBox.minX),
+                (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
+                (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
+                (int) Math.floor(feetBox.maxZ))) {
+            
+            checkPos.add(pos);
+
+            for (Direction dir : Direction.Type.HORIZONTAL) {
+                if (checkPos.contains(pos.offset(dir))) {
+                    continue;
+                }
+
+                checkPos.add(pos.offset(dir));
+            }
+        }
+
+        checkPos.add(targetPlayer.getBlockPos());
+        
+        if (mc.world.getBlockState(targetPlayer.getBlockPos()).getBlock() == Blocks.BEDROCK) {
+            checkPos.clear();
+
+            checkPos.add(targetPlayer.getBlockPos().down());
+        }
 
         for (BlockPos pos : checkPos) {
             if (pos.equals(exclude)) {
@@ -291,7 +319,7 @@ public class AutoMine extends Module {
             BlockState block = mc.world.getBlockState(pos);
             boolean isPosGoodRebreak = silentMine.canRebreakRebreakBlock()
                     && pos.equals(silentMine.getRebreakBlockPos())
-                    && !pos.equals(targetPlayer.getBlockPos());
+                    && !pos.equals(targetPlayer.getBlockPos()) && !isBlockInFeet(pos);
 
             if (block.isAir() && !isPosGoodRebreak) {
                 continue;
@@ -303,7 +331,7 @@ public class AutoMine extends Module {
                 continue;
             }
 
-            boolean isFeetBlock = false;
+            boolean isFeetBlock = isBlockInFeet(pos);
 
             // Feet / swim case
             if (pos.equals(targetPlayer.getBlockPos())) {
@@ -317,8 +345,6 @@ public class AutoMine extends Module {
                     // Mine out their feet-only phase
                     score += 30;
                 }
-
-                isFeetBlock = true;
             } else {
                 BlockState selfFeetBlock = mc.world.getBlockState(mc.player.getBlockPos());
                 BlockState selfHeadBlock =
@@ -372,7 +398,6 @@ public class AutoMine extends Module {
                 }
             }
 
-
             boolean outOfRange = Utils.distance(mc.player.getX() - 0.5,
                     mc.player.getY() + mc.player.getEyeHeight(mc.player.getPose()),
                     mc.player.getZ() - 0.5, pos.getX(), pos.getY(),
@@ -400,6 +425,25 @@ public class AutoMine extends Module {
         } else {
             return null;
         }
+    }
+
+    private boolean isBlockInFeet(BlockPos blockPos) {
+        Box boundingBox = targetPlayer.getBoundingBox().shrink(0.01, 0.1, 0.01);
+        double feetY = targetPlayer.getY();
+        Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
+                feetY + 0.1, boundingBox.maxZ);
+        
+        for (BlockPos pos : BlockPos.iterate((int) Math.floor(feetBox.minX),
+                (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
+                (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
+                (int) Math.floor(feetBox.maxZ))) {
+            
+            if (blockPos.equals(pos)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public boolean isTargetedPos(BlockPos pos) {

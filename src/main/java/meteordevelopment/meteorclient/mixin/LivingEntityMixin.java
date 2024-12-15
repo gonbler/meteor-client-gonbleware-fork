@@ -124,7 +124,12 @@ public abstract class LivingEntityMixin extends Entity {
         ElytraFly elytraFly = Modules.get().get(ElytraFly.class);
         ElytraFakeFly fakeFly = Modules.get().get(ElytraFakeFly.class);
         GrimDisabler grimDisabler = Modules.get().get(GrimDisabler.class);
-        
+
+        /*if ((Object) this == mc.player && grimDisabler.isActive()) {
+            cir.setReturnValue(grimDisabler.isInElytraFlyState());
+            return;
+        }*/
+
         if ((Object) this == mc.player && fakeFly.isFlying()) {
             cir.setReturnValue(false);
             return;
@@ -142,7 +147,8 @@ public abstract class LivingEntityMixin extends Entity {
         previousElytra = elytra;
     }
 
-    @ModifyExpressionValue(method = "travel", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/LivingEntity;isFallFlying()Z"))
+    @ModifyExpressionValue(method = "travel", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/entity/LivingEntity;isFallFlying()Z"))
     private boolean overrideTravelIsFallFlying(boolean original) {
         if ((Object) this != mc.player) {
             return original;
@@ -157,7 +163,8 @@ public abstract class LivingEntityMixin extends Entity {
         return original;
     }
 
-    @ModifyExpressionValue(method = "isInSwimmingPose", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/LivingEntity;isFallFlying()Z"))
+    @ModifyExpressionValue(method = "isInSwimmingPose", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/entity/LivingEntity;isFallFlying()Z"))
     private boolean overrideIsInSwimmingPosIsFallFlying(boolean original) {
         if ((Object) this != mc.player) {
             return original;

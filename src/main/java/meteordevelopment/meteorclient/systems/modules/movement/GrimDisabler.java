@@ -2,15 +2,16 @@ package meteordevelopment.meteorclient.systems.modules.movement;
 
 import meteordevelopment.meteorclient.events.entity.player.SendMovementPacketsEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
-import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
-import meteordevelopment.meteorclient.settings.KeybindSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.misc.Keybind;
 import meteordevelopment.orbit.EventHandler;
+import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.item.Items;
+import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
+import net.minecraft.screen.slot.SlotActionType;
 
 public class GrimDisabler extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -20,18 +21,14 @@ public class GrimDisabler extends Module {
                     .description("Determines mode of disabler for horizontal movement")
                     .defaultValue(HorizontalDisablerMode.YawOverflow).build());
 
-    private final Setting<Keybind> toggleHorizontalDisabler =
-            sgGeneral.add(new KeybindSetting.Builder().name("toggle-horizontal-disabler")
-                    .description("Keybind to toggle the horizontal disabler")
+    /*private final Setting<Boolean> horizontalDisablerElytraFly =
+            sgGeneral.add(new BoolSetting.Builder().name("horizontal-disabler-elytra-fly")
+                    .description("Determines if the horizontal lets you elytra fly")
+                    .defaultValue(true)
                     .visible(() -> horizontalDisblerMode.get() != HorizontalDisablerMode.None)
-                    .build());
+                    .build());*/
 
-    private final Setting<Boolean> horizontalDisablerActive =
-            sgGeneral.add(new BoolSetting.Builder().name("horizontal-disabler-active")
-                    .description("Determines if the horizontal disabler is active or not")
-                    .defaultValue(true).build());
-
-    private boolean lastToggleConstant = false;
+    private boolean fallFlyingBoostState = false;
 
     public GrimDisabler() {
         super(Categories.Movement, "grim-disabler",
@@ -40,33 +37,60 @@ public class GrimDisabler extends Module {
 
     @EventHandler
     public void onPreMove(SendMovementPacketsEvent.Pre event) {
-        // Todo, things?
-    }
+        // WIP Elytra
+        /*if (horizontalDisablerActive.get() && horizontalDisablerElytraFly.get()) {
+            boolean wearingElytra = false;
+            if (mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem().equals(Items.ELYTRA)) {
+                wearingElytra = true;
+            }
 
-    private void update() {
-        if (toggleHorizontalDisabler.get().isPressed() && !lastToggleConstant) {
-            horizontalDisablerActive.set(!horizontalDisablerActive.get());
-        }
-        lastToggleConstant = toggleHorizontalDisabler.get().isPressed();
+            if (wearingElytra) {
+                stopFallFlying();
+                fallFlyingBoostState = false;
+            } else {
+                startFallFlying();
+                fallFlyingBoostState = true;
+            }
+        }*/
     }
 
     @EventHandler
     private void onRender(Render3DEvent event) {
-        update();
+        // TODO ?
+    }
+
+    public boolean isInElytraFlyState() {
+        return isActive() && fallFlyingBoostState;
     }
 
     public boolean shouldSetYawOverflowRotation() {
-        return isActive() && horizontalDisblerMode.get() == HorizontalDisablerMode.YawOverflow
-                && horizontalDisablerActive.get() && !mc.player.isFallFlying();
+        return isActive() && horizontalDisblerMode.get() == HorizontalDisablerMode.YawOverflow/*  && !isInElytraFlyState()*/;
+    }
+
+    private void stopFallFlying() {
+        if (!mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem().equals(Items.ELYTRA)) {
+            return;
+        }
+
+        // Unequip and requipt elytra
+        mc.interactionManager.clickSlot(mc.player.currentScreenHandler.syncId, 6, 0,
+                SlotActionType.PICKUP, mc.player);
+        mc.interactionManager.clickSlot(mc.player.currentScreenHandler.syncId, 6, 0,
+                SlotActionType.PICKUP, mc.player);
+    }
+
+    private void startFallFlying() {
+        if (!mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem().equals(Items.ELYTRA)) {
+            return;
+        }
+
+        mc.player.networkHandler.sendPacket(new ClientCommandC2SPacket(mc.player,
+                ClientCommandC2SPacket.Mode.START_FALL_FLYING));
     }
 
     @Override
     public String getInfoString() {
         if (horizontalDisblerMode.get() == HorizontalDisablerMode.None) {
-            return "";
-        }
-
-        if (!horizontalDisablerActive.get()) {
             return "";
         }
 
