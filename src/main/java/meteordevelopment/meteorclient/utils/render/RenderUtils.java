@@ -37,6 +37,8 @@ public class RenderUtils {
     private static final Pool<RenderBlock> renderBlockPool = new Pool<>(RenderBlock::new);
     private static final List<RenderBlock> renderBlocks = new ArrayList<>();
 
+    private static final long initTime = System.nanoTime();
+
     private RenderUtils() {
     }
 
@@ -183,6 +185,15 @@ public class RenderUtils {
             sideColor.a = preSideA;
             lineColor.a = preLineA;
         }
+    }
+    
+    public static double getCurrentGameTickCalculated() {
+        return getCurrentGameTickCalculatedNano(System.nanoTime());
+    }
+
+    public static double getCurrentGameTickCalculatedNano(long nanoTime) {
+        return (double) (nanoTime - initTime)
+                / (double) (java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50L));
     }
 }
 

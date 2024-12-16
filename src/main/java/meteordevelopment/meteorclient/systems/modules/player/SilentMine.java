@@ -6,7 +6,6 @@
 package meteordevelopment.meteorclient.systems.modules.player;
 
 import meteordevelopment.meteorclient.MeteorClient;
-import meteordevelopment.meteorclient.events.entity.player.BreakBlockEvent;
 import meteordevelopment.meteorclient.events.entity.player.StartBreakingBlockEvent;
 import meteordevelopment.meteorclient.events.meteor.SilentMineFinishedEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
@@ -23,12 +22,12 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
+import meteordevelopment.meteorclient.utils.render.RenderUtils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
 import net.minecraft.util.math.BlockPos;
@@ -83,7 +82,6 @@ public class SilentMine extends Module {
     private SilentMineBlock rebreakBlock = null;
     private SilentMineBlock delayedDestroyBlock = null;
 
-    private final long initTime = System.nanoTime();
     private double currentGameTickCalculated = 0;
 
     private long lastTimeBreak = 0;
@@ -95,8 +93,7 @@ public class SilentMine extends Module {
         super(Categories.Player, "silent-mine",
                 "Allows you to mine blocks without holding a pickaxe");
 
-        currentGameTickCalculated = (double) (System.nanoTime() - initTime)
-                / (double) (java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50L));
+        currentGameTickCalculated = RenderUtils.getCurrentGameTickCalculated();
     }
 
     @Override
@@ -106,8 +103,7 @@ public class SilentMine extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        currentGameTickCalculated = (double) (System.nanoTime() - initTime)
-                / (double) (java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50L));
+        currentGameTickCalculated = RenderUtils.getCurrentGameTickCalculated();
 
         if (hasDelayedDestroy() && mc.world.getBlockState(delayedDestroyBlock.blockPos).isAir()) {
             MeteorClient.EVENT_BUS
@@ -387,8 +383,7 @@ public class SilentMine extends Module {
     @EventHandler
     private void onRender(Render3DEvent event) {
         if (render.get()) {
-            double calculatedDrawGameTick = (double) (System.nanoTime() - initTime)
-                / (double) (java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50L));
+            double calculatedDrawGameTick = RenderUtils.getCurrentGameTickCalculated();
 
             if (rebreakBlock != null) {
                 rebreakBlock.render(event, calculatedDrawGameTick, true);

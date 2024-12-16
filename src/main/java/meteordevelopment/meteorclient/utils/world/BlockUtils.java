@@ -417,6 +417,35 @@ public class BlockUtils {
         return speed;
     }
 
+    public static double getBlockBreakingSpeedNoOnGround(int slot, BlockState block) {
+        double speed = mc.player.getInventory().main.get(slot).getMiningSpeedMultiplier(block);
+
+        if (speed > 1) {
+            ItemStack tool = mc.player.getInventory().getStack(slot);
+
+            int efficiency = Utils.getEnchantmentLevel(tool, Enchantments.EFFICIENCY);
+
+            if (efficiency > 0 && !tool.isEmpty()) speed += efficiency * efficiency + 1;
+        }
+
+        if (StatusEffectUtil.hasHaste(mc.player)) {
+            speed *= 1 + (StatusEffectUtil.getHasteAmplifier(mc.player) + 1) * 0.2F;
+        }
+
+        if (mc.player.hasStatusEffect(StatusEffects.MINING_FATIGUE)) {
+            float k = switch (mc.player.getStatusEffect(StatusEffects.MINING_FATIGUE).getAmplifier()) {
+                case 0 -> 0.3F;
+                case 1 -> 0.09F;
+                case 2 -> 0.0027F;
+                default -> 8.1E-4F;
+            };
+
+            speed *= k;
+        }
+
+        return speed;
+    }
+
     /**
      * Mutates a {@link BlockPos.Mutable} around an origin
      */
