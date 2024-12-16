@@ -65,7 +65,7 @@ public class BlockPlacementManager {
         }
 
         locked = true;
-        silentInvSlot = -1;
+        silentInvSlot = InvUtils.find(item).slot();
         selectedSlot = mc.player.getInventory().selectedSlot;
         didSilentSwap = false;
 
@@ -73,12 +73,12 @@ public class BlockPlacementManager {
 
         switch (antiCheatConfig.blockPlaceItemSwapMode.get()) {
             case SilentHotbar -> {
-                InvUtils.swap(InvUtils.findInHotbar(Items.OBSIDIAN).slot(), true);
+                InvUtils.swap(InvUtils.findInHotbar(item).slot(), true);
             }
             case SilentSwap -> {
                 // If the block is in our hotbar, don't SilentSwap, just SilentHotbar
                 if (inHotbar) {
-                    InvUtils.swap(InvUtils.findInHotbar(Items.OBSIDIAN).slot(), true);
+                    InvUtils.swap(InvUtils.findInHotbar(item).slot(), true);
                 } else if (silentInvSlot != mc.player.getInventory().selectedSlot) {
                     InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
                     didSilentSwap = true;
