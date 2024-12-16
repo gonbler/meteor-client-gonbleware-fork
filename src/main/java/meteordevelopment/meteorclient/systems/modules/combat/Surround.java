@@ -6,18 +6,16 @@
 package meteordevelopment.meteorclient.systems.modules.combat;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.ColorSetting;
-import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.IntSetting;
 import meteordevelopment.meteorclient.settings.Setting;
@@ -27,7 +25,6 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
-import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
@@ -35,16 +32,10 @@ import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.item.Items;
-import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerInteractBlockC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
 
 public class Surround extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -58,23 +49,10 @@ public class Surround extends Module {
     private final Setting<Boolean> pauseEat = sgGeneral.add(new BoolSetting.Builder()
             .name("pause-eat").description("Pauses while eating.").defaultValue(true).build());
 
-    private final Setting<Boolean> grimBypass =
-            sgGeneral.add(new BoolSetting.Builder().name("grim-bypass")
-                    .description("Bypasses Grim for airplace.").defaultValue(true).build());
-
     private final Setting<Boolean> protect = sgGeneral.add(new BoolSetting.Builder().name("protect")
             .description(
                     "Attempts to break crystals around surround positions to prevent surround break.")
             .defaultValue(true).build());
-
-    private final Setting<Double> placeTime =
-            sgGeneral.add(new DoubleSetting.Builder().name("place-time")
-                    .description("Time between places").defaultValue(0.06).min(0).max(0.5).build());
-
-    private final Setting<SwitchMode> switchMode =
-            sgGeneral.add(new EnumSetting.Builder<SwitchMode>().name("Switch Mode")
-                    .description("Which method of switching should be used.")
-                    .defaultValue(SwitchMode.SilentHotbar).build());
 
     private final Setting<AutoSelfTrapMode> autoSelfTrapMode =
             sgGeneral.add(new EnumSetting.Builder<AutoSelfTrapMode>().name("auto-self-trap-mode")
@@ -103,9 +81,6 @@ public class Surround extends Module {
     // private final BlockPos.Mutable renderPos = new BlockPos.Mutable();
     // private final BlockPos.Mutable testPos = new BlockPos.Mutable();
     // private int ticks;
-
-    private long lastPlaceTimeMS = 0;
-    private Map<BlockPos, Long> placeCooldowns = new HashMap<>();
 
     private List<BlockPos> placePoses = new ArrayList<>();
 
@@ -144,12 +119,6 @@ public class Surround extends Module {
                 continue;
             }
 
-            if (placeCooldowns.containsKey(placePos)) {
-                if (System.currentTimeMillis() - placeCooldowns.get(placePos) < 50) {
-                    continue;
-                }
-            }
-
             event.renderer.box(placePos, normalSideColor.get(), normalLineColor.get(),
                     shapeMode.get(), 0);
 
@@ -160,19 +129,7 @@ public class Surround extends Module {
     private void update() {
         placePoses.clear();
 
-        if (switch (switchMode.get()) {
-            case SilentHotbar -> !InvUtils.findInHotbar(Items.OBSIDIAN).found();
-            case SilentSwap -> !InvUtils.find(Items.OBSIDIAN).found();
-        }) {
-            return;
-        }
-
         long currentTime = System.currentTimeMillis();
-        long placeCount =
-                placeCooldowns.values().stream().filter(x -> currentTime - x <= 1000).count();
-        if (placeCount > 20) {
-            return;
-        }
 
         Box boundingBox = mc.player.getBoundingBox().shrink(0.05, 0.1, 0.05); // Tighter bounding
                                                                               // box
@@ -266,34 +223,15 @@ public class Surround extends Module {
             }
         }
 
-        if ((currentTime - lastPlaceTimeMS) / 1000.0 > placeTime.get()) {
-            lastPlaceTimeMS = currentTime;
-        } else {
-            return;
-        }
-
         if (pauseEat.get() && mc.player.isUsingItem()) {
             return;
         }
 
-        if (placePoses.isEmpty()) {
-            return;
-        }
 
-        int invSlot = InvUtils.find(Items.OBSIDIAN).slot();
-        int selectedSlot = mc.player.getInventory().selectedSlot;
-        boolean didSilentSwap = false;
-        boolean needSwapBack = false;
-
-        Iterator<BlockPos> iterator = placePoses.iterator();
-
-        int placed = 0;
-        while (placed < places.get() && iterator.hasNext()) {
-            BlockPos placePos = iterator.next();
-
-            if (protect.get()) {
-                Box box = new Box(placePos.getX() - 1, placePos.getY() - 1, placePos.getZ() - 1,
-                        placePos.getX() + 1, placePos.getY() + 1, placePos.getZ() + 1);
+        if (protect.get()) {
+            placePoses.forEach(blockPos -> {
+                Box box = new Box(blockPos.getX() - 1, blockPos.getY() - 1, blockPos.getZ() - 1,
+                        blockPos.getX() + 1, blockPos.getY() + 1, blockPos.getZ() + 1);
 
                 Predicate<Entity> entityPredicate = entity -> entity instanceof EndCrystalEntity;
 
@@ -324,138 +262,20 @@ public class Surround extends Module {
                         blocking.discard();
                     }
                 }
-            }
-
-            if (!BlockUtils.canPlace(placePos, true)) {
-                continue;
-            }
-
-            if (!needSwapBack) {
-                switch (switchMode.get()) {
-                    case SilentHotbar -> {
-                        InvUtils.swap(InvUtils.findInHotbar(Items.OBSIDIAN).slot(), true);
-                    }
-                    case SilentSwap -> {
-                        if (invSlot != mc.player.getInventory().selectedSlot) {
-                            InvUtils.quickSwap().fromId(selectedSlot).to(invSlot);
-                            didSilentSwap = true;
-                        }
-                    }
-                }
-
-                needSwapBack = true;
-            }
-
-            if (place(placePos)) {
-                placed++;
-            }
-
+            });
         }
 
-        switch (switchMode.get()) {
-            case SilentHotbar -> InvUtils.swapBack();
-            case SilentSwap -> {
-                if (didSilentSwap) {
-                    InvUtils.quickSwap().fromId(selectedSlot).to(invSlot);
-                }
-            }
-        }
-    }
+        List<BlockPos> actualPlacePositions = MeteorClient.BLOCK.filterCanPlace(placePoses.stream()).toList();
 
-    private boolean place(BlockPos blockPos) {
-        if (!BlockUtils.canPlace(blockPos, true)) {
-            return false;
+        if (!MeteorClient.BLOCK.beginPlacement(actualPlacePositions, Items.OBSIDIAN)) {
+            return;
         }
 
-        BlockPos neighbour;
-        Direction dir = BlockUtils.getPlaceSide(blockPos);
+        actualPlacePositions.forEach(blockPos -> {
+            MeteorClient.BLOCK.placeBlock(blockPos);
+        });
 
-        Vec3d hitPos = blockPos.toCenterPos();
-        if (dir == null) {
-            neighbour = blockPos;
-        } else {
-            neighbour = blockPos.offset(dir);
-            hitPos = hitPos.add(dir.getOffsetX() * 0.5, dir.getOffsetY() * 0.5,
-                    dir.getOffsetZ() * 0.5);
-        }
-
-
-        if (placeCooldowns.containsKey(blockPos)) {
-            if (System.currentTimeMillis() - placeCooldowns.get(blockPos) < 50) {
-                return false;
-            }
-        }
-
-        placeCooldowns.put(blockPos, System.currentTimeMillis());
-
-        Hand hand = Hand.MAIN_HAND;
-
-        if (dir == null && grimBypass.get()) {
-            mc.getNetworkHandler()
-                    .sendPacket(new PlayerActionC2SPacket(
-                            PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
-                            new BlockPos(0, 0, 0), Direction.DOWN));
-
-            hand = Hand.OFF_HAND;
-        }
-
-        int s = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
-
-        mc.getNetworkHandler()
-                .sendPacket(new PlayerInteractBlockC2SPacket(hand, new BlockHitResult(hitPos,
-                        (dir == null ? Direction.DOWN : dir.getOpposite()), neighbour, false), s));
-
-        if (dir == null && grimBypass.get()) {
-            mc.getNetworkHandler()
-                    .sendPacket(new PlayerActionC2SPacket(
-                            PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
-                            new BlockPos(0, 0, 0), Direction.DOWN));
-        }
-
-        return true;
-    }
-
-    public static Direction getPlaceOnDirection(BlockPos pos) {
-        if (pos == null) {
-            return null;
-        }
-
-        Direction best = null;
-        if (MeteorClient.mc.world != null && MeteorClient.mc.player != null) {
-            double cDist = -1;
-            for (Direction dir : Direction.values()) {
-
-                // Can't place on air lol
-                if (MeteorClient.mc.world.getBlockState(pos.offset(dir)).isAir()) {
-                    continue;
-                }
-
-                // Only accepts if closer than last accepted direction
-                double dist = getDistanceForDir(pos, dir);
-                if (dist >= 0 && (cDist < 0 || dist < cDist)) {
-                    best = dir;
-                    cDist = dist;
-                }
-            }
-        }
-        return best;
-    }
-
-    private static double getDistanceForDir(BlockPos pos, Direction dir) {
-        if (MeteorClient.mc.player == null) {
-            return 0.0;
-        }
-
-        Vec3d vec = new Vec3d(pos.getX() + dir.getOffsetX() / 2f,
-                pos.getY() + dir.getOffsetY() / 2f, pos.getZ() + dir.getOffsetZ() / 2f);
-        Vec3d dist = MeteorClient.mc.player.getEyePos().add(-vec.x, -vec.y, -vec.z);
-
-        // Len squared for optimization
-        return dist.lengthSquared();
-    }
-
-    public enum SwitchMode {
-        SilentHotbar, SilentSwap
+        MeteorClient.BLOCK.endPlacement();
     }
 
     public enum AutoSelfTrapMode {

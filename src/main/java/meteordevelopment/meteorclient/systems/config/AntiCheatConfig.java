@@ -1,44 +1,47 @@
 package meteordevelopment.meteorclient.systems.config;
 
 import meteordevelopment.meteorclient.MeteorClient;
-import meteordevelopment.meteorclient.renderer.Fonts;
-import meteordevelopment.meteorclient.renderer.text.FontFace;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.System;
 import meteordevelopment.meteorclient.systems.Systems;
-import meteordevelopment.meteorclient.utils.render.color.SettingColor;
+import meteordevelopment.meteorclient.systems.managers.BlockPlacementManager;
 import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtElement;
-import net.minecraft.nbt.NbtList;
-import net.minecraft.nbt.NbtString;
-
-import java.util.ArrayList;
-import java.util.List;
-
-import static meteordevelopment.meteorclient.MeteorClient.mc;
 
 public class AntiCheatConfig extends System<AntiCheatConfig> {
     public final Settings settings = new Settings();
 
     private final SettingGroup sgRotations = settings.createGroup("Rotations");
+    private final SettingGroup sgBlockPlacement = settings.createGroup("Block Placement");
 
     // Visual
 
     public final Setting<Boolean> tickSync = sgRotations.add(new BoolSetting.Builder()
-        .name("tick-sync")
-        .description("Sends a rotation packet every tick if needed")
-        .defaultValue(true)
-        .build()
-    );
+            .name("tick-sync").description("Sends a rotation packet every tick if needed")
+            .defaultValue(true).build());
 
     public final Setting<Boolean> grimRotation = sgRotations.add(new BoolSetting.Builder()
-        .name("grim-rotation")
-        .description("Sends a rotation packet every tick if needed")
-        .defaultValue(true)
-        .visible(() -> tickSync.get())
-        .build()
-    );
+            .name("grim-rotation").description("Sends a rotation packet every tick if needed")
+            .defaultValue(true).visible(() -> tickSync.get()).build());
 
+    public final Setting<Boolean> blockPlaceAirPlace =
+            sgBlockPlacement.add(new BoolSetting.Builder().name("grim-air-place")
+                    .description("Allows modules to air place blocks").defaultValue(true).build());
+
+    public final Setting<BlockPlacementManager.ItemSwapMode> blockPlaceItemSwapMode =
+            sgBlockPlacement.add(new EnumSetting.Builder<BlockPlacementManager.ItemSwapMode>()
+                    .name("item-swap-mode").description("How to swap to items")
+                    .defaultValue(BlockPlacementManager.ItemSwapMode.SilentSwap).build());
+
+    public final Setting<Double> blockPlacePerBlockCooldown =
+            sgBlockPlacement.add(new DoubleSetting.Builder().name("block-place-cooldown")
+                    .description("Amount of time to retry placing blocks in the same place")
+                    .defaultValue(0.05).min(0).sliderMax(0.3).build());
+
+    public final Setting<Double> blocksPerSecondCap =
+            sgBlockPlacement.add(new DoubleSetting.Builder().name("blocks-per-second")
+                    .description("Maximum number of blocks that can be placed every second")
+                    .defaultValue(20).min(0).sliderMax(30).build());
+    
     public AntiCheatConfig() {
         super("anti-cheat-config");
     }
@@ -59,7 +62,8 @@ public class AntiCheatConfig extends System<AntiCheatConfig> {
 
     @Override
     public AntiCheatConfig fromTag(NbtCompound tag) {
-        if (tag.contains("settings")) settings.fromTag(tag.getCompound("settings"));
+        if (tag.contains("settings"))
+            settings.fromTag(tag.getCompound("settings"));
 
         return this;
     }
