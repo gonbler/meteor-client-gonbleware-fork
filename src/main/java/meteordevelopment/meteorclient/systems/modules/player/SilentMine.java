@@ -544,7 +544,7 @@ public class SilentMine extends Module {
             // The primary block can be broken at 0.7 completion, so speed up the visual by the
             // reciprical
             double shrinkFactor =
-                    1d - (isPrimary ? getBreakProgress(renderTick) * (1 / 0.7) : getBreakProgress(renderTick));
+                    1d - Math.clamp(isPrimary ? getBreakProgress(renderTick) * (1 / 0.7) : getBreakProgress(renderTick), 0, 1);
             BlockPos pos = blockPos;
 
 
