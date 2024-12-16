@@ -84,8 +84,6 @@ public class SilentMine extends Module {
 
     private double currentGameTickCalculated = 0;
 
-    private long lastTimeBreak = 0;
-
     private boolean needSwapBack = false;
     private int delayedDestroyTicks = 0;
 

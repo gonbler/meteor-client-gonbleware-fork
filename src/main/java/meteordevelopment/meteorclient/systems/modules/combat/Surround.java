@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
@@ -42,9 +41,6 @@ public class Surround extends Module {
     private final SettingGroup sgRender = settings.createGroup("Render");
 
     // General
-
-    private final Setting<Integer> places = sgGeneral.add(new IntSetting.Builder().name("places")
-            .description("Places to do each tick.").min(1).defaultValue(1).build());
 
     private final Setting<Boolean> pauseEat = sgGeneral.add(new BoolSetting.Builder()
             .name("pause-eat").description("Pauses while eating.").defaultValue(true).build());
@@ -109,21 +105,7 @@ public class Surround extends Module {
     }
 
     private void draw(Render3DEvent event) {
-        Iterator<BlockPos> iterator = placePoses.iterator();
-
-        int placed = 0;
-        while (placed < places.get() && iterator.hasNext()) {
-            BlockPos placePos = iterator.next();
-
-            if (!BlockUtils.canPlace(placePos, true)) {
-                continue;
-            }
-
-            event.renderer.box(placePos, normalSideColor.get(), normalLineColor.get(),
-                    shapeMode.get(), 0);
-
-            placed++;
-        }
+        // TODO
     }
 
     private void update() {

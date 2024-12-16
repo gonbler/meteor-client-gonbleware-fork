@@ -16,12 +16,12 @@ public class AntiCheatConfig extends System<AntiCheatConfig> {
     // Visual
 
     public final Setting<Boolean> tickSync = sgRotations.add(new BoolSetting.Builder()
-            .name("tick-sync").description("Sends a rotation packet every tick if needed")
+            .name("tick-sync").description("Lets rotations be rotated. Should always be on.")
             .defaultValue(true).build());
 
     public final Setting<Boolean> grimRotation = sgRotations.add(new BoolSetting.Builder()
-            .name("grim-rotation").description("Sends a rotation packet every tick if needed")
-            .defaultValue(true).visible(() -> tickSync.get()).build());
+            .name("grim-rotation").description("Sends a full movement packet every tick")
+            .defaultValue(false).visible(() -> tickSync.get()).build());
 
     public final Setting<Boolean> blockPlaceAirPlace =
             sgBlockPlacement.add(new BoolSetting.Builder().name("grim-air-place")

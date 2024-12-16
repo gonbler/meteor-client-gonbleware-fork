@@ -48,7 +48,6 @@ public class RotationManager {
     public static boolean lastGround;
 
     private boolean shouldFulfilRequest = false;
-    private boolean lateRequestFulfilled = false;
     private static RotationRequest request = new RotationRequest();
 
     private final AntiCheatConfig antiCheatConfig = AntiCheatConfig.get();
@@ -151,6 +150,10 @@ public class RotationManager {
 
     @EventHandler
     public void onMovementPacket(SendMovementPacketsEvent.Rotation event) {
+        if (!antiCheatConfig.tickSync.get()) {
+            return;
+        }
+
         if (shouldFulfilRequest && !request.fulfilled) {
             request.fulfilled = true;
             shouldFulfilRequest = false;
@@ -164,6 +167,10 @@ public class RotationManager {
             MeteorClient.EVENT_BUS.post(rotateEvent);
             event.yaw = rotateEvent.getYaw();
             event.pitch = rotateEvent.getPitch();
+        }
+
+        if (antiCheatConfig.grimRotation.get()) {
+            event.forceFull = true;
         }
     }
 
