@@ -7,7 +7,6 @@ import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.item.Item;
-import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractBlockC2SPacket;
 import net.minecraft.util.Hand;
@@ -107,7 +106,11 @@ public class BlockPlacementManager {
         }
 
         BlockPos neighbour;
-        Direction dir = BlockUtils.getPlaceSide(blockPos);
+        Direction dir = null;
+
+        if (!antiCheatConfig.forceAirPlace.get()) {
+            dir = BlockUtils.getPlaceSide(blockPos);
+        }
 
         Vec3d hitPos = blockPos.toCenterPos();
         if (dir == null) {

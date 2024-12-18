@@ -27,6 +27,10 @@ public class AntiCheatConfig extends System<AntiCheatConfig> {
             sgBlockPlacement.add(new BoolSetting.Builder().name("grim-air-place")
                     .description("Allows modules to air place blocks").defaultValue(true).build());
 
+    public final Setting<Boolean> forceAirPlace =
+            sgBlockPlacement.add(new BoolSetting.Builder().name("force-air-place")
+                    .description("Only air-places blocks").defaultValue(true).build());
+
     public final Setting<BlockPlacementManager.ItemSwapMode> blockPlaceItemSwapMode =
             sgBlockPlacement.add(new EnumSetting.Builder<BlockPlacementManager.ItemSwapMode>()
                     .name("item-swap-mode").description("How to swap to items")
@@ -41,7 +45,7 @@ public class AntiCheatConfig extends System<AntiCheatConfig> {
             sgBlockPlacement.add(new DoubleSetting.Builder().name("blocks-per-second")
                     .description("Maximum number of blocks that can be placed every second")
                     .defaultValue(20).min(0).sliderMax(30).build());
-    
+
     public AntiCheatConfig() {
         super("anti-cheat-config");
     }
