@@ -80,6 +80,34 @@ public class RotationManager {
         request.callback = callback;
     }
 
+
+
+    public float[] getRotation(Vec3d eyesPos, Vec3d vec) {
+        double diffX = vec.x - eyesPos.x;
+        double diffY = vec.y - eyesPos.y;
+        double diffZ = vec.z - eyesPos.z;
+        double diffXZ = Math.sqrt(diffX * diffX + diffZ * diffZ);
+        float yaw = (float) Math.toDegrees(Math.atan2(diffZ, diffX)) - 90.0f;
+        float pitch = (float) (-Math.toDegrees(Math.atan2(diffY, diffXZ)));
+        return new float[] {MathHelper.wrapDegrees(yaw), MathHelper.wrapDegrees(pitch)};
+    }
+
+    public float[] getRotation(Vec3d vec) {
+        Vec3d eyesPos = mc.player.getEyePos();
+        return getRotation(eyesPos, vec);
+    }
+
+    public boolean lookingAt(Box box) {
+        return lookingAt(lastYaw, lastPitch, box);
+    }
+
+    public boolean lookingAt(float yaw, float pitch, Box box) {
+        if (raytraceCheck(mc.player.getEyePos(), yaw, pitch, box))
+            return true;
+
+        return false;
+    }
+
     @EventHandler(priority = EventPriority.LOWEST)
     public void onLastRotation(RotateEvent event) {
         LookAtEvent lookAtEvent = new LookAtEvent();
@@ -204,6 +232,7 @@ public class RotationManager {
                 && MovementFix.MOVE_FIX.updateMode.get() != MovementFix.UpdateMode.Mouse) {
             moveFixRotation();
         }
+    
     }
 
     private void moveFixRotation() {
@@ -224,32 +253,6 @@ public class RotationManager {
             mc.player.setYaw(MovementFix.fixYaw);
             mc.player.setPitch(MovementFix.fixPitch);
         }
-    }
-
-    public float[] getRotation(Vec3d eyesPos, Vec3d vec) {
-        double diffX = vec.x - eyesPos.x;
-        double diffY = vec.y - eyesPos.y;
-        double diffZ = vec.z - eyesPos.z;
-        double diffXZ = Math.sqrt(diffX * diffX + diffZ * diffZ);
-        float yaw = (float) Math.toDegrees(Math.atan2(diffZ, diffX)) - 90.0f;
-        float pitch = (float) (-Math.toDegrees(Math.atan2(diffY, diffXZ)));
-        return new float[] {MathHelper.wrapDegrees(yaw), MathHelper.wrapDegrees(pitch)};
-    }
-
-    public float[] getRotation(Vec3d vec) {
-        Vec3d eyesPos = mc.player.getEyePos();
-        return getRotation(eyesPos, vec);
-    }
-
-    public boolean lookingAt(Box box) {
-        return lookingAt(lastYaw, lastPitch, box);
-    }
-
-    public boolean lookingAt(float yaw, float pitch, Box box) {
-        if (raytraceCheck(mc.player.getEyePos(), yaw, pitch, box))
-            return true;
-
-        return false;
     }
 
     public boolean raytraceCheck(Vec3d pos, double y, double p, Box box) {

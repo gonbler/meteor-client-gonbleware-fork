@@ -3,6 +3,7 @@ package meteordevelopment.meteorclient.systems.modules.combat;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.KeybindSetting;
@@ -19,6 +20,7 @@ import net.minecraft.block.Blocks;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractItemC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
@@ -40,6 +42,12 @@ public class PearlPhase extends Module {
             sgGeneral.add(new DoubleSetting.Builder().name("movement-prediction-factor")
                     .description("How far to predict your movement ahead").defaultValue(0)
                     .range(-5, 5).sliderRange(-5, 5).build());
+
+    private final Setting<Boolean> instantRotation = sgGeneral.add(new BoolSetting.Builder()
+            .name("instant-rotation")
+            .description(
+                    "Instantly sends a rotation packet, rather than waiting on the RotationManager")
+            .defaultValue(true).build());
 
     private boolean active = false;
     private boolean keyUnpressed = false;
@@ -151,12 +159,22 @@ public class PearlPhase extends Module {
         }
 
         Vec3d targetPos = calculateTargetPos();
-
+        float[] angle = MeteorClient.ROTATION.getRotation(targetPos);
         MeteorClient.ROTATION.requestRotation(targetPos, 1000f);
 
-        if (MeteorClient.ROTATION.lookingAt(Box.of(targetPos, 0.05, 0.05, 0.05))) {
-            float[] angle = MeteorClient.ROTATION.getRotation(targetPos);
-            throwPearl(angle[0], angle[1]);
+        if (instantRotation.get()) {
+            if (mc.player.isOnGround()) {
+                mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(),
+                        mc.player.getY(), mc.player.getZ(), angle[0], angle[1], true));
+                        
+                if (MeteorClient.ROTATION.lookingAt(Box.of(targetPos, 0.05, 0.05, 0.05))) {
+                    throwPearl(angle[0], angle[1]);
+                }
+            }
+        } else {
+            if (MeteorClient.ROTATION.lookingAt(Box.of(targetPos, 0.05, 0.05, 0.05))) {
+                throwPearl(angle[0], angle[1]);
+            }
         }
     }
 
