@@ -17,6 +17,8 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 
 public class Velocity extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -24,6 +26,13 @@ public class Velocity extends Module {
     public final Setting<Boolean> knockback = sgGeneral.add(new BoolSetting.Builder()
         .name("knockback")
         .description("Modifies the amount of knockback you take from attacks.")
+        .defaultValue(true)
+        .build()
+    );
+
+    public final Setting<Boolean> knockbackPhaseOnly = sgGeneral.add(new BoolSetting.Builder()
+        .name("knockback-phase-only")
+        .description("Only disables knockback when phased into a wall.")
         .defaultValue(true)
         .build()
     );
@@ -158,6 +167,31 @@ public class Velocity extends Module {
     private void onPacketReceive(PacketEvent.Receive event) {
         if (knockback.get() && event.packet instanceof EntityVelocityUpdateS2CPacket packet
             && packet.getEntityId() == mc.player.getId()) {
+            if (knockbackPhaseOnly.get()) {
+                boolean isPhased = false;
+
+                Box boundingBox = mc.player.getBoundingBox().shrink(0.05, 0.1, 0.05);
+                double feetY = mc.player.getY();
+
+                Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
+                        feetY + 0.1, boundingBox.maxZ);
+
+                for (BlockPos pos : BlockPos.iterate((int) Math.floor(feetBox.minX),
+                        (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
+                        (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
+                        (int) Math.floor(feetBox.maxZ))) {
+                    
+                    if (mc.world.getBlockState(pos).isSolidBlock(mc.world, pos)) {
+                        isPhased = true;
+                        break;
+                    }
+                }
+
+                if (!isPhased) {
+                    return;
+                }
+            } 
+
             double velX = (packet.getVelocityX() / 8000d - mc.player.getVelocity().x) * knockbackHorizontal.get();
             double velY = (packet.getVelocityY() / 8000d - mc.player.getVelocity().y) * knockbackVertical.get();
             double velZ = (packet.getVelocityZ() / 8000d - mc.player.getVelocity().z) * knockbackHorizontal.get();

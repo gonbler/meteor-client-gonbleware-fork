@@ -5,6 +5,7 @@
 
 package meteordevelopment.meteorclient.systems.modules.movement;
 
+import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
@@ -13,6 +14,7 @@ import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.world.Timer;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Blocks;
+import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
 
 public class NoSlow extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -28,6 +30,14 @@ public class NoSlow extends Module {
         .name("web")
         .description("Whether or not cobwebs will not slow you down.")
         .defaultValue(WebMode.Vanilla)
+        .build()
+    );
+
+    private final Setting<Boolean> webGrimRubberbandFix = sgGeneral.add(new BoolSetting.Builder()
+        .name("web-grim-rubberband-fix")
+        .description("Stops chain-rubberbanding in webs when using Grim mode.")
+        .defaultValue(true)
+        .visible(() -> web.get() == WebMode.Grim)
         .build()
     );
 
@@ -147,6 +157,12 @@ public class NoSlow extends Module {
     }
 
     public boolean cobwebGrim() {
+        // Pause no-slow for a tick
+        if (didRubberband) {
+            didRubberband = false;
+            return false;
+        }
+
         return isActive() && web.get() == WebMode.Grim;
     }
 
@@ -174,6 +190,8 @@ public class NoSlow extends Module {
         return isActive() && slowness.get();
     }
 
+    private boolean didRubberband = false;
+
     @EventHandler
     private void onPreTick(TickEvent.Pre event) {
         if (web.get() == WebMode.Timer) {
@@ -187,8 +205,14 @@ public class NoSlow extends Module {
         }
 
         if (web.get() == WebMode.Grim) {
-            if (mc.world.getBlockState(mc.player.getBlockPos()).getBlock().equals(Blocks.COBWEB) && !mc.player.isOnGround()) {
-                mc.player.setSprinting(false);
+            
+        }
+    }
+
+    public void onReceivePacket(PacketEvent.Receive event) {
+        if (event.packet instanceof PlayerPositionLookS2CPacket packet) {
+            if (MovementFix.inWebs && webGrimRubberbandFix.get()) {
+                didRubberband = true;
             }
         }
     }
