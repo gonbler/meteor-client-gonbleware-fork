@@ -3,7 +3,6 @@ package meteordevelopment.meteorclient.systems.modules.combat;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.KeybindSetting;
@@ -11,6 +10,7 @@ import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.systems.modules.movement.MovementFix;
 import meteordevelopment.meteorclient.utils.misc.Keybind;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
@@ -43,11 +43,10 @@ public class PearlPhase extends Module {
                     .description("How far to predict your movement ahead").defaultValue(0)
                     .range(-5, 5).sliderRange(-5, 5).build());
 
-    private final Setting<Boolean> instantRotation = sgGeneral.add(new BoolSetting.Builder()
-            .name("instant-rotation")
-            .description(
-                    "Instantly sends a rotation packet, rather than waiting on the RotationManager")
-            .defaultValue(true).build());
+    private final Setting<RotateMode> rotateMode =
+            sgGeneral.add(new EnumSetting.Builder<RotateMode>().name("rotate-mode")
+                    .description("Which method of rotating should be used.")
+                    .defaultValue(RotateMode.DelayedInstantWebOnly).build());
 
     private boolean active = false;
     private boolean keyUnpressed = false;
@@ -153,29 +152,65 @@ public class PearlPhase extends Module {
     }
 
     @EventHandler
-    private void onTick(TickEvent.Pre event) {
+    private void onTick(TickEvent.Post event) {
         if (!active) {
             return;
         }
 
         Vec3d targetPos = calculateTargetPos();
         float[] angle = MeteorClient.ROTATION.getRotation(targetPos);
-        MeteorClient.ROTATION.requestRotation(targetPos, 1000f);
 
-        if (instantRotation.get()) {
-            if (mc.player.isOnGround()) {
-                mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(),
-                        mc.player.getY(), mc.player.getZ(), angle[0], angle[1], true));
-                        
+        // Rotation Modes:
+        // Movement: Requests a rotation from the RotationManager and waits for it to be fulfilled
+        // Instant: Instantly sends a movement packet with the rotation
+        // DelayedInstant: Requests a rotation from the RotationManager and waits for it to be fulfilled, then sends a movement packet with the rotation
+        // DelayedInstantWebOnly: Same as DelayedInstant, but only sends a movement packet when in webs
+        
+        // Movement fails in webs on Grim,
+        // instant is a bit iffy since it doesn't work when you rubberband
+
+        // DelayedInstantWebOnly should work best for grim?
+        switch (rotateMode.get()) {
+            case Movement -> {
+                MeteorClient.ROTATION.requestRotation(targetPos, 1000f);
+        
                 if (MeteorClient.ROTATION.lookingAt(Box.of(targetPos, 0.05, 0.05, 0.05))) {
                     throwPearl(angle[0], angle[1]);
                 }
             }
-        } else {
-            if (MeteorClient.ROTATION.lookingAt(Box.of(targetPos, 0.05, 0.05, 0.05))) {
-                throwPearl(angle[0], angle[1]);
+            case Instant -> {
+                if (mc.player.isOnGround()) {
+                    mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(),
+                            mc.player.getY(), mc.player.getZ(), angle[0], angle[1], true));
+                    
+                    throwPearl(angle[0], angle[1]);
+                }
+            }
+            case DelayedInstant -> {
+                MeteorClient.ROTATION.requestRotation(targetPos, 1000f);
+        
+                if (MeteorClient.ROTATION.lookingAt(Box.of(targetPos, 0.05, 0.05, 0.05))) {
+                    mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(),
+                            mc.player.getY(), mc.player.getZ(), angle[0], angle[1], true));
+
+                    throwPearl(angle[0], angle[1]);
+                }
+            }
+            case DelayedInstantWebOnly -> {
+                MeteorClient.ROTATION.requestRotation(targetPos, 1000f);
+        
+                if (MeteorClient.ROTATION.lookingAt(Box.of(targetPos, 0.05, 0.05, 0.05))) {
+                    if (MovementFix.inWebs) {
+                        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(),
+                                mc.player.getY(), mc.player.getZ(), angle[0], angle[1], true));
+                    }
+
+                    throwPearl(angle[0], angle[1]);
+                }
             }
         }
+
+        
     }
 
 
@@ -260,5 +295,9 @@ public class PearlPhase extends Module {
 
     public enum SwitchMode {
         SilentHotbar, SilentSwap
+    }
+
+    public enum RotateMode {
+        Movement, Instant, DelayedInstant, DelayedInstantWebOnly
     }
 }
