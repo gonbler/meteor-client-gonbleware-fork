@@ -13,6 +13,7 @@ import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
+import meteordevelopment.meteorclient.systems.managers.RotationManager;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
@@ -182,7 +183,9 @@ public class Velocity extends Module {
                         (int) Math.floor(feetBox.maxZ))) {
                     
                     if (mc.world.getBlockState(pos).isSolidBlock(mc.world, pos)) {
-                        isPhased = true;
+                        if (RotationManager.lastGround) {
+                            isPhased = true;
+                        }
                         break;
                     }
                 }

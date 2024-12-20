@@ -85,7 +85,6 @@ public class SilentMine extends Module {
     private double currentGameTickCalculated = 0;
 
     private boolean needSwapBack = false;
-    private int delayedDestroyTicks = 0;
 
     public SilentMine() {
         super(Categories.Player, "silent-mine",
@@ -114,13 +113,13 @@ public class SilentMine extends Module {
             rebreakBlock.beenAir = true;
         }
 
-        if (hasRebreakBlock() && rebreakBlock.timesBroken > 10 && !canRebreakRebreakBlock()) {
+        if (hasRebreakBlock() && rebreakBlock.timesSendBreakPacket > 10 && !canRebreakRebreakBlock()) {
             rebreakBlock.cancelBreaking();
             rebreakBlock = null;
         }
 
         // Update our doublemine block
-        if (hasDelayedDestroy() && delayedDestroyBlock.timesBroken <= 5) {
+        if (hasDelayedDestroy() && delayedDestroyBlock.ticksHeldPickaxe <= 15) {
             BlockState blockState = mc.world.getBlockState(delayedDestroyBlock.blockPos);
 
             if (!blockState.isAir()) {
@@ -140,11 +139,7 @@ public class SilentMine extends Module {
 
                 if (delayedDestroyBlock.isReady(false)) {
                     if (!slot.found() || mc.player.getInventory().selectedSlot == slot.slot()) {
-                        delayedDestroyTicks++;
-
-                        if (delayedDestroyTicks >= 3) {
-                            delayedDestroyBlock.timesBroken++;
-                        }
+                        delayedDestroyBlock.ticksHeldPickaxe++;
                     }
                 }
             }
@@ -179,7 +174,7 @@ public class SilentMine extends Module {
             }
         }
 
-        if (hasDelayedDestroy() && delayedDestroyBlock.timesBroken > 2) {
+        if (hasDelayedDestroy() && delayedDestroyBlock.ticksHeldPickaxe > 15) {
             if (inBreakRange(delayedDestroyBlock.blockPos)) {
                 delayedDestroyBlock.startBreaking(true);
             } else {
@@ -191,7 +186,6 @@ public class SilentMine extends Module {
         if (canSwapBack()) {
             InvUtils.swapBack();
             needSwapBack = false;
-            delayedDestroyTicks = 0;
         }
     }
 
@@ -296,7 +290,7 @@ public class SilentMine extends Module {
             result = true;
         }
 
-        if (hasDelayedDestroy() && delayedDestroyTicks < 3) {
+        if (hasDelayedDestroy() && delayedDestroyBlock.isReady(false)) {
             result = false;
         }
 
@@ -417,7 +411,9 @@ public class SilentMine extends Module {
 
         public boolean started = false;
 
-        public int timesBroken = 0;
+        public int timesSendBreakPacket = 0;
+
+        public int ticksHeldPickaxe = 0;
 
         public boolean beenAir = false;
 
@@ -437,11 +433,12 @@ public class SilentMine extends Module {
             double breakProgressSingleTick = getBreakProgressSingleTick();
             double threshold = isRebreak ? 0.7 : 1.0 - breakProgressSingleTick;
 
-            return getBreakProgress() >= threshold || timesBroken > 0;
+            return getBreakProgress() >= threshold || timesSendBreakPacket > 0;
         }
 
         public void startBreaking(boolean isDelayedDestroy) {
-            timesBroken = 0;
+            ticksHeldPickaxe = 0;
+            timesSendBreakPacket = 0;
             this.destroyProgressStart = currentGameTickCalculated;
 
             if (isDelayedDestroy && canRebreakRebreakBlock()) {
@@ -498,7 +495,7 @@ public class SilentMine extends Module {
                         PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
             }
 
-            timesBroken++;
+            timesSendBreakPacket++;
         }
 
         public void cancelBreaking() {
