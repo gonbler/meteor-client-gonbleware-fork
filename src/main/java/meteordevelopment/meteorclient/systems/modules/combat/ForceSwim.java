@@ -5,6 +5,7 @@
 
 package meteordevelopment.meteorclient.systems.modules.combat;
 
+import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
@@ -22,18 +23,12 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerInteractBlockC2SPacket;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.item.Item;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class ForceSwim extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -53,13 +48,6 @@ public class ForceSwim extends Module {
             sgGeneral.add(new EnumSetting.Builder<SortPriority>().name("target-priority")
                     .description("How to select the player to target.")
                     .defaultValue(SortPriority.LowestHealth).build());
-
-    private final Setting<Integer> places = sgGeneral.add(new IntSetting.Builder().name("places")
-            .description("How many places each tick").defaultValue(1).build());
-
-    private final Setting<Boolean> grimBypass =
-            sgGeneral.add(new BoolSetting.Builder().name("grim-bypass")
-                    .description("Bypasses Grim for airplace.").defaultValue(true).build());
 
     private final Setting<Boolean> pauseEat = sgGeneral.add(new BoolSetting.Builder()
             .name("pause-eat").description("Pauses while eating.").defaultValue(true).build());
@@ -83,7 +71,6 @@ public class ForceSwim extends Module {
             .defaultValue(new SettingColor(197, 137, 232)).build());
 
     private PlayerEntity target;
-    private Map<BlockPos, Long> placeCooldowns = new HashMap<>();
 
     public ForceSwim() {
         super(Categories.Combat, "force-swim",
@@ -101,7 +88,7 @@ public class ForceSwim extends Module {
     }
 
     @EventHandler
-    private void onTick(TickEvent.Post event) {
+    private void onTick(TickEvent.Pre event) {
         if (target == null || TargetUtils.isBadTarget(target, range.get())) {
             target = TargetUtils.getPlayerTarget(range.get(), priority.get());
             if (TargetUtils.isBadTarget(target, range.get()))
@@ -116,38 +103,55 @@ public class ForceSwim extends Module {
             return;
         }
 
-        if (!startPlace()) {
+        Item useItem = findUseItem();
+
+        if (useItem == null) {
             return;
         }
 
-        int placed = 0;
+        List<BlockPos> placePoses = getBlockPoses();
 
-        List<BlockPos> poses = getBlockPoses();
+        List<BlockPos> actualPlacePositions =
+                MeteorClient.BLOCK.filterCanPlace(placePoses.stream()).toList();
 
-        for (BlockPos pos : poses) {
+        if (!MeteorClient.BLOCK.beginPlacement(actualPlacePositions, useItem)) {
+            return;
+        }
+
+        actualPlacePositions.forEach(blockPos -> {
             boolean isCrystalBlock = false;
             for (Direction dir : Direction.Type.HORIZONTAL) {
-                if (pos.equals(target.getBlockPos().offset(dir))) {
+                if (blockPos.equals(target.getBlockPos().offset(dir))) {
                     isCrystalBlock = true;
-                    break;
                 }
             }
 
             if (isCrystalBlock) {
-                continue;
+                return;
             }
 
-            if (placed > places.get()) {
-                break;
+            MeteorClient.BLOCK.placeBlock(blockPos);
+        });
+
+        MeteorClient.BLOCK.endPlacement();
+    }
+
+    private Item findUseItem() {
+        FindItemResult result = InvUtils.findInHotbar(itemStack -> {
+            for (Block blocks : blocks.get()) {
+                if (blocks.asItem() == itemStack.getItem()) {
+                    return true;
+                }
             }
 
-            if (place(pos)) {
-                placed++;
-            }
+            return false;
+        });
+
+        if (!result.found()) {
+            return null;
         }
 
-
-        endPlace();
+        return mc.player.getInventory().getStack(result.slot()).getItem();
     }
 
     private List<BlockPos> getBlockPoses() {
@@ -175,12 +179,9 @@ public class ForceSwim extends Module {
         if (!render.get())
             return;
 
-        if (target == null) {
+        if (target == null || !target.isCrawling()) {
             return;
         }
-
-
-        int placed = 0;
 
         List<BlockPos> poses = getBlockPoses();
 
@@ -196,78 +197,10 @@ public class ForceSwim extends Module {
                 continue;
             }
 
-            if (placed > places.get()) {
-                break;
-            }
-
             if (BlockUtils.canPlace(pos, true)) {
-                placed++;
-
                 event.renderer.box(pos, sideColor.get(), lineColor.get(), shapeMode.get(), 0);
             }
         }
-    }
-
-    private boolean startPlace() {
-        FindItemResult result = InvUtils.findInHotbar(itemStack -> {
-            for (Block blocks : blocks.get()) {
-                if (blocks.asItem() == itemStack.getItem())
-                    return true;
-            }
-            return false;
-        });
-
-        if (!result.found()) {
-            return false;
-        }
-
-        InvUtils.swap(result.slot(), true);
-
-        return true;
-    }
-
-    private boolean place(BlockPos blockPos) {
-        if (!BlockUtils.canPlace(blockPos, true)) {
-            return false;
-        }
-
-        if (placeCooldowns.containsKey(blockPos)) {
-            if (System.currentTimeMillis() - placeCooldowns.get(blockPos) < 50) {
-                return false;
-            }
-        }
-
-        placeCooldowns.put(blockPos, System.currentTimeMillis());
-
-        if (grimBypass.get()) {
-            mc.getNetworkHandler()
-                    .sendPacket(new PlayerActionC2SPacket(
-                            PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
-                            new BlockPos(0, 0, 0), Direction.DOWN));
-        }
-
-        Vec3d eyes = mc.player.getEyePos();
-        boolean inside = eyes.x > blockPos.getX() && eyes.x < blockPos.getX() + 1
-                && eyes.y > blockPos.getY() && eyes.y < blockPos.getY() + 1
-                && eyes.z > blockPos.getZ() && eyes.z < blockPos.getZ() + 1;
-        int s = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
-
-        mc.getNetworkHandler().sendPacket(new PlayerInteractBlockC2SPacket(
-                grimBypass.get() ? Hand.OFF_HAND : Hand.MAIN_HAND,
-                new BlockHitResult(blockPos.toCenterPos(), Direction.DOWN, blockPos, inside), s));
-
-        if (grimBypass.get()) {
-            mc.getNetworkHandler()
-                    .sendPacket(new PlayerActionC2SPacket(
-                            PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
-                            new BlockPos(0, 0, 0), Direction.DOWN));
-        }
-
-        return true;
-    }
-
-    private void endPlace() {
-        InvUtils.swapBack();
     }
 
     @Override
