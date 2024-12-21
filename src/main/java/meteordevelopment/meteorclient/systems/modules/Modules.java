@@ -510,6 +510,7 @@ public class Modules extends System<Modules> {
         add(new ElytraFakeFly());
         add(new MovementFix());
         add(new GrimDisabler());
+        add(new NoJumpDelay());
     }
 
     private void initRender() {
