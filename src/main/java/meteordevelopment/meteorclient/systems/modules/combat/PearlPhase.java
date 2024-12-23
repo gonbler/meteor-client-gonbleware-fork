@@ -180,8 +180,7 @@ public class PearlPhase extends Module {
             }
             case Instant -> {
                 if (mc.player.isOnGround()) {
-                    mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(),
-                            mc.player.getY(), mc.player.getZ(), angle[0], angle[1], true));
+                    MeteorClient.ROTATION.snapAt(targetPos);
                     
                     throwPearl(angle[0], angle[1]);
                 }
@@ -190,8 +189,7 @@ public class PearlPhase extends Module {
                 MeteorClient.ROTATION.requestRotation(targetPos, 1000f);
         
                 if (MeteorClient.ROTATION.lookingAt(Box.of(targetPos, 0.05, 0.05, 0.05))) {
-                    mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(),
-                            mc.player.getY(), mc.player.getZ(), angle[0], angle[1], true));
+                    MeteorClient.ROTATION.snapAt(targetPos);
 
                     throwPearl(angle[0], angle[1]);
                 }
@@ -201,16 +199,13 @@ public class PearlPhase extends Module {
         
                 if (MeteorClient.ROTATION.lookingAt(Box.of(targetPos, 0.05, 0.05, 0.05))) {
                     if (MovementFix.inWebs) {
-                        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(),
-                                mc.player.getY(), mc.player.getZ(), angle[0], angle[1], true));
+                        MeteorClient.ROTATION.snapAt(targetPos);
                     }
 
                     throwPearl(angle[0], angle[1]);
                 }
             }
         }
-
-        
     }
 
 

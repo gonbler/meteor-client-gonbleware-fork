@@ -16,7 +16,6 @@ import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.entity.EntityUtils;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
@@ -49,12 +48,19 @@ public class SwordAura extends Module {
     private final SettingGroup sgRender = settings.createGroup("Render");
 
     private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder().name("range")
-            .description("The maximum range the entity can be to attack it.").defaultValue(4.0)
+            .description("The maximum range the entity can be to attack it.").defaultValue(2.85)
             .min(0).sliderMax(6).build());
 
-    private final Setting<Boolean> silentSwap = sgGeneral.add(new BoolSetting.Builder()
-            .name("silent-swap")
-            .description("Whether or not to silently switch to your sword to attack").build());
+    private final Setting<Boolean> silentSwap =
+            sgGeneral.add(new BoolSetting.Builder().name("silent-swap")
+                    .description("Whether or not to silently switch to your sword to attack")
+                    .defaultValue(true).build());
+
+    private final Setting<Boolean> silentSwapOverrideDelay = sgGeneral.add(new BoolSetting.Builder()
+            .name("silent-swap-override-delay")
+            .description(
+                    "Whether or not to use the held items delay when attacking with silent swap")
+            .defaultValue(true).visible(() -> silentSwap.get()).build());
 
     private final Setting<Boolean> rotate = sgGeneral.add(new BoolSetting.Builder().name("rotate")
             .description("Whether or not to rotate to the entity to attack it.").build());
@@ -94,7 +100,7 @@ public class SwordAura extends Module {
 
     private final Setting<SettingColor> lineColor = sgRender.add(new ColorSetting.Builder()
             .name("line-color").description("The line color of the rendering.")
-            .defaultValue(new SettingColor(120, 0, 225, 50))
+            .defaultValue(new SettingColor(255, 255, 255, 50))
             .visible(() -> render.get() && shapeMode.get().lines()).build());
 
     private final Setting<Double> fadeTime = sgRender.add(new DoubleSetting.Builder()
@@ -184,8 +190,14 @@ public class SwordAura extends Module {
 
         if (!target.isAlive())
             return;
+        
+        int delayCheckSlot = result.slot();
 
-        if (delayCheck(result.slot())) {
+        if (silentSwap.get() && silentSwapOverrideDelay.get()) {
+            delayCheckSlot = mc.player.getInventory().selectedSlot;
+        }
+
+        if (delayCheck(delayCheckSlot)) {
             if (rotate.get()) {
                 MeteorClient.ROTATION.requestRotation(
                         getClosestPointOnBox(target.getBoundingBox(), mc.player.getEyePos()), 9);

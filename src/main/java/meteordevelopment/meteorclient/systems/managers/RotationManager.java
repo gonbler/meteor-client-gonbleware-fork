@@ -46,11 +46,26 @@ public class RotationManager {
 
     public static Vec3d targetVec = null;
     public static boolean lastGround;
+    public double lastX = 0;
+    public double lastY = 0;
+    public double lastZ = 0;
 
     private boolean shouldFulfilRequest = false;
     private static RotationRequest request = new RotationRequest();
 
     private final AntiCheatConfig antiCheatConfig = AntiCheatConfig.get();
+
+    public void snapAt(Vec3d target) {
+        float[] angle = getRotation(target);
+
+        mc.getNetworkHandler().sendPacket(
+                new PlayerMoveC2SPacket.LookAndOnGround(angle[0], angle[1], lastGround));
+    }
+
+    public void snapAt(float yaw, float pitch) {
+        mc.getNetworkHandler()
+                .sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, lastGround));
+    }
 
     public void requestRotation(Vec3d target, double priority) {
         float[] angle = getRotation(target);
@@ -79,8 +94,6 @@ public class RotationManager {
         request.priority = priority;
         request.callback = callback;
     }
-
-
 
     public float[] getRotation(Vec3d eyesPos, Vec3d vec) {
         double diffX = vec.x - eyesPos.x;
@@ -147,6 +160,13 @@ public class RotationManager {
 
                 setRenderRotation(lastYaw, lastPitch, false);
             }
+
+            if (packet.changesPosition()) {
+                lastX = packet.getX(lastX);
+                lastY = packet.getY(lastY);
+                lastZ = packet.getZ(lastZ);
+            }
+
             lastGround = packet.isOnGround();
         }
     }
@@ -167,6 +187,25 @@ public class RotationManager {
             } else {
                 lastPitch = packet.getPitch();
             }
+
+            if (packet.getFlags().contains(PositionFlag.X)) {
+                lastX = lastX + packet.getX();
+            } else {
+                lastX = packet.getX();
+            }
+
+            if (packet.getFlags().contains(PositionFlag.Y)) {
+                lastY = lastY + packet.getY();
+            } else {
+                lastY = packet.getY();
+            }
+
+            if (packet.getFlags().contains(PositionFlag.Z)) {
+                lastZ = lastZ + packet.getZ();
+            } else {
+                lastZ = packet.getZ();
+            }
+
             setRenderRotation(lastYaw, lastPitch, true);
         }
     }
@@ -232,7 +271,7 @@ public class RotationManager {
                 && MovementFix.MOVE_FIX.updateMode.get() != MovementFix.UpdateMode.Mouse) {
             moveFixRotation();
         }
-    
+
     }
 
     private void moveFixRotation() {

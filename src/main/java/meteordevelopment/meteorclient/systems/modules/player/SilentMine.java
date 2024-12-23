@@ -53,6 +53,12 @@ public class SilentMine extends Module {
                     "Attempts to prevent you from rubberbanding extra hard. May result in kicks.")
             .defaultValue(true).build());
 
+    public final Setting<Boolean> preSwitchSinglebreak = sgGeneral.add(new BoolSetting.Builder()
+            .name("pre-switch-single-break")
+            .description(
+                    "Pre-switches to your pickaxe when the singlebreak block is almost done, for more responsive breaking.")
+            .defaultValue(true).build());
+
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("do-render")
             .description("Renders the blocks in queue to be broken.").defaultValue(true).build());
 
@@ -113,7 +119,8 @@ public class SilentMine extends Module {
             rebreakBlock.beenAir = true;
         }
 
-        if (hasRebreakBlock() && rebreakBlock.timesSendBreakPacket > 10 && !canRebreakRebreakBlock()) {
+        if (hasRebreakBlock() && rebreakBlock.timesSendBreakPacket > 10
+                && !canRebreakRebreakBlock()) {
             rebreakBlock.cancelBreaking();
             rebreakBlock = null;
         }
@@ -431,7 +438,7 @@ public class SilentMine extends Module {
 
         public boolean isReady(boolean isRebreak) {
             double breakProgressSingleTick = getBreakProgressSingleTick();
-            double threshold = isRebreak ? 0.7 : 1.0 - breakProgressSingleTick;
+            double threshold = isRebreak ? 0.7 : 1.0 - (preSwitchSinglebreak.get() ? (breakProgressSingleTick / 2.0) : 0.0);
 
             return getBreakProgress() >= threshold || timesSendBreakPacket > 0;
         }
@@ -479,6 +486,9 @@ public class SilentMine extends Module {
             if (!antiRubberband.get()) {
                 mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                         PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
+
+                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                        PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
             }
 
             started = true;
@@ -491,6 +501,9 @@ public class SilentMine extends Module {
                             getSeq()));
 
             if (!antiRubberband.get()) {
+                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                        PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
+
                 mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                         PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
             }
@@ -539,7 +552,8 @@ public class SilentMine extends Module {
             // The primary block can be broken at 0.7 completion, so speed up the visual by the
             // reciprical
             double shrinkFactor =
-                    1d - Math.clamp(isPrimary ? getBreakProgress(renderTick) * (1 / 0.7) : getBreakProgress(renderTick), 0, 1);
+                    1d - Math.clamp(isPrimary ? getBreakProgress(renderTick) * (1 / 0.7)
+                            : getBreakProgress(renderTick), 0, 1);
             BlockPos pos = blockPos;
 
 

@@ -29,7 +29,6 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 
@@ -69,11 +68,6 @@ public class Surround extends Module {
             .name("normal-line-color").description("The line color for normal blocks.")
             .defaultValue(new SettingColor(0, 255, 238, 100))
             .visible(() -> render.get() && shapeMode.get() != ShapeMode.Sides).build());
-
-    // private final BlockPos.Mutable placePos = new BlockPos.Mutable();
-    // private final BlockPos.Mutable renderPos = new BlockPos.Mutable();
-    // private final BlockPos.Mutable testPos = new BlockPos.Mutable();
-    // private int ticks;
 
     private List<BlockPos> placePoses = new ArrayList<>();
 
@@ -223,18 +217,11 @@ public class Surround extends Module {
                 if (blocking != null && System.currentTimeMillis() - lastAttackTime >= 50) {
                     MeteorClient.ROTATION.requestRotation(blocking.getPos(), 11);
 
-                    boolean snapped = false;
-                    if (mc.player.isOnGround()) {
-                        snapped = true;
-                        float[] angle = MeteorClient.ROTATION.getRotation(blocking.getPos());
-                        mc.getNetworkHandler()
-                                .sendPacket(new PlayerMoveC2SPacket.Full(mc.player.getX(),
-                                        mc.player.getY(), mc.player.getZ(), angle[0], angle[1],
-                                        RotationManager.lastGround));
-                        snapped = true;
+                    if (RotationManager.lastGround) {
+                        MeteorClient.ROTATION.snapAt(blocking.getPos());
                     }
 
-                    if (snapped || MeteorClient.ROTATION.lookingAt(blocking.getBoundingBox())) {
+                    if (MeteorClient.ROTATION.lookingAt(blocking.getBoundingBox())) {
                         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket
                                 .attack(blocking, mc.player.isSneaking()));
                         blocking.discard();
