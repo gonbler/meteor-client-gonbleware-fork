@@ -115,8 +115,8 @@ public class NoSlow extends Module {
     }
 
     public boolean cobwebGrim() {
-        // Pause no-slow for a tick
-        if (System.currentTimeMillis() - lastCobwebRubberband < 100) {
+        // Pause no-slow for 3 ticks
+        if (System.currentTimeMillis() - lastCobwebRubberband < 150) {
             return false;
         }
 
