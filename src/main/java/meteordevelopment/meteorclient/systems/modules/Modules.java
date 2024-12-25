@@ -608,6 +608,8 @@ public class Modules extends System<Modules> {
         add(new ServerSpoof());
         add(new SoundBlocker());
         add(new Spam());
+
+        add(new PacketSaver());
     }
 
     public static class ModuleRegistry extends SimpleRegistry<Module> {
