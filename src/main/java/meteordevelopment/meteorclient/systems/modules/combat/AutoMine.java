@@ -168,7 +168,6 @@ public class AutoMine extends Module {
                     return;
                 }
 
-                BlockState selfFeetBlock = mc.world.getBlockState(mc.player.getBlockPos());
                 BlockState selfHeadBlock =
                         mc.world.getBlockState(mc.player.getBlockPos().up());
 
