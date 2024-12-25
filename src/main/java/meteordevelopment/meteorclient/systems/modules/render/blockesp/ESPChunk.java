@@ -10,6 +10,8 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.entity.MobSpawnerBlockEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkSectionPos;
 import net.minecraft.world.Heightmap;
@@ -86,7 +88,7 @@ public class ESPChunk {
     }
 
 
-    public static ESPChunk searchChunk(Chunk chunk, List<Block> blocks) {
+    public static ESPChunk searchChunk(Chunk chunk, List<Block> blocks, boolean activatedSpawners) {
         ESPChunk schunk = new ESPChunk(chunk.getPos().x, chunk.getPos().z);
         if (schunk.shouldBeDeleted()) return schunk;
 
@@ -100,7 +102,15 @@ public class ESPChunk {
                     blockPos.set(x, y, z);
                     BlockState bs = chunk.getBlockState(blockPos);
 
-                    if (blocks.contains(bs.getBlock())) schunk.add(blockPos, false);
+                    if (blocks.contains(bs.getBlock())) {
+                        if (activatedSpawners && bs.isOf(Blocks.SPAWNER) && chunk.getBlockEntity(blockPos) instanceof MobSpawnerBlockEntity spawner) {
+                            if (spawner.getLogic().spawnDelay != 20) {
+                                schunk.add(blockPos, false);
+                            }
+                        } else {
+                            schunk.add(blockPos, false);
+                        }
+                    }
                 }
             }
         }

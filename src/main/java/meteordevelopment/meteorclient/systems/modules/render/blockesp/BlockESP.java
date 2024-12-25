@@ -23,6 +23,7 @@ import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.Dimension;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Block;
+import net.minecraft.block.Blocks;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.chunk.Chunk;
@@ -74,6 +75,14 @@ public class BlockESP extends Module {
         .name("tracers")
         .description("Render tracer lines.")
         .defaultValue(false)
+        .build()
+    );
+
+    private final Setting<Boolean> activatedSpawners = sgGeneral.add(new BoolSetting.Builder()
+        .name("activated-spawners")
+        .description("Only highlights activated spawners")
+        .defaultValue(true)
+        .visible(() -> blocks.get().contains(Blocks.SPAWNER))
         .build()
     );
 
@@ -162,7 +171,7 @@ public class BlockESP extends Module {
     private void searchChunk(Chunk chunk) {
         workerThread.submit(() -> {
             if (!isActive()) return;
-            ESPChunk schunk = ESPChunk.searchChunk(chunk, blocks.get());
+            ESPChunk schunk = ESPChunk.searchChunk(chunk, blocks.get(), activatedSpawners.get());
 
             if (schunk.size() > 0) {
                 synchronized (chunks) {
