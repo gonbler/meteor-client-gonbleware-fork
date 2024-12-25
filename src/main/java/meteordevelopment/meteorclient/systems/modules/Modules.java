@@ -16,6 +16,7 @@ import meteordevelopment.meteorclient.events.meteor.ActiveModulesChangedEvent;
 import meteordevelopment.meteorclient.events.meteor.KeyEvent;
 import meteordevelopment.meteorclient.events.meteor.ModuleBindChangedEvent;
 import meteordevelopment.meteorclient.events.meteor.MouseButtonEvent;
+import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.pathing.BaritoneUtils;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
@@ -292,7 +293,7 @@ public class Modules extends System<Modules> {
         if (mc.currentScreen != null || Input.isKeyPressed(GLFW.GLFW_KEY_F3)) return;
 
         for (Module module : moduleInstances.values()) {
-            if (module.keybind.matches(isKey, value, modifiers) && (isPress || (module.toggleOnBindRelease && module.isActive()))) {
+            if (module.keybind.matches(isKey, value, modifiers) && isPress) {
                 module.toggle();
                 module.sendToggledMsg();
             }
@@ -332,6 +333,23 @@ public class Modules extends System<Modules> {
                 if (module.isActive() && !module.runInMainMenu) {
                     MeteorClient.EVENT_BUS.unsubscribe(module);
                     module.onDeactivate();
+                }
+            }
+        }
+    }
+
+    @EventHandler
+    private void onRender3D(Render3DEvent event) {
+        for (Module module : moduleInstances.values()) {
+            if (module.toggleOnBindRelease) {
+                if (module.keybind.isPressed()) {
+                    if (!module.isActive()) {
+                        module.toggle();
+                    }
+                } else {
+                    if (module.isActive()) {
+                        module.toggle();
+                    }
                 }
             }
         }
