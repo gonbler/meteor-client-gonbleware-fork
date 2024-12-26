@@ -9,6 +9,7 @@ import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import meteordevelopment.meteorclient.events.entity.EntityAddedEvent;
 import meteordevelopment.meteorclient.events.entity.EntityRemovedEvent;
+import meteordevelopment.meteorclient.events.entity.PlayerDeathEvent;
 import meteordevelopment.meteorclient.events.game.GameJoinedEvent;
 import meteordevelopment.meteorclient.events.game.GameLeftEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
@@ -26,7 +27,6 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.thrown.EnderPearlEntity;
-import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
 import net.minecraft.network.packet.s2c.play.PlayerListS2CPacket;
 import net.minecraft.network.packet.s2c.play.PlayerRemoveS2CPacket;
 import net.minecraft.sound.SoundCategory;
@@ -196,7 +196,6 @@ public class Notifier extends Module {
 
     private int timer;
     private boolean loginPacket = true;
-    private final Object2IntMap<UUID> totemPopMap = new Object2IntOpenHashMap<>();
     private final Object2IntMap<UUID> chatIdMap = new Object2IntOpenHashMap<>();
     private final Map<Integer, Vec3d> pearlStartPosMap = new HashMap<>();
     private final ArrayListDeque<Text> messageQueue = new ArrayListDeque<>();
@@ -276,7 +275,6 @@ public class Notifier extends Module {
 
     @Override
     public void onActivate() {
-        totemPopMap.clear();
         chatIdMap.clear();
         pearlStartPosMap.clear();
     }
@@ -290,7 +288,6 @@ public class Notifier extends Module {
     @EventHandler
     private void onGameJoin(GameJoinedEvent event) {
         timer = 0;
-        totemPopMap.clear();
         chatIdMap.clear();
         messageQueue.clear();
         pearlStartPosMap.clear();
@@ -317,24 +314,31 @@ public class Notifier extends Module {
             case PlayerRemoveS2CPacket packet when joinsLeavesMode.get().equals(JoinLeaveModes.Both) || joinsLeavesMode.get().equals(JoinLeaveModes.Leaves) ->
                 createLeaveNotification(packet);
 
-            case EntityStatusS2CPacket packet when totemPops.get() && packet.getStatus() == 35 && packet.getEntity(mc.world) instanceof PlayerEntity entity -> {
-                if ((entity.equals(mc.player) && totemsIgnoreOwn.get())
-                    || (Friends.get().isFriend(entity) && totemsIgnoreOthers.get())
-                    || (!Friends.get().isFriend(entity) && totemsIgnoreFriends.get())
-                ) return;
-
-                synchronized (totemPopMap) {
-                    int pops = totemPopMap.getOrDefault(entity.getUuid(), 0);
-                    totemPopMap.put(entity.getUuid(), ++pops);
-
-                    double distance = PlayerUtils.distanceTo(entity);
-                    if (totemsDistanceCheck.get() && distance > totemsDistance.get()) return;
-
-                    ChatUtils.sendMsg(getChatId(entity), Formatting.GRAY, "(highlight)%s (default)popped (highlight)%d (default)%s.", entity.getName().getString(), pops, pops == 1 ? "totem" : "totems");
-                }
-            }
             default -> {}
         }
+    }
+
+    @EventHandler
+    private void onTotemPop(PlayerDeathEvent.TotemPop event) {
+        if (!totemPops.get()) return;
+        if (totemsIgnoreOwn.get() && event.getPlayer() == mc.player) return;
+        if (totemsIgnoreFriends.get() && Friends.get().isFriend(event.getPlayer())) return;
+        if (totemsIgnoreOthers.get() && event.getPlayer() != mc.player) return;
+
+        double distance = PlayerUtils.distanceTo(event.getPlayer());
+        if (totemsDistanceCheck.get() && distance > totemsDistance.get()) return;
+
+        ChatUtils.sendMsg(getChatId(event.getPlayer()), Formatting.GRAY, "(highlight)%s (default)popped (highlight)%d (default)%s.", event.getPlayer().getName().getString(), event.getPops(), event.getPops() == 1 ? "totem" : "totems");
+    }
+
+    @EventHandler
+    private void onDeath(PlayerDeathEvent.Death event) {
+        if (!totemPops.get()) return;
+        if (totemsIgnoreOwn.get() && event.getPlayer() == mc.player) return;
+        if (totemsIgnoreFriends.get() && Friends.get().isFriend(event.getPlayer())) return;
+        if (totemsIgnoreOthers.get() && event.getPlayer() != mc.player) return;
+
+        ChatUtils.sendMsg(getChatId(event.getPlayer()), Formatting.GRAY, "(highlight)%s (default)died after popping (highlight)%d (default)%s.", event.getPlayer().getName().getString(), event.getPops(), event.getPops() == 1 ? "totem" : "totems");
     }
 
     @EventHandler
@@ -347,20 +351,6 @@ public class Notifier extends Module {
                     mc.player.sendMessage(messageQueue.removeFirst());
                 } else {
                     ChatUtils.sendMsg(messageQueue.removeFirst());
-                }
-            }
-        }
-
-        if (!totemPops.get()) return;
-        synchronized (totemPopMap) {
-            for (PlayerEntity player : mc.world.getPlayers()) {
-                if (!totemPopMap.containsKey(player.getUuid())) continue;
-
-                if (player.deathTime > 0 || player.getHealth() <= 0) {
-                    int pops = totemPopMap.removeInt(player.getUuid());
-
-                    ChatUtils.sendMsg(getChatId(player), Formatting.GRAY, "(highlight)%s (default)died after popping (highlight)%d (default)%s.", player.getName().getString(), pops, pops == 1 ? "totem" : "totems");
-                    chatIdMap.removeInt(player.getUuid());
                 }
             }
         }

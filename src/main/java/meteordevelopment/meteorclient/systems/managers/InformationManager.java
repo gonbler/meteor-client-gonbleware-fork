@@ -5,7 +5,7 @@ import java.util.UUID;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import meteordevelopment.meteorclient.MeteorClient;
-import meteordevelopment.meteorclient.events.entity.TotemPopEvent;
+import meteordevelopment.meteorclient.events.entity.PlayerDeathEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.orbit.EventHandler;
@@ -25,18 +25,21 @@ public class InformationManager {
         if (mc.world == null || mc.player == null)
             return;
 
-        if (event.packet instanceof EntityStatusS2CPacket packet && packet.getStatus() == 35
-                && packet.getEntity(mc.world) instanceof PlayerEntity entity) {
+        switch (event.packet) {
+            case EntityStatusS2CPacket packet when packet.getStatus() == 35
+                    && packet.getEntity(mc.world) instanceof PlayerEntity entity -> {
 
-            int pops = 0;
+                int pops = 0;
 
-            synchronized (totemPopMap) {
-                pops = totemPopMap.getOrDefault(entity.getUuid(), 0);
-                totemPopMap.put(entity.getUuid(), ++pops);
+                synchronized (totemPopMap) {
+                    pops = totemPopMap.getOrDefault(entity.getUuid(), 0);
+                    totemPopMap.put(entity.getUuid(), ++pops);
+                }
+
+                MeteorClient.EVENT_BUS.post(PlayerDeathEvent.TotemPop.get(entity, pops));
             }
 
-            MeteorClient.EVENT_BUS.post(TotemPopEvent.get(entity, pops));
-
+            default -> {}
         }
     }
 
@@ -47,11 +50,15 @@ public class InformationManager {
 
         synchronized (totemPopMap) {
             for (PlayerEntity player : mc.world.getPlayers()) {
-                if (!totemPopMap.containsKey(player.getUuid()))
-                    continue;
 
                 if (player.deathTime > 0 || player.getHealth() <= 0) {
-                    totemPopMap.removeInt(player.getUuid());
+
+                    int pops = 0;
+                    if (totemPopMap.containsKey(player.getUuid())) {
+                        pops = totemPopMap.removeInt(player.getUuid());
+                    }
+
+                    MeteorClient.EVENT_BUS.post(PlayerDeathEvent.Death.get(player, pops));
                 }
             }
         }
