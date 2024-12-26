@@ -265,7 +265,7 @@ public class Nametags extends Module {
     private final Setting<SettingColor> totemPopsColorColor = sgRender.add(new ColorSetting.Builder()
         .name("totem-pop-color")
         .description("The color of the nametag totem pops.")
-        .defaultValue(new SettingColor())
+        .defaultValue(new SettingColor(225, 120, 20))
         .build()
     );
 

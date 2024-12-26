@@ -5,6 +5,7 @@
 
 package meteordevelopment.meteorclient.systems.hud.elements;
 
+import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.hud.*;
@@ -45,6 +46,13 @@ public class PlayerRadarHud extends HudElement {
         .build()
     );
 
+    private final Setting<Boolean> totemPops = sgGeneral.add(new BoolSetting.Builder()
+        .name("display-totem-pops")
+        .description("Whether to show totem pops or not.")
+        .defaultValue(true)
+        .build()
+    );
+
     private final Setting<Boolean> friends = sgGeneral.add(new BoolSetting.Builder()
         .name("display-friends")
         .description("Whether to show friends or not.")
@@ -70,6 +78,13 @@ public class PlayerRadarHud extends HudElement {
         .name("secondary-color")
         .description("Secondary color.")
         .defaultValue(new SettingColor(175, 175, 175))
+        .build()
+    );
+
+    private final Setting<SettingColor> totemPopColor = sgGeneral.add(new ColorSetting.Builder()
+        .name("totem-pop-color")
+        .description("Totem pop color.")
+        .defaultValue(new SettingColor(225, 120, 20))
         .build()
     );
 
@@ -155,6 +170,7 @@ public class PlayerRadarHud extends HudElement {
 
             String text = entity.getName().getString();
             if (distance.get()) text += String.format("(%sm)", Math.round(mc.getCameraEntity().distanceTo(entity)));
+            if (totemPops.get() && MeteorClient.INFO.getPops(entity) > 0) text += "" + -MeteorClient.INFO.getPops(entity);
 
             width = Math.max(width, renderer.textWidth(text, shadow.get(), getScale()));
             height += renderer.textHeight(shadow.get(), getScale()) + 2;
@@ -183,13 +199,20 @@ public class PlayerRadarHud extends HudElement {
             String text = entity.getName().getString();
             Color color = PlayerUtils.getPlayerColor(entity, primaryColor.get());
             String distanceText = null;
+            String totemPopsText = null;
 
             double width = renderer.textWidth(text, shadow.get(), getScale());
             if (distance.get()) width += spaceWidth;
+            if (totemPops.get() && MeteorClient.INFO.getPops(entity) > 0) width += spaceWidth;
 
             if (distance.get()) {
                 distanceText = String.format("(%sm)", Math.round(mc.getCameraEntity().distanceTo(entity)));
                 width += renderer.textWidth(distanceText, shadow.get(), getScale());
+            }
+
+            if (totemPops.get() && MeteorClient.INFO.getPops(entity) > 0) {
+                totemPopsText = "" + -MeteorClient.INFO.getPops(entity);
+                width += renderer.textWidth(totemPopsText, shadow.get(), getScale());
             }
 
             double x = this.x + border.get() + alignX(width, alignment.get());
@@ -197,6 +220,7 @@ public class PlayerRadarHud extends HudElement {
 
             x = renderer.text(text, x, y, color, shadow.get());
             if (distance.get()) renderer.text(distanceText, x + spaceWidth, y, secondaryColor.get(), shadow.get(), getScale());
+            if (totemPops.get() && totemPopsText != null) renderer.text(totemPopsText, x + spaceWidth, y, totemPopColor.get(), shadow.get(), getScale());
         }
     }
 
