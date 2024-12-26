@@ -8,6 +8,7 @@ package meteordevelopment.meteorclient.systems.modules.render;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMaps;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.render.Render2DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.Renderer2D;
@@ -123,6 +124,13 @@ public class Nametags extends Module {
     private final Setting<Boolean> displayHealth = sgPlayers.add(new BoolSetting.Builder()
         .name("health")
         .description("Shows the player's health.")
+        .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Boolean> displayTotemPops = sgPlayers.add(new BoolSetting.Builder()
+        .name("display-totem-pops")
+        .description("Shows the player's totem pops.")
         .defaultValue(true)
         .build()
     );
@@ -250,6 +258,13 @@ public class Nametags extends Module {
     private final Setting<SettingColor> nameColor = sgRender.add(new ColorSetting.Builder()
         .name("name-color")
         .description("The color of the nametag names.")
+        .defaultValue(new SettingColor())
+        .build()
+    );
+
+    private final Setting<SettingColor> totemPopsColorColor = sgRender.add(new ColorSetting.Builder()
+        .name("totem-pop-color")
+        .description("The color of the nametag totem pops.")
         .defaultValue(new SettingColor())
         .build()
     );
@@ -426,6 +441,9 @@ public class Nametags extends Module {
         else if (healthPercentage <= 0.666) healthColor = AMBER;
         else healthColor = GREEN;
 
+        // Totem pops
+        String totemPopsText = " " + (-MeteorClient.INFO.getPops(player)); 
+
         // Ping
         int ping = EntityUtils.getPing(player);
         String pingText = " [" + ping + "ms]";
@@ -438,6 +456,7 @@ public class Nametags extends Module {
         double gmWidth = text.getWidth(gmText, shadow);
         double nameWidth = text.getWidth(name, shadow);
         double healthWidth = text.getWidth(healthText, shadow);
+        double totemPopsWidth = text.getWidth(totemPopsText, shadow);
         double pingWidth = text.getWidth(pingText, shadow);
         double distWidth = text.getWidth(distText, shadow);
 
@@ -446,6 +465,7 @@ public class Nametags extends Module {
         boolean renderPlayerDistance = player != mc.cameraEntity || Modules.get().isActive(Freecam.class);
 
         if (displayHealth.get()) width += healthWidth;
+        if (displayTotemPops.get() && MeteorClient.INFO.getPops(player) > 0) width += totemPopsWidth;
         if (displayGameMode.get()) width += gmWidth;
         if (displayPing.get()) width += pingWidth;
         if (displayDistance.get() && renderPlayerDistance) width += distWidth;
@@ -464,6 +484,7 @@ public class Nametags extends Module {
         hX = text.render(name, hX, hY, nameColor, shadow);
 
         if (displayHealth.get()) hX = text.render(healthText, hX, hY, healthColor, shadow);
+        if (displayTotemPops.get() && MeteorClient.INFO.getPops(player) > 0) hX = text.render(totemPopsText, hX, hY, totemPopsColorColor.get(), shadow);
         if (displayPing.get()) hX = text.render(pingText, hX, hY, pingColor.get(), shadow);
         if (displayDistance.get() && renderPlayerDistance) {
             switch (distanceColorMode.get()) {

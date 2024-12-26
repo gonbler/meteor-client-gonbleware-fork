@@ -17,6 +17,7 @@ import meteordevelopment.meteorclient.gui.tabs.Tabs;
 import meteordevelopment.meteorclient.systems.Systems;
 import meteordevelopment.meteorclient.systems.config.Config;
 import meteordevelopment.meteorclient.systems.managers.BlockPlacementManager;
+import meteordevelopment.meteorclient.systems.managers.InformationManager;
 import meteordevelopment.meteorclient.systems.managers.RotationManager;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Modules;
@@ -62,6 +63,7 @@ public class MeteorClient implements ClientModInitializer {
 
     public static RotationManager ROTATION;
     public static BlockPlacementManager BLOCK;
+    public static InformationManager INFO;
 
     static {
         MOD_META = FabricLoader.getInstance().getModContainer(MOD_ID).orElseThrow().getMetadata();
@@ -146,6 +148,7 @@ public class MeteorClient implements ClientModInitializer {
 
         ROTATION = new RotationManager();
         BLOCK = new BlockPlacementManager();
+        INFO = new InformationManager();
     }
 
     @EventHandler
