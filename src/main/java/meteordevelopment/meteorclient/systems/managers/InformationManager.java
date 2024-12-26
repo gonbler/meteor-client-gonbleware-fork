@@ -5,6 +5,7 @@ import java.util.UUID;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import meteordevelopment.meteorclient.MeteorClient;
+import meteordevelopment.meteorclient.events.entity.TotemPopEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.orbit.EventHandler;
@@ -21,28 +22,28 @@ public class InformationManager {
 
     @EventHandler
     private void onReceivePacket(PacketEvent.Receive event) {
-        if (mc.world == null || mc.player == null) return;
-        
-        switch (event.packet) {
-            case EntityStatusS2CPacket packet when packet.getStatus() == 35
-                    && packet.getEntity(mc.world) instanceof PlayerEntity entity -> {
-                if ((entity.equals(mc.player)))
-                    return;
+        if (mc.world == null || mc.player == null)
+            return;
 
-                synchronized (totemPopMap) {
-                    int pops = totemPopMap.getOrDefault(entity.getUuid(), 0);
-                    totemPopMap.put(entity.getUuid(), ++pops);
-                }
+        if (event.packet instanceof EntityStatusS2CPacket packet && packet.getStatus() == 35
+                && packet.getEntity(mc.world) instanceof PlayerEntity entity) {
+
+            int pops = 0;
+
+            synchronized (totemPopMap) {
+                pops = totemPopMap.getOrDefault(entity.getUuid(), 0);
+                totemPopMap.put(entity.getUuid(), ++pops);
             }
 
-            default -> {
-            }
+            MeteorClient.EVENT_BUS.post(TotemPopEvent.get(entity, pops));
+
         }
     }
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (mc.world == null || mc.player == null) return;
+        if (mc.world == null || mc.player == null)
+            return;
 
         synchronized (totemPopMap) {
             for (PlayerEntity player : mc.world.getPlayers()) {
