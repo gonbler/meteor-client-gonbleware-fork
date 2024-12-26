@@ -61,15 +61,30 @@ public class InformationManager {
             }
 
             case PlayerRemoveS2CPacket packet -> {
+                if (mc.getNetworkHandler() == null) return;
+
                 for (UUID uuid : packet.profileIds()) {
                     PlayerListEntry toRemove = mc.getNetworkHandler().getPlayerListEntry(uuid);
-                    if (toRemove == null) continue;
+                    if (toRemove == null)
+                        continue;
 
                     MeteorClient.EVENT_BUS.post(PlayerJoinLeaveEvent.Leave.get(toRemove));
                 }
             }
 
-            default -> {}
+            case EntityStatusS2CPacket packet when packet.getStatus() == 3
+                    && packet.getEntity(mc.world) instanceof PlayerEntity entity -> {
+
+                int pops = 0;
+                if (totemPopMap.containsKey(entity.getUuid())) {
+                    pops = totemPopMap.removeInt(entity.getUuid());
+                }
+
+                MeteorClient.EVENT_BUS.post(PlayerDeathEvent.Death.get(entity, pops));
+            }
+
+            default -> {
+            }
         }
     }
 
@@ -82,21 +97,6 @@ public class InformationManager {
     private void onTick(TickEvent.Post event) {
         if (mc.world == null || mc.player == null)
             return;
-
-        synchronized (totemPopMap) {
-            for (PlayerEntity player : mc.world.getPlayers()) {
-
-                if (player.deathTime > 0 || player.getHealth() <= 0) {
-
-                    int pops = 0;
-                    if (totemPopMap.containsKey(player.getUuid())) {
-                        pops = totemPopMap.removeInt(player.getUuid());
-                    }
-
-                    MeteorClient.EVENT_BUS.post(PlayerDeathEvent.Death.get(player, pops));
-                }
-            }
-        }
     }
 
     public int getPops(Entity entity) {

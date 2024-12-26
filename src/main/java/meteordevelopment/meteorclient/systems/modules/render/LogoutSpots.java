@@ -1,11 +1,12 @@
 /*
- * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/meteor-client).
- * Copyright (c) Meteor Development.
+ * This file is part of the Meteor Client distribution
+ * (https://github.com/MeteorDevelopment/meteor-client). Copyright (c) Meteor Development.
  */
 
 package meteordevelopment.meteorclient.systems.modules.render;
 
 import meteordevelopment.meteorclient.events.entity.EntityAddedEvent;
+import meteordevelopment.meteorclient.events.game.PlayerJoinLeaveEvent;
 import meteordevelopment.meteorclient.events.render.Render2DEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
@@ -24,6 +25,9 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
+import net.minecraft.util.math.Vec3d;
 import org.joml.Vector3d;
 
 import java.util.ArrayList;
@@ -40,57 +44,57 @@ public class LogoutSpots extends Module {
 
     // General
 
-    private final Setting<Double> scale = sgGeneral.add(new DoubleSetting.Builder()
-        .name("scale")
-        .description("The scale.")
-        .defaultValue(1)
-        .min(0)
-        .build()
-    );
+    private final Setting<Boolean> notifyOnRejoin =
+            sgGeneral.add(new BoolSetting.Builder().name("notify-on-rejoin")
+                    .description("Notifies you when a player rejoins.").defaultValue(true).build());
+
+    private final Setting<Boolean> notifyOnRejoinShowCoords =
+            sgGeneral.add(new BoolSetting.Builder().name("notify-on-show-coords")
+                    .description("Shows the coords of the player when they rejoin.")
+                    .defaultValue(true).visible(() -> notifyOnRejoin.get()).build());
+
+    private final Setting<Boolean> notifyOnRejoinLimitDistance =
+            sgGeneral.add(new BoolSetting.Builder().name("notify-on-rejoin-limit-distance")
+                    .description(
+                            "Whether or not to limit distances for rejoin coord notifications.")
+                    .defaultValue(true)
+                    .visible(() -> notifyOnRejoin.get() && notifyOnRejoinShowCoords.get()).build());
+
+    private final Setting<Double> notifyOnRejoinDistance = sgGeneral.add(new DoubleSetting.Builder()
+            .name("notify-on-rejoin-distance").description("The limit to show coords on rejoin.")
+            .defaultValue(5000).min(0).visible(() -> notifyOnRejoin.get()
+                    && notifyOnRejoinShowCoords.get() && notifyOnRejoinLimitDistance.get())
+            .build());
+
+    private final Setting<Double> scale = sgGeneral.add(new DoubleSetting.Builder().name("scale")
+            .description("The scale.").defaultValue(1).min(0).build());
 
     private final Setting<Boolean> fullHeight = sgGeneral.add(new BoolSetting.Builder()
-        .name("full-height")
-        .description("Displays the height as the player's full height.")
-        .defaultValue(true)
-        .build()
-    );
+            .name("full-height").description("Displays the height as the player's full height.")
+            .defaultValue(true).build());
 
     // Render
 
     private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builder<ShapeMode>()
-        .name("shape-mode")
-        .description("How the shapes are rendered.")
-        .defaultValue(ShapeMode.Both)
-        .build()
-    );
+            .name("shape-mode").description("How the shapes are rendered.")
+            .defaultValue(ShapeMode.Both).build());
 
-    private final Setting<SettingColor> sideColor = sgRender.add(new ColorSetting.Builder()
-        .name("side-color")
-        .description("The side color.")
-        .defaultValue(new SettingColor(255, 0, 255, 55))
-        .build()
-    );
+    private final Setting<SettingColor> sideColor = sgRender
+            .add(new ColorSetting.Builder().name("side-color").description("The side color.")
+                    .defaultValue(new SettingColor(255, 0, 255, 55)).build());
 
-    private final Setting<SettingColor> lineColor = sgRender.add(new ColorSetting.Builder()
-        .name("line-color")
-        .description("The line color.")
-        .defaultValue(new SettingColor(255, 0, 255))
-        .build()
-    );
+    private final Setting<SettingColor> lineColor = sgRender
+            .add(new ColorSetting.Builder().name("line-color").description("The line color.")
+                    .defaultValue(new SettingColor(255, 0, 255)).build());
 
-    private final Setting<SettingColor> nameColor = sgRender.add(new ColorSetting.Builder()
-        .name("name-color")
-        .description("The name color.")
-        .defaultValue(new SettingColor(255, 255, 255))
-        .build()
-    );
+    private final Setting<SettingColor> nameColor = sgRender
+            .add(new ColorSetting.Builder().name("name-color").description("The name color.")
+                    .defaultValue(new SettingColor(255, 255, 255)).build());
 
-    private final Setting<SettingColor> nameBackgroundColor = sgRender.add(new ColorSetting.Builder()
-        .name("name-background-color")
-        .description("The name background color.")
-        .defaultValue(new SettingColor(0, 0, 0, 75))
-        .build()
-    );
+    private final Setting<SettingColor> nameBackgroundColor =
+            sgRender.add(new ColorSetting.Builder().name("name-background-color")
+                    .description("The name background color.")
+                    .defaultValue(new SettingColor(0, 0, 0, 75)).build());
 
     private final List<Entry> players = new ArrayList<>();
 
@@ -101,7 +105,8 @@ public class LogoutSpots extends Module {
     private Dimension lastDimension;
 
     public LogoutSpots() {
-        super(Categories.Render, "logout-spots", "Displays a box where another player has logged out at.");
+        super(Categories.Render, "logout-spots",
+                "Displays a box where another player has logged out at.");
         lineColor.onChanged();
     }
 
@@ -123,7 +128,8 @@ public class LogoutSpots extends Module {
     private void updateLastPlayers() {
         lastPlayers.clear();
         for (Entity entity : mc.world.getEntities()) {
-            if (entity instanceof PlayerEntity) lastPlayers.add((PlayerEntity) entity);
+            if (entity instanceof PlayerEntity)
+                lastPlayers.add((PlayerEntity) entity);
         }
     }
 
@@ -149,7 +155,9 @@ public class LogoutSpots extends Module {
     private void onTick(TickEvent.Post event) {
         if (mc.getNetworkHandler().getPlayerList().size() != lastPlayerList.size()) {
             for (PlayerListEntry entry : lastPlayerList) {
-                if (mc.getNetworkHandler().getPlayerList().stream().anyMatch(playerListEntry -> playerListEntry.getProfile().equals(entry.getProfile()))) continue;
+                if (mc.getNetworkHandler().getPlayerList().stream().anyMatch(
+                        playerListEntry -> playerListEntry.getProfile().equals(entry.getProfile())))
+                    continue;
 
                 for (PlayerEntity player : lastPlayers) {
                     if (player.getUuid().equals(entry.getProfile().getId())) {
@@ -171,8 +179,52 @@ public class LogoutSpots extends Module {
         }
 
         Dimension dimension = PlayerUtils.getDimension();
-        if (dimension != lastDimension) players.clear();
+        if (dimension != lastDimension)
+            players.clear();
         lastDimension = dimension;
+    }
+
+    @EventHandler
+    private void onPlayerJoin(PlayerJoinLeaveEvent.Join event) {
+        if (event.getEntry().profileId() == null)
+            return;
+
+        int toRemove = -1;
+
+        for (int i = 0; i < players.size(); i++) {
+            if (players.get(i).uuid.equals(event.getEntry().profileId())) {
+                toRemove = i;
+                break;
+            }
+        }
+
+        if (toRemove != -1) {
+            Entry player = players.get(toRemove);
+
+            if (notifyOnRejoin.get()) {
+                boolean showCoords = notifyOnRejoinShowCoords.get();
+
+                if (notifyOnRejoinLimitDistance.get() && notifyOnRejoinDistance.get() < mc.player
+                        .getPos().distanceTo(new Vec3d(player.x, player.y, player.z))) {
+                    showCoords = false;
+                }
+
+                if (showCoords) {
+                    info("(highlight)%s(default) rejoined at %d, %d, %d (highlight)(%.1fm away)(default).",
+                            player.name, (int) Math.floor(player.x), (int) Math.floor(player.y),
+                            (int) Math.floor(player.z),
+                            mc.player.getPos().distanceTo(new Vec3d(player.x, player.y, player.z)));
+                } else {
+                    info("(highlight)%s(default) rejoined", player.name);
+                }
+
+                mc.world.playSoundFromEntity(mc.player, mc.player,
+                        SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, SoundCategory.AMBIENT, 3.0F,
+                        1.0F);
+            }
+
+            players.remove(toRemove);
+        }
     }
 
     private void add(Entry entry) {
@@ -182,12 +234,14 @@ public class LogoutSpots extends Module {
 
     @EventHandler
     private void onRender3D(Render3DEvent event) {
-        for (Entry player : players) player.render3D(event);
+        for (Entry player : players)
+            player.render3D(event);
     }
 
     @EventHandler
     private void onRender2D(Render2DEvent event) {
-        for (Entry player : players) player.render2D();
+        for (Entry player : players)
+            player.render2D();
     }
 
     @Override
@@ -225,18 +279,24 @@ public class LogoutSpots extends Module {
         }
 
         public void render3D(Render3DEvent event) {
-            if (fullHeight.get()) event.renderer.box(x, y, z, x + xWidth, y + height, z + zWidth, sideColor.get(), lineColor.get(), shapeMode.get(), 0);
-            else event.renderer.sideHorizontal(x, y, z, x + xWidth, z, sideColor.get(), lineColor.get(), shapeMode.get());
+            if (fullHeight.get())
+                event.renderer.box(x, y, z, x + xWidth, y + height, z + zWidth, sideColor.get(),
+                        lineColor.get(), shapeMode.get(), 0);
+            else
+                event.renderer.sideHorizontal(x, y, z, x + xWidth, z, sideColor.get(),
+                        lineColor.get(), shapeMode.get());
         }
 
         public void render2D() {
-            if (!PlayerUtils.isWithinCamera(x, y, z, mc.options.getViewDistance().getValue() * 16)) return;
+            if (!PlayerUtils.isWithinCamera(x, y, z, mc.options.getViewDistance().getValue() * 16))
+                return;
 
             TextRenderer text = TextRenderer.get();
             double scale = LogoutSpots.this.scale.get();
             pos.set(x + halfWidth, y + height + 0.5, z + halfWidth);
 
-            if (!NametagUtils.to2D(pos, scale)) return;
+            if (!NametagUtils.to2D(pos, scale))
+                return;
 
             NametagUtils.begin(pos);
 
@@ -245,9 +305,12 @@ public class LogoutSpots extends Module {
 
             // Get health color
             Color healthColor;
-            if (healthPercentage <= 0.333) healthColor = RED;
-            else if (healthPercentage <= 0.666) healthColor = ORANGE;
-            else healthColor = GREEN;
+            if (healthPercentage <= 0.333)
+                healthColor = RED;
+            else if (healthPercentage <= 0.666)
+                healthColor = ORANGE;
+            else
+                healthColor = GREEN;
 
             // Render background
             double i = text.getWidth(name) / 2.0 + text.getWidth(healthText) / 2.0;
