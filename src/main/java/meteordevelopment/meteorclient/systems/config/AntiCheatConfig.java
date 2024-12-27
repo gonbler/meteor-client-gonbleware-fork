@@ -30,6 +30,11 @@ public class AntiCheatConfig extends System<AntiCheatConfig> {
                         .description("Sends a full movement packet when snapping rotation")
                         .defaultValue(true).build());
 
+        public final Setting<Boolean> blockRotatePlace =
+                        sgBlockPlacement.add(new BoolSetting.Builder().name("block-rotate-place")
+                                        .description("Rotates to place blcks")
+                                        .defaultValue(false).build());
+
         public final Setting<Boolean> blockPlaceAirPlace =
                         sgBlockPlacement.add(new BoolSetting.Builder().name("grim-air-place")
                                         .description("Allows modules to air place blocks")

@@ -13,7 +13,12 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
-import meteordevelopment.meteorclient.settings.*;
+import meteordevelopment.meteorclient.settings.BoolSetting;
+import meteordevelopment.meteorclient.settings.ColorSetting;
+import meteordevelopment.meteorclient.settings.DoubleSetting;
+import meteordevelopment.meteorclient.settings.EnumSetting;
+import meteordevelopment.meteorclient.settings.Setting;
+import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
@@ -72,6 +77,11 @@ public class BreakIndicators extends Module {
     private final Queue<BlockBreak> _breakPackets = new ConcurrentLinkedQueue<>();
     private final Map<BlockPos, BlockBreak> breakStartTimes = new HashMap<>();
 
+    public BreakIndicators() {
+        super(Categories.Render, "break-indicators",
+                "Renders the progress of a block being broken.");
+    }
+
     @EventHandler
     private void onPacket(PacketEvent.Receive event) {
         if (event.packet instanceof BlockBreakingProgressS2CPacket packet) {
@@ -82,9 +92,8 @@ public class BreakIndicators extends Module {
         }
     }
 
-    public BreakIndicators() {
-        super(Categories.Render, "break-indicators",
-                "Renders the progress of a block being broken.");
+    public boolean isBlockBeingBroken(BlockPos blockPos) {
+        return breakStartTimes.containsKey(blockPos);
     }
 
     @EventHandler
@@ -103,14 +112,23 @@ public class BreakIndicators extends Module {
         Iterator<Map.Entry<BlockPos, BlockBreak>> iterator = breakStartTimes.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<BlockPos, BlockBreak> entry = iterator.next();
-            if (mc.world.getBlockState(entry.getKey()).isAir() || entry.getValue()
-                    .getBreakProgress(currentGameTickCalculated) > removeCompletionAmount.get()) {
+            // Remove block if it is
+            // - Air (broken)
+            // - Past removeCompletionAmount
+            // - Can't be broken (such as water)
+            if (mc.world.getBlockState(entry.getKey()).isAir()
+                    || entry.getValue().getBreakProgress(
+                            currentGameTickCalculated) > removeCompletionAmount.get()
+                    || !BlockUtils.canBreak(entry.getKey())) {
+
                 iterator.remove();
             }
         }
 
         for (Map.Entry<BlockPos, BlockBreak> entry : breakStartTimes.entrySet()) {
-            if (ignoreFriends.get() && entry.getValue().entity != null && entry.getValue().entity instanceof PlayerEntity player && Friends.get().isFriend(player)) {
+            if (ignoreFriends.get() && entry.getValue().entity != null
+                    && entry.getValue().entity instanceof PlayerEntity player
+                    && Friends.get().isFriend(player)) {
                 continue;
             }
 

@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import meteordevelopment.meteorclient.events.meteor.SilentMineFinishedEvent;
-import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
@@ -19,6 +18,7 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
+import meteordevelopment.meteorclient.systems.modules.render.BreakIndicators;
 import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.entity.EntityUtils;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
@@ -28,7 +28,6 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.network.packet.s2c.play.BlockBreakingProgressS2CPacket;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
@@ -72,7 +71,8 @@ public class AutoMine extends Module {
     private List<BlockPos> removePoses = new ArrayList<>();
 
     public AutoMine() {
-        super(Categories.Combat, "auto-mine", "Automatically mines blocks. Requires SilentMine to work.");
+        super(Categories.Combat, "auto-mine",
+                "Automatically mines blocks. Requires SilentMine to work.");
 
         silentMine = (SilentMine) Modules.get().get(SilentMine.class);
     }
@@ -155,60 +155,40 @@ public class AutoMine extends Module {
         }
     }
 
-    @EventHandler
-    private void onPacket(PacketEvent.Receive event) {
-        if (silentMine == null) {
-            silentMine = (SilentMine) Modules.get().get(SilentMine.class);
-        }
-
-        if (event.packet instanceof BlockBreakingProgressS2CPacket packet) {
-            if (antiSwim.get() == AntiSwimMode.OnMine
-                    || antiSwim.get() == AntiSwimMode.OnMineAndSwim) {
-                if (!mc.player.getBlockPos().equals(packet.getPos())) {
-                    return;
-                }
-
-                BlockState selfHeadBlock =
-                        mc.world.getBlockState(mc.player.getBlockPos().up());
-
-                if (BlockUtils.canBreak(mc.player.getBlockPos().up(), selfHeadBlock)
-                        && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)) {
-                    silentMine.silentBreakBlock(mc.player.getBlockPos().up(), 20);
-                }
-            }
-        }
-    }
-
     private void update() {
         if (silentMine == null) {
             silentMine = (SilentMine) Modules.get().get(SilentMine.class);
         }
 
         BlockState selfFeetBlock = mc.world.getBlockState(mc.player.getBlockPos());
-        BlockState selfHeadBlock =
-                mc.world.getBlockState(mc.player.getBlockPos().up());
+        BlockState selfHeadBlock = mc.world.getBlockState(mc.player.getBlockPos().up());
+        boolean shouldBreakSelfHeadBlock =
+                BlockUtils.canBreak(mc.player.getBlockPos().up(), selfHeadBlock)
+                        && (selfHeadBlock.isOf(Blocks.OBSIDIAN)
+                                || selfHeadBlock.isOf(Blocks.CRYING_OBSIDIAN));
 
         boolean prioHead = false;
 
         if (antiSwim.get() == AntiSwimMode.Always) {
-            if (BlockUtils.canBreak(mc.player.getBlockPos().up(), selfHeadBlock)
-                    && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
-                    && (!silentMine.hasDelayedDestroy()
-                            || silentMine.getRebreakBlockPos() == null)) {
-                silentMine.silentBreakBlock(mc.player.getBlockPos().up(), 20);
-
+            if (shouldBreakSelfHeadBlock) {
+                silentMine.silentBreakBlock(mc.player.getBlockPos().up(), 10);
                 prioHead = true;
             }
         }
 
         if (antiSwim.get() == AntiSwimMode.OnMineAndSwim && mc.player.isCrawling()) {
-            if (BlockUtils.canBreak(mc.player.getBlockPos().up(), selfHeadBlock)
-                    && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
-                    && (!silentMine.hasDelayedDestroy()
-                            || silentMine.getRebreakBlockPos() == null)) {
+            if (shouldBreakSelfHeadBlock) {
+                silentMine.silentBreakBlock(mc.player.getBlockPos().up(), 30);
+                prioHead = true;
+            }
+        }
 
+        if (antiSwim.get() == AntiSwimMode.OnMine || antiSwim.get() == AntiSwimMode.OnMineAndSwim) {
+            BreakIndicators breakIndicators = Modules.get().get(BreakIndicators.class);
+
+            if (breakIndicators.isBlockBeingBroken(mc.player.getBlockPos())
+                    && shouldBreakSelfHeadBlock) {
                 silentMine.silentBreakBlock(mc.player.getBlockPos().up(), 20);
-
                 prioHead = true;
             }
         }
@@ -220,44 +200,50 @@ public class AutoMine extends Module {
         }
 
         if (silentMine.hasDelayedDestroy() && selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
-                && selfFeetBlock.isAir() && silentMine.getRebreakBlockPos() == mc.player
-                        .getBlockPos().up()) {
+                && selfFeetBlock.isAir()
+                && silentMine.getRebreakBlockPos() == mc.player.getBlockPos().up()) {
             return;
         }
 
-        if (!prioHead) {
-            findTargetBlocks();
+        if (prioHead) {
+            return;
+        }
 
-            boolean isTargetingFeetBlock = (target1 != null && target1.isFeetBlock) || (target2 != null && target2.isFeetBlock);
+        findTargetBlocks();
 
-            if (!isTargetingFeetBlock && ((target1 != null && target1.blockPos.equals(silentMine.getRebreakBlockPos())) || (target2 != null && target2.blockPos.equals(silentMine.getRebreakBlockPos())))) {
-                return;
-            }
+        boolean isTargetingFeetBlock = (target1 != null && target1.isFeetBlock)
+                || (target2 != null && target2.isFeetBlock);
 
-            boolean hasBothInProgress = silentMine.hasDelayedDestroy()
-                    && silentMine.hasRebreakBlock() && !silentMine.canRebreakRebreakBlock();
+        if (!isTargetingFeetBlock && ((target1 != null
+                && target1.blockPos.equals(silentMine.getRebreakBlockPos()))
+                || (target2 != null && target2.blockPos.equals(silentMine.getRebreakBlockPos())))) {
+            return;
+        }
 
-            if (hasBothInProgress) {
-                return;
-            }
+        boolean hasBothInProgress = silentMine.hasDelayedDestroy() && silentMine.hasRebreakBlock()
+                && !silentMine.canRebreakRebreakBlock();
 
-            Queue<BlockPos> targetBlocks = new LinkedList<>();
-            if (target1 != null) {
-                targetBlocks.add(target1.blockPos);
-            }
+        if (hasBothInProgress) {
+            return;
+        }
 
-            if (target2 != null) {
-                targetBlocks.add(target2.blockPos);
-            }
+        Queue<BlockPos> targetBlocks = new LinkedList<>();
+        if (target1 != null) {
+            targetBlocks.add(target1.blockPos);
+        }
+
+        if (target2 != null) {
+            targetBlocks.add(target2.blockPos);
+        }
 
 
-            if (!targetBlocks.isEmpty() && silentMine.hasDelayedDestroy()) {
-                silentMine.silentBreakBlock(targetBlocks.remove(), 10);
-            }
+        if (!targetBlocks.isEmpty() && silentMine.hasDelayedDestroy()) {
+            silentMine.silentBreakBlock(targetBlocks.remove(), 10);
+        }
 
-            if (!targetBlocks.isEmpty() && (!silentMine.hasRebreakBlock() || silentMine.canRebreakRebreakBlock())) {
-                silentMine.silentBreakBlock(targetBlocks.remove(), 10);
-            }
+        if (!targetBlocks.isEmpty()
+                && (!silentMine.hasRebreakBlock() || silentMine.canRebreakRebreakBlock())) {
+            silentMine.silentBreakBlock(targetBlocks.remove(), 10);
         }
     }
 
@@ -277,7 +263,7 @@ public class AutoMine extends Module {
 
         boolean set = false;
         CityBlock bestBlock = new CityBlock();
-        
+
         List<BlockPos> checkPos = new ArrayList<>();
 
         Box boundingBox = targetPlayer.getBoundingBox().shrink(0.01, 0.1, 0.01);
@@ -289,7 +275,7 @@ public class AutoMine extends Module {
                 (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
                 (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
                 (int) Math.floor(feetBox.maxZ))) {
-            
+
             checkPos.add(pos);
 
             for (Direction dir : Direction.Type.HORIZONTAL) {
@@ -302,7 +288,7 @@ public class AutoMine extends Module {
         }
 
         checkPos.add(targetPlayer.getBlockPos());
-        
+
         if (mc.world.getBlockState(targetPlayer.getBlockPos()).getBlock() == Blocks.BEDROCK) {
             checkPos.clear();
 
@@ -345,8 +331,7 @@ public class AutoMine extends Module {
                 }
             } else {
                 BlockState selfFeetBlock = mc.world.getBlockState(mc.player.getBlockPos());
-                BlockState selfHeadBlock =
-                        mc.world.getBlockState(mc.player.getBlockPos().up());
+                BlockState selfHeadBlock = mc.world.getBlockState(mc.player.getBlockPos().up());
 
                 if (pos.equals(mc.player.getBlockPos())
                         && (selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
@@ -376,7 +361,8 @@ public class AutoMine extends Module {
 
                     boolean isPosAntiSurround = false;
                     for (Direction dir : Direction.Type.HORIZONTAL) {
-                        if (pos.offset(dir).equals(pos) || pos.offset(dir).equals(targetPlayer.getBlockPos())) {
+                        if (pos.offset(dir).equals(pos)
+                                || pos.offset(dir).equals(targetPlayer.getBlockPos())) {
                             continue;
                         }
 
@@ -430,12 +416,12 @@ public class AutoMine extends Module {
         double feetY = targetPlayer.getY();
         Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
                 feetY + 0.1, boundingBox.maxZ);
-        
+
         for (BlockPos pos : BlockPos.iterate((int) Math.floor(feetBox.minX),
                 (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
                 (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
                 (int) Math.floor(feetBox.maxZ))) {
-            
+
             if (blockPos.equals(pos)) {
                 return true;
             }
@@ -445,7 +431,8 @@ public class AutoMine extends Module {
     }
 
     public boolean isTargetedPos(BlockPos pos) {
-        return (target1 != null && target1.blockPos.equals(pos)) || (target2 != null && target2.blockPos.equals(pos));
+        return (target1 != null && target1.blockPos.equals(pos))
+                || (target2 != null && target2.blockPos.equals(pos));
     }
 
     public boolean isTargetingAnything() {

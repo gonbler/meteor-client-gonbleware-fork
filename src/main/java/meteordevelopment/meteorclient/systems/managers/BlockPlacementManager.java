@@ -119,6 +119,10 @@ public class BlockPlacementManager {
             neighbour = blockPos.offset(dir);
             hitPos = hitPos.add(dir.getOffsetX() * 0.5, dir.getOffsetY() * 0.5,
                     dir.getOffsetZ() * 0.5);
+
+            if (antiCheatConfig.blockRotatePlace.get()) {
+                MeteorClient.ROTATION.snapAt(hitPos);
+            }
         }
 
         if (placeCooldowns.containsKey(blockPos)) {
