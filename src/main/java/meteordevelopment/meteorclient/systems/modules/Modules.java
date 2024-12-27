@@ -454,6 +454,7 @@ public class Modules extends System<Modules> {
         add(new AutoMine());
         add(new ForceSwim());
         add(new SwordAura());
+        add(new AntiDigDown());
     }
 
     private void initPlayer() {

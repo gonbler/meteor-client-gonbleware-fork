@@ -1,41 +1,36 @@
-/*
- * This file is part of the Meteor Client distribution
- * (https://github.com/MeteorDevelopment/meteor-client). Copyright (c) Meteor Development.
- */
-
 package meteordevelopment.meteorclient.systems.modules.combat;
 
 import meteordevelopment.meteorclient.MeteorClient;
+import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
 import meteordevelopment.meteorclient.utils.entity.EntityUtils;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
-import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
+import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ForceSwim extends Module {
+public class AntiDigDown extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgRender = settings.createGroup("Render");
 
     // General
-
     private final Setting<List<Block>> blocks = sgGeneral.add(
             new BlockListSetting.Builder().name("whitelist").description("Which blocks to use.")
                     .defaultValue(Blocks.OBSIDIAN, Blocks.NETHERITE_BLOCK).build());
@@ -53,7 +48,6 @@ public class ForceSwim extends Module {
             .name("pause-eat").description("Pauses while eating.").defaultValue(true).build());
 
     // Render
-
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("render")
             .description("Renders an overlay where blocks will be placed.").defaultValue(true)
             .build());
@@ -72,9 +66,9 @@ public class ForceSwim extends Module {
 
     private PlayerEntity target;
 
-    public ForceSwim() {
-        super(Categories.Combat, "force-swim",
-                "Tries to prevent people from standing up while swiming");
+    public AntiDigDown() {
+        super(Categories.Combat, "anti-dig-down",
+                "Places blocks directly below other players to stop them from digging down.");
     }
 
     @Override
@@ -94,46 +88,6 @@ public class ForceSwim extends Module {
             if (TargetUtils.isBadTarget(target, range.get()))
                 return;
         }
-
-        if (target == null || !target.isCrawling()) {
-            return;
-        }
-
-        if (pauseEat.get() && mc.player.isUsingItem()) {
-            return;
-        }
-
-        Item useItem = findUseItem();
-
-        if (useItem == null) {
-            return;
-        }
-
-        List<BlockPos> placePoses = getBlockPoses();
-
-        List<BlockPos> actualPlacePositions =
-                MeteorClient.BLOCK.filterCanPlace(placePoses.stream()).toList();
-
-        if (!MeteorClient.BLOCK.beginPlacement(actualPlacePositions, useItem)) {
-            return;
-        }
-
-        actualPlacePositions.forEach(blockPos -> {
-            boolean isCrystalBlock = false;
-            for (Direction dir : Direction.Type.HORIZONTAL) {
-                if (blockPos.equals(target.getBlockPos().offset(dir))) {
-                    isCrystalBlock = true;
-                }
-            }
-
-            if (isCrystalBlock) {
-                return;
-            }
-
-            MeteorClient.BLOCK.placeBlock(blockPos);
-        });
-
-        MeteorClient.BLOCK.endPlacement();
     }
 
     private Item findUseItem() {
@@ -154,24 +108,58 @@ public class ForceSwim extends Module {
         return mc.player.getInventory().getStack(result.slot()).getItem();
     }
 
-    private List<BlockPos> getBlockPoses() {
-        List<BlockPos> list = new ArrayList<>();
+    private BlockPos getBelowBlockPos() {
+        return target.getBlockPos().down();
+    }
 
-        Box boundingBox = target.getBoundingBox().expand(0.5, 0.0, 0.5);
-        double feetY = target.getY();
+    @EventHandler
+    private void onPacketReceive(PacketEvent.Receive event) {
+        if (event.packet instanceof BlockUpdateS2CPacket packet) {
+            if (target == null) {
+                return;
+            }
 
-        Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
-                feetY + 0.1, boundingBox.maxZ);
+            if (pauseEat.get() && mc.player.isUsingItem()) {
+                return;
+            }
 
-        for (BlockPos pos : BlockPos.iterate((int) Math.floor(feetBox.minX),
-                (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
-                (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
-                (int) Math.floor(feetBox.maxZ))) {
+            Item useItem = findUseItem();
 
-            list.add(pos.add(0, 1, 0));
+            if (useItem == null) {
+                return;
+            }
+
+            BlockPos belowPos = getBelowBlockPos();
+
+            if (belowPos == null) {
+                return;
+            }
+
+            SilentMine silentMine = Modules.get().get(SilentMine.class);
+
+            // Don't target blocks we're targeting
+            if ((silentMine.getDelayedDestroyBlockPos() != null
+                    && belowPos.equals(silentMine.getDelayedDestroyBlockPos()))
+                    || (silentMine.getRebreakBlockPos() != null
+                            && belowPos.equals(silentMine.getRebreakBlockPos()))) {
+                return;     
+            }
+
+            if (packet.getPos().equals(belowPos) && packet.getState().isAir()) {
+                List<BlockPos> tempList1 = new ArrayList<>();
+                tempList1.add(belowPos);
+
+                if (!MeteorClient.BLOCK.beginPlacement(tempList1, useItem)) {
+                    return;
+                }
+
+                tempList1.forEach(blockPos -> {
+                    MeteorClient.BLOCK.placeBlock(blockPos);
+                });
+
+                MeteorClient.BLOCK.endPlacement();
+            }
         }
-
-        return list;
     }
 
     @EventHandler
@@ -179,28 +167,17 @@ public class ForceSwim extends Module {
         if (!render.get())
             return;
 
-        if (target == null || !target.isCrawling()) {
+        if (target == null) {
             return;
         }
 
-        List<BlockPos> poses = getBlockPoses();
+        BlockPos pos = getBelowBlockPos();
 
-        for (BlockPos pos : poses) {
-            boolean isCrystalBlock = false;
-            for (Direction dir : Direction.Type.HORIZONTAL) {
-                if (pos.equals(target.getBlockPos().offset(dir))) {
-                    isCrystalBlock = true;
-                }
-            }
-
-            if (isCrystalBlock) {
-                continue;
-            }
-
-            if (BlockUtils.canPlace(pos, true)) {
-                event.renderer.box(pos, sideColor.get(), lineColor.get(), shapeMode.get(), 0);
-            }
+        if (pos == null) {
+            return;
         }
+
+        event.renderer.box(pos, sideColor.get(), lineColor.get(), shapeMode.get(), 0);
     }
 
     @Override

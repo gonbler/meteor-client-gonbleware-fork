@@ -200,7 +200,7 @@ public class SilentMine extends Module {
     private void onPacketReceive(PacketEvent.Receive event) {
         if (event.packet instanceof BlockUpdateS2CPacket packet) {
             if (canRebreakRebreakBlock() && packet.getPos().equals(rebreakBlock.blockPos)) {
-                BlockState blockState = mc.world.getBlockState(rebreakBlock.blockPos);
+                BlockState blockState = packet.getState();
 
                 if (!blockState.isAir()) {
                     FindItemResult slot = InvUtils.findFastestTool(blockState);
