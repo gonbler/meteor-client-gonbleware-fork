@@ -14,6 +14,7 @@ import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.*;
+import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
@@ -24,6 +25,8 @@ import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.s2c.play.BlockBreakingProgressS2CPacket;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
@@ -39,12 +42,15 @@ public class BreakIndicators extends Module {
                     .description("Determines how fast rendering increases. Smaller is faster.")
                     .defaultValue(1.0).min(0).sliderMax(1.5).build());
 
-
     private final Setting<Double> removeCompletionAmount = sgGeneral.add(new DoubleSetting.Builder()
             .name("force-remove-completion-amount")
             .description(
                     "Determines how long it takes to forcibly remove a block from being rendered.")
             .defaultValue(1.3).min(0.0).sliderMax(1.5).build());
+
+    private final Setting<Boolean> ignoreFriends = sgGeneral.add(new BoolSetting.Builder()
+            .name("ignore-friends").description("Doesn't render blocks that friends are breaking.")
+            .defaultValue(false).build());
 
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("do-render")
             .description("Renders the blocks in queue to be broken.").defaultValue(true).build());
@@ -69,8 +75,10 @@ public class BreakIndicators extends Module {
     @EventHandler
     private void onPacket(PacketEvent.Receive event) {
         if (event.packet instanceof BlockBreakingProgressS2CPacket packet) {
-            _breakPackets.add(
-                    new BlockBreak(packet.getPos(), RenderUtils.getCurrentGameTickCalculated()));
+            Entity entity = mc.world.getEntityById(packet.getEntityId());
+
+            _breakPackets.add(new BlockBreak(packet.getPos(),
+                    RenderUtils.getCurrentGameTickCalculated(), entity));
         }
     }
 
@@ -102,6 +110,10 @@ public class BreakIndicators extends Module {
         }
 
         for (Map.Entry<BlockPos, BlockBreak> entry : breakStartTimes.entrySet()) {
+            if (ignoreFriends.get() && entry.getValue().entity != null && entry.getValue().entity instanceof PlayerEntity player && Friends.get().isFriend(player)) {
+                continue;
+            }
+
             entry.getValue().renderBlock(event, currentGameTickCalculated);
         }
     }
@@ -111,9 +123,12 @@ public class BreakIndicators extends Module {
 
         public double startTick;
 
-        public BlockBreak(BlockPos blockPos, double startTick) {
+        public Entity entity;
+
+        public BlockBreak(BlockPos blockPos, double startTick, Entity entity) {
             this.blockPos = blockPos;
             this.startTick = startTick;
+            this.entity = entity;
         }
 
         public void renderBlock(Render3DEvent event, double currentTick) {
@@ -153,7 +168,8 @@ public class BreakIndicators extends Module {
 
             FindItemResult slot = InvUtils.findFastestTool(mc.world.getBlockState(blockPos));
 
-            double breakingSpeed = BlockUtils.getBlockBreakingSpeedNoOnGround(slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot, state);
+            double breakingSpeed = BlockUtils.getBlockBreakingSpeedNoOnGround(
+                    slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot, state);
 
             return BlockUtils.getBreakDelta(breakingSpeed, state)
                     * (double) (currentTick - startTick);
