@@ -108,14 +108,16 @@ public class SilentMine extends Module {
     private void onTick(TickEvent.Pre event) {
         currentGameTickCalculated = RenderUtils.getCurrentGameTickCalculated();
 
-        if (hasDelayedDestroy() && mc.world.getBlockState(delayedDestroyBlock.blockPos).isAir()) {
+        if (hasDelayedDestroy() && (mc.world.getBlockState(delayedDestroyBlock.blockPos).isAir()
+                || !BlockUtils.canBreak(delayedDestroyBlock.blockPos))) {
             MeteorClient.EVENT_BUS
                     .post(new SilentMineFinishedEvent.Post(delayedDestroyBlock.blockPos, false));
 
             removeDelayedDestroy(false);
         }
 
-        if (rebreakBlock != null && mc.world.getBlockState(rebreakBlock.blockPos).isAir()) {
+        if (rebreakBlock != null && (mc.world.getBlockState(delayedDestroyBlock.blockPos).isAir()
+                || !BlockUtils.canBreak(delayedDestroyBlock.blockPos))) {
             rebreakBlock.beenAir = true;
         }
 
@@ -438,7 +440,8 @@ public class SilentMine extends Module {
 
         public boolean isReady(boolean isRebreak) {
             double breakProgressSingleTick = getBreakProgressSingleTick();
-            double threshold = isRebreak ? 0.7 : 1.0 - (preSwitchSinglebreak.get() ? (breakProgressSingleTick / 2.0) : 0.0);
+            double threshold = isRebreak ? 0.7
+                    : 1.0 - (preSwitchSinglebreak.get() ? (breakProgressSingleTick / 2.0) : 0.0);
 
             return getBreakProgress() >= threshold || timesSendBreakPacket > 0;
         }
