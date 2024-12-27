@@ -157,6 +157,17 @@ public abstract class Module implements ISerializable<Module>, Comparable<Module
         return tag;
     }
 
+    public NbtCompound toTagConfig() {
+        if (!serialize) return null;
+        NbtCompound tag = new NbtCompound();
+
+        tag.putString("name", name);
+        tag.put("settings", settings.toTag());
+        tag.putBoolean("active", active);
+
+        return tag;
+    }
+
     @Override
     public Module fromTag(NbtCompound tag) {
         // General
@@ -165,6 +176,17 @@ public abstract class Module implements ISerializable<Module>, Comparable<Module
         chatFeedback = !tag.contains("chatFeedback") || tag.getBoolean("chatFeedback");
         favorite = tag.getBoolean("favorite");
 
+        // Settings
+        NbtElement settingsTag = tag.get("settings");
+        if (settingsTag instanceof NbtCompound) settings.fromTag((NbtCompound) settingsTag);
+
+        boolean active = tag.getBoolean("active");
+        if (active != isActive()) toggle();
+
+        return this;
+    }
+
+    public Module fromTagConfig(NbtCompound tag) {
         // Settings
         NbtElement settingsTag = tag.get("settings");
         if (settingsTag instanceof NbtCompound) settings.fromTag((NbtCompound) settingsTag);

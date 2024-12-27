@@ -131,15 +131,15 @@ public class ModuleScreen extends WindowScreen {
 
     @Override
     public boolean toClipboard() {
-        return NbtUtils.toClipboard(module.title, module.toTag());
+        return NbtUtils.toClipboard(module.title, module.toTagConfig());
     }
 
     @Override
     public boolean fromClipboard() {
-        NbtCompound clipboard = NbtUtils.fromClipboard(module.toTag());
+        NbtCompound clipboard = NbtUtils.fromClipboard(module.toTagConfig());
 
         if (clipboard != null) {
-            module.fromTag(clipboard);
+            module.fromTagConfig(clipboard);
             return true;
         }
 
