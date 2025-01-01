@@ -31,6 +31,7 @@ import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Direction;
 
 public class Surround extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -50,6 +51,11 @@ public class Surround extends Module {
             sgGeneral.add(new EnumSetting.Builder<AutoSelfTrapMode>().name("auto-self-trap-mode")
                     .description("When to build double high").defaultValue(AutoSelfTrapMode.Smart)
                     .build());
+
+    private final Setting<Boolean> selfTrapHead = sgGeneral.add(new BoolSetting.Builder()
+            .name("self-trap-head")
+            .description("Places a block above your head to prevent you from velo failing upwards")
+            .defaultValue(true).build());
 
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("render")
             .description("Renders a block overlay where the obsidian will be placed.")
@@ -196,6 +202,10 @@ public class Surround extends Module {
             }
         }
 
+        if (selfTrapHead.get()) {
+            placePoses.add(mc.player.getBlockPos().offset(Direction.UP, 2));
+        }
+
         if (pauseEat.get() && mc.player.isUsingItem()) {
             return;
         }
@@ -217,7 +227,8 @@ public class Surround extends Module {
                 if (blocking != null && System.currentTimeMillis() - lastAttackTime >= 50) {
                     MeteorClient.ROTATION.requestRotation(blocking.getPos(), 11);
 
-                    if (!MeteorClient.ROTATION.lookingAt(blocking.getBoundingBox()) && RotationManager.lastGround) {
+                    if (!MeteorClient.ROTATION.lookingAt(blocking.getBoundingBox())
+                            && RotationManager.lastGround) {
                         MeteorClient.ROTATION.snapAt(blocking.getPos());
                     }
 
@@ -230,7 +241,8 @@ public class Surround extends Module {
             });
         }
 
-        List<BlockPos> actualPlacePositions = MeteorClient.BLOCK.filterCanPlace(placePoses.stream()).toList();
+        List<BlockPos> actualPlacePositions =
+                MeteorClient.BLOCK.filterCanPlace(placePoses.stream()).toList();
 
         if (!MeteorClient.BLOCK.beginPlacement(actualPlacePositions, Items.OBSIDIAN)) {
             return;
