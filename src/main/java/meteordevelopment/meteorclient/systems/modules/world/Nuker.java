@@ -12,6 +12,8 @@ import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
 import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.meteorclient.utils.render.RenderUtils;
@@ -115,10 +117,18 @@ public class Nuker extends Module {
             .build()
     );
 
+    private final Setting<Boolean> silentMine = sgGeneral.add(new BoolSetting.Builder()
+            .name("silent-mine")
+            .description("Uses SilentMine to break/double-break")
+            .defaultValue(true)
+            .build()
+    );
+
     private final Setting<Integer> delay = sgGeneral.add(new IntSetting.Builder()
             .name("delay")
             .description("Delay in ticks between breaking blocks.")
             .defaultValue(0)
+            .visible(() -> !silentMine.get())
             .build()
     );
 
@@ -128,6 +138,7 @@ public class Nuker extends Module {
             .defaultValue(1)
             .min(1)
             .sliderRange(1, 6)
+            .visible(() -> !silentMine.get())
             .build()
     );
 
@@ -149,6 +160,7 @@ public class Nuker extends Module {
             .name("packet-mine")
             .description("Attempt to instamine everything at once.")
             .defaultValue(false)
+            .visible(() -> !silentMine.get())
             .build()
     );
 
@@ -156,6 +168,7 @@ public class Nuker extends Module {
             .name("rotate")
             .description("Rotates server-side to the block being mined.")
             .defaultValue(true)
+            .visible(() -> !silentMine.get())
             .build()
     );
 
@@ -388,6 +401,28 @@ public class Nuker extends Module {
                 blocks.sort(Comparator.comparingDouble(value -> -value.getY()));
             else if (sortMode.get() != SortMode.None)
                 blocks.sort(Comparator.comparingDouble(value -> Utils.squaredDistance(pX, pY, pZ, value.getX() + 0.5, value.getY() + 0.5, value.getZ() + 0.5) * (sortMode.get() == SortMode.Closest ? 1 : -1)));
+
+            if (silentMine.get()) {
+                SilentMine silentMine = Modules.get().get(SilentMine.class);
+
+                if (silentMine.hasDelayedDestroy() || (silentMine.hasRebreakBlock() && !silentMine.canRebreakRebreakBlock())) {
+                    return;
+                }
+
+                int count = 0;
+                for (BlockPos block : blocks) {
+                    if (count >= 2) {
+                        break;
+                    }
+
+                    silentMine.silentBreakBlock(block, 5);
+
+                    count++;
+                }
+
+                blocks.clear();
+                return;
+            }
 
             // Check if some block was found
             if (blocks.isEmpty()) {
