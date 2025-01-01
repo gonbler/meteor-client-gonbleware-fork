@@ -16,10 +16,11 @@ import meteordevelopment.meteorclient.utils.entity.fakeplayer.FakePlayerEntity;
 import meteordevelopment.meteorclient.utils.render.WireframeEntityRenderer;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
+import net.fabricmc.loader.impl.lib.sat4j.core.Vec;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
-
+import net.minecraft.util.math.Vec3d;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -106,7 +107,7 @@ public class PopChams extends Module {
         if (p.getStatus() != 35) return;
 
         Entity entity = p.getEntity(mc.world);
-        if (!(entity instanceof PlayerEntity player) || entity == mc.player) return;
+        if (!(entity instanceof PlayerEntity player)/* || entity == mc.player*/) return;
 
         synchronized (ghosts) {
             if (onlyOne.get()) ghosts.removeIf(ghostPlayer -> ghostPlayer.uuid.equals(entity.getUuid()));
@@ -122,24 +123,32 @@ public class PopChams extends Module {
         }
     }
 
-    private class GhostPlayer extends FakePlayerEntity {
+    private class GhostPlayer {
         private final UUID uuid;
         private double timer, scale = 1;
+        private PlayerEntity player;
+        private List<WireframeEntityRenderer.RenderablePart> parts;
+        private Vec3d pos;
 
         public GhostPlayer(PlayerEntity player) {
-            super(player, "ghost", 20, false);
+            //super(player, "ghost", 20, false);
 
             uuid = player.getUuid();
+            this.player = player;
+            pos = new Vec3d(0, 0, 0);
         }
 
         public boolean render(Render3DEvent event) {
+            if (parts == null) {
+                parts = WireframeEntityRenderer.cloneEntityForRendering(event, player, pos);
+            }
+
             // Increment timer
             timer += event.frameTime;
             if (timer > renderTime.get()) return true;
 
             // Y Modifier
-            lastRenderY = getY();
-            ((IVec3d) getPos()).setY(getY() + yModifier.get() * event.frameTime);
+            ((IVec3d) pos).setY(pos.y + yModifier.get() * event.frameTime);
 
             // Scale Modifier
             scale += scaleModifier.get() * event.frameTime;
@@ -154,7 +163,7 @@ public class PopChams extends Module {
             }
 
             // Render
-            WireframeEntityRenderer.render(event, this, scale, sideColor.get(), lineColor.get(), shapeMode.get());
+            WireframeEntityRenderer.render(event, pos, parts, scale, sideColor.get(), lineColor.get(), shapeMode.get());
 
             // Restore colors
             sideColor.get().a = preSideA;

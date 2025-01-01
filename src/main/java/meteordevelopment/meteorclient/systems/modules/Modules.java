@@ -530,6 +530,7 @@ public class Modules extends System<Modules> {
         add(new MovementFix());
         add(new GrimDisabler());
         add(new NoJumpDelay());
+        // add(new GrimBoatTeleport());
     }
 
     private void initRender() {

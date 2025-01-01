@@ -11,6 +11,7 @@ import com.mojang.authlib.GameProfile;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.DamageEvent;
 import meteordevelopment.meteorclient.events.entity.DropItemsEvent;
+import meteordevelopment.meteorclient.events.entity.VehicleMoveEvent;
 import meteordevelopment.meteorclient.events.entity.player.PlayerTickMovementEvent;
 import meteordevelopment.meteorclient.events.entity.player.SendMovementPacketsEvent;
 import meteordevelopment.meteorclient.systems.managers.RotationManager;
@@ -29,9 +30,9 @@ import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.network.packet.c2s.play.VehicleMoveC2SPacket;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
-import static meteordevelopment.meteorclient.MeteorClient.mc;
 import java.util.List;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -41,6 +42,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import static meteordevelopment.meteorclient.MeteorClient.mc;
 
 @Mixin(ClientPlayerEntity.class)
 public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity {
@@ -165,62 +168,62 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
 
     // Rotations
     @Shadow
-	private void sendSprintingPacket() {}
+    private void sendSprintingPacket() {}
 
-	@Shadow
-	@Final
-	private List<ClientPlayerTickable> tickables;
-    
-	@Shadow
-	private boolean autoJumpEnabled;
+    @Shadow
+    @Final
+    private List<ClientPlayerTickable> tickables;
 
-	@Shadow
-	private double lastX;
+    @Shadow
+    private boolean autoJumpEnabled;
 
-	@Shadow
-	private double lastBaseY;
+    @Shadow
+    private double lastX;
 
-	@Shadow
-	private double lastZ;
+    @Shadow
+    private double lastBaseY;
 
-	@Shadow
-	private float lastYaw;
+    @Shadow
+    private double lastZ;
 
-	@Shadow
-	private float lastPitch;
+    @Shadow
+    private float lastYaw;
 
-	@Shadow
-	private boolean lastOnGround;
+    @Shadow
+    private float lastPitch;
 
-	@Shadow
-	private boolean lastSneaking;
+    @Shadow
+    private boolean lastOnGround;
 
-	@Shadow
-	private int ticksSinceLastPositionPacketSent;
+    @Shadow
+    private boolean lastSneaking;
 
-	@Shadow
-	private void sendMovementPackets() {
-	}
+    @Shadow
+    private int ticksSinceLastPositionPacketSent;
 
-	@Shadow
-	protected boolean isCamera() {
-		return false;
-	}
+    @Shadow
+    private void sendMovementPackets() {}
 
-	@Shadow
-	public abstract float getPitch(float tickDelta);
+    @Shadow
+    protected boolean isCamera() {
+        return false;
+    }
+
+    @Shadow
+    public abstract float getPitch(float tickDelta);
 
     @Inject(method = "sendMovementPackets", at = {@At("HEAD")}, cancellable = true)
-    private void sendMovementPacketsHook(CallbackInfo ci) {
+    private void sendMovementPacketsOverwrite(CallbackInfo ci) {
         ci.cancel();
 
-        
+
 
         this.sendSprintingPacket();
 
         if (this.isSneaking() != this.lastSneaking) {
-            ClientCommandC2SPacket.Mode mode = this.isSneaking() ? ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY
-                    : ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY;
+            ClientCommandC2SPacket.Mode mode =
+                    this.isSneaking() ? ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY
+                            : ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY;
             this.networkHandler.sendPacket(new ClientCommandC2SPacket(this, mode));
             this.lastSneaking = this.isSneaking();
         }
@@ -236,7 +239,8 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
             float yaw = this.getYaw();
             float pitch = this.getPitch();
 
-            SendMovementPacketsEvent.Rotation movementPacketsEvent = new SendMovementPacketsEvent.Rotation(yaw, pitch);
+            SendMovementPacketsEvent.Rotation movementPacketsEvent =
+                    new SendMovementPacketsEvent.Rotation(yaw, pitch);
             MeteorClient.EVENT_BUS.post(movementPacketsEvent);
 
             yaw = movementPacketsEvent.yaw;
@@ -249,7 +253,9 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
 
             this.ticksSinceLastPositionPacketSent++;
 
-            boolean positionChanged = MathHelper.squaredMagnitude(d, e, f) > MathHelper.square(2.0E-4) || this.ticksSinceLastPositionPacketSent >= 20;
+            boolean positionChanged =
+                    MathHelper.squaredMagnitude(d, e, f) > MathHelper.square(2.0E-4)
+                            || this.ticksSinceLastPositionPacketSent >= 20;
             boolean rotationChanged = (deltaYaw != 0.0 || deltaPitch != 0.0);
 
             float sendYaw = yaw;
@@ -262,7 +268,7 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
                 RotationManager.sendDisablerPacket = true;
                 RotationManager.lastActualYaw = yaw;
             }
-            
+
             if (this.hasVehicle()) {
                 Vec3d vec3d = this.getVelocity();
                 this.networkHandler.sendPacket(new PlayerMoveC2SPacket.Full(vec3d.x, -999.0,
@@ -301,8 +307,20 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
         MeteorClient.EVENT_BUS.post(new SendMovementPacketsEvent.Post());
     }
 
+    @Inject(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V", ordinal = 2), cancellable = true)
+    private void beforeSendVehicleMovePacket(CallbackInfo ci) {
+        VehicleMoveEvent event = MeteorClient.EVENT_BUS.post(VehicleMoveEvent.get(new VehicleMoveC2SPacket(mc.player.getRootVehicle()), mc.player.getRootVehicle()));
+        
+        if (event.packet != null) {
+            mc.getNetworkHandler().sendPacket(event.packet);
+        }
+
+        ci.cancel();
+    }
+
     // Credit to TylerTheDev
-    // Just makes the player appear to have the correct rotation, allows phasing and XP throwing and etc
+    // Just makes the player appear to have the correct rotation, allows phasing and XP throwing and
+    // etc
     private static float encodeDegrees(float degrees, int multiplier) {
         return degrees + (multiplier * 360.0F);
     }

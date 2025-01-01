@@ -20,6 +20,9 @@ accessible   method  net/minecraft/client/render/entity/LivingEntityRenderer set
 accessible   method  net/minecraft/client/render/entity/LivingEntityRenderer scale (Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/client/util/math/MatrixStack;F)V
 accessible   method  net/minecraft/client/render/entity/LivingEntityRenderer getAnimationProgress (Lnet/minecraft/entity/LivingEntity;F)F
 
+accessible   method  net/minecraft/entity/Entity adjustMovementForCollisions (Lnet/minecraft/util/math/Vec3d;)Lnet/minecraft/util/math/Vec3d;
+accessible   method  net/minecraft/entity/Entity findCollisionsForMovement (Lnet/minecraft/entity/Entity;Lnet/minecraft/world/World;Ljava/util/List;Lnet/minecraft/util/math/Box;)Ljava/util/List;
+
 accessible   field   net/minecraft/client/render/entity/model/AnimalModel headScaled Z
 accessible   field   net/minecraft/client/render/entity/model/AnimalModel childHeadYOffset F
 accessible   field   net/minecraft/client/render/entity/model/AnimalModel childHeadZOffset F

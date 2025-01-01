@@ -58,9 +58,9 @@ public class AutoTotem extends Module {
                     .description("Will swap to a totem in your hotbar if you pop").defaultValue(8)
                     .min(0).max(8).build());
 
-    private final Setting<Boolean> antiTFailPauseSwapEat =
-            sgGeneral.add(new BoolSetting.Builder().name("anti-totem-fail-pause-swap-eat")
-                    .description("Will not swap to a totem in your hotbar if you swap")
+    private final Setting<Boolean> antiTFailUseBackupSwapEat =
+            sgGeneral.add(new BoolSetting.Builder().name("anti-totem-fail-use-backup-swap-eat")
+                    .description("Uses a different method of swapping if you pop while eating")
                     .defaultValue(true).build());
 
     public AutoTotem() {
@@ -132,9 +132,6 @@ public class AutoTotem extends Module {
             return;
         }
 
-        if (antiTFailPauseSwapEat.get() && mc.player.isUsingItem()) {
-            return;
-        }
 
         FindItemResult hotbarResult = InvUtils.find(x -> {
             if (x.getItem().equals(Items.TOTEM_OF_UNDYING)) {
@@ -144,10 +141,37 @@ public class AutoTotem extends Module {
             return false;
         }, 0, 8);
 
+        if (antiTFailUseBackupSwapEat.get() && mc.player.isUsingItem()) {
+            if (hotbarResult.found()) {
+                int slot = mc.player.getInventory().getStack(antiTFailHotbarSlot.get())
+                        .getItem() == Items.TOTEM_OF_UNDYING ? antiTFailHotbarSlot.get()
+                                : hotbarResult.slot();
+
+                mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                        SlotUtils.OFFHAND, slot, SlotActionType.SWAP, mc.player);
+
+                FindItemResult result = InvUtils.find(Items.TOTEM_OF_UNDYING);
+                int totems = result.count();
+
+                FindItemResult inventoryResult = getInventoryTotemSlot();
+
+                if (totems > 0 && antiTFail.get() && inventoryResult.found()
+                        && mc.player.getInventory().getStack(antiTFailHotbarSlot.get())
+                                .getItem() != Items.TOTEM_OF_UNDYING) {
+                    mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                            inventoryResult.slot(), antiTFailHotbarSlot.get(), SlotActionType.SWAP,
+                            mc.player);
+                }
+            }
+
+            return;
+        }
+
         if (hotbarResult.found()) {
             int slot = mc.player.getInventory().getStack(antiTFailHotbarSlot.get())
                     .getItem() == Items.TOTEM_OF_UNDYING ? antiTFailHotbarSlot.get()
                             : hotbarResult.slot();
+
 
             InvUtils.swap(slot, true);
 
@@ -155,6 +179,8 @@ public class AutoTotem extends Module {
                     .sendPacket(new PlayerActionC2SPacket(
                             PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND,
                             new BlockPos(0, 0, 0), Direction.DOWN));
+
+            InvUtils.swapBack();
 
             FindItemResult result = InvUtils.find(Items.TOTEM_OF_UNDYING);
             int totems = result.count();
@@ -168,7 +194,6 @@ public class AutoTotem extends Module {
                         mc.player);
             }
 
-            InvUtils.swapBack();
             return;
         }
 

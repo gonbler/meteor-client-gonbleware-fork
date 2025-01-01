@@ -121,7 +121,9 @@ public class LogoutSpots extends Module {
 
     @Override
     public void onDeactivate() {
-        players.clear();
+        synchronized (players) {
+            players.clear();
+        }
         lastPlayerList.clear();
     }
 
@@ -138,15 +140,17 @@ public class LogoutSpots extends Module {
         if (event.entity instanceof PlayerEntity) {
             int toRemove = -1;
 
-            for (int i = 0; i < players.size(); i++) {
-                if (players.get(i).uuid.equals(event.entity.getUuid())) {
-                    toRemove = i;
-                    break;
+            synchronized (players) {
+                for (int i = 0; i < players.size(); i++) {
+                    if (players.get(i).uuid.equals(event.entity.getUuid())) {
+                        toRemove = i;
+                        break;
+                    }
                 }
-            }
 
-            if (toRemove != -1) {
-                players.remove(toRemove);
+                if (toRemove != -1) {
+                    players.remove(toRemove);
+                }
             }
         }
     }
@@ -179,8 +183,10 @@ public class LogoutSpots extends Module {
         }
 
         Dimension dimension = PlayerUtils.getDimension();
-        if (dimension != lastDimension)
-            players.clear();
+        synchronized (players) {
+            if (dimension != lastDimension)
+                players.clear();
+        }
         lastDimension = dimension;
     }
 
@@ -191,57 +197,66 @@ public class LogoutSpots extends Module {
 
         int toRemove = -1;
 
-        for (int i = 0; i < players.size(); i++) {
-            if (players.get(i).uuid.equals(event.getEntry().profileId())) {
-                toRemove = i;
-                break;
-            }
-        }
-
-        if (toRemove != -1) {
-            Entry player = players.get(toRemove);
-
-            if (notifyOnRejoin.get()) {
-                boolean showCoords = notifyOnRejoinShowCoords.get();
-
-                if (notifyOnRejoinLimitDistance.get() && notifyOnRejoinDistance.get() < mc.player
-                        .getPos().distanceTo(new Vec3d(player.x, player.y, player.z))) {
-                    showCoords = false;
+        synchronized (players) {
+            for (int i = 0; i < players.size(); i++) {
+                if (players.get(i).uuid.equals(event.getEntry().profileId())) {
+                    toRemove = i;
+                    break;
                 }
-
-                if (showCoords) {
-                    info("(highlight)%s(default) rejoined at %d, %d, %d (highlight)(%.1fm away)(default).",
-                            player.name, (int) Math.floor(player.x), (int) Math.floor(player.y),
-                            (int) Math.floor(player.z),
-                            mc.player.getPos().distanceTo(new Vec3d(player.x, player.y, player.z)));
-                } else {
-                    info("(highlight)%s(default) rejoined", player.name);
-                }
-
-                mc.world.playSoundFromEntity(mc.player, mc.player,
-                        SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, SoundCategory.AMBIENT, 3.0F,
-                        1.0F);
             }
 
-            players.remove(toRemove);
+            if (toRemove != -1) {
+                Entry player = players.get(toRemove);
+
+                if (notifyOnRejoin.get()) {
+                    boolean showCoords = notifyOnRejoinShowCoords.get();
+
+                    if (notifyOnRejoinLimitDistance.get() && notifyOnRejoinDistance
+                            .get() < new Vec3d(player.x, player.y, player.z)
+                                    .distanceTo(Vec3d.ZERO)) {
+                        showCoords = false;
+                    }
+
+                    if (showCoords) {
+                        info("(highlight)%s(default) rejoined at %d, %d, %d (highlight)(%.1fm away)(default).",
+                                player.name, (int) Math.floor(player.x), (int) Math.floor(player.y),
+                                (int) Math.floor(player.z), mc.player.getPos()
+                                        .distanceTo(new Vec3d(player.x, player.y, player.z)));
+                    } else {
+                        info("(highlight)%s(default) rejoined", player.name);
+                    }
+
+                    mc.world.playSoundFromEntity(mc.player, mc.player,
+                            SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, SoundCategory.AMBIENT, 3.0F,
+                            1.0F);
+                }
+
+                players.remove(toRemove);
+            }
         }
     }
 
     private void add(Entry entry) {
-        players.removeIf(player -> player.uuid.equals(entry.uuid));
-        players.add(entry);
+        synchronized (players) {
+            players.removeIf(player -> player.uuid.equals(entry.uuid));
+            players.add(entry);
+        }
     }
 
     @EventHandler
     private void onRender3D(Render3DEvent event) {
-        for (Entry player : players)
-            player.render3D(event);
+        synchronized (players) {
+            for (Entry player : players)
+                player.render3D(event);
+        }
     }
 
     @EventHandler
     private void onRender2D(Render2DEvent event) {
-        for (Entry player : players)
-            player.render2D();
+        synchronized (players) {
+            for (Entry player : players)
+                player.render2D();
+        }
     }
 
     @Override

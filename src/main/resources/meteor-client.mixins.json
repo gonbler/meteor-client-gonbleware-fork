@@ -185,7 +185,9 @@
     "WorldChunkMixin",
     "WorldRendererAccessor",
     "WorldRendererMixin",
-    "YggdrasilMinecraftSessionServiceAccessor"
+    "YggdrasilMinecraftSessionServiceAccessor",
+    
+    "VehicleMoveC2SPacketAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

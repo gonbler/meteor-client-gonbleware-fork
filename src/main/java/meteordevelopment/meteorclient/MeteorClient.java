@@ -149,6 +149,7 @@ public class MeteorClient implements ClientModInitializer {
         ROTATION = new RotationManager();
         BLOCK = new BlockPlacementManager();
         INFO = new InformationManager();
+        // BOAT_PATH_FINDER = new NetherPathFindManager();
     }
 
     @EventHandler

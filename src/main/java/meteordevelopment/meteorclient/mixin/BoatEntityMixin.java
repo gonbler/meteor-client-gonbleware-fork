@@ -9,6 +9,7 @@ import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.BoatMoveEvent;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.movement.BoatFly;
+// import meteordevelopment.meteorclient.systems.modules.movement.GrimBoatTeleport;
 import net.minecraft.entity.vehicle.BoatEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -31,12 +32,19 @@ public abstract class BoatEntityMixin {
     @Redirect(method = "updatePaddles", at = @At(value = "FIELD", target = "Lnet/minecraft/entity/vehicle/BoatEntity;pressingLeft:Z"))
     private boolean onUpdatePaddlesPressingLeft(BoatEntity boat) {
         if (Modules.get().isActive(BoatFly.class)) return false;
+        // if (Modules.get().isActive(GrimBoatTeleport.class)) return false;
         return pressingLeft;
     }
 
     @Redirect(method = "updatePaddles", at = @At(value = "FIELD", target = "Lnet/minecraft/entity/vehicle/BoatEntity;pressingRight:Z"))
     private boolean onUpdatePaddlesPressingRight(BoatEntity boat) {
         if (Modules.get().isActive(BoatFly.class)) return false;
+        // if (Modules.get().isActive(GrimBoatTeleport.class)) return false;
         return pressingRight;
     }
+
+    // @Inject(method = "clampPassengerYaw", at = @At("HEAD"), cancellable = true)
+    // private void clampPassengerYaw(CallbackInfo info) {
+    //     if (Modules.get().isActive(GrimBoatTeleport.class)) info.cancel();
+    // }
 }

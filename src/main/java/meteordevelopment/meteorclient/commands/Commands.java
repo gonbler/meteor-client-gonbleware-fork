@@ -63,6 +63,7 @@ public class Commands {
         add(new InputCommand());
         add(new WaspCommand());
         add(new LocateCommand());
+        // add(new BoatFlyPathCommand());
 
         COMMANDS.sort(Comparator.comparing(Command::getName));
     }

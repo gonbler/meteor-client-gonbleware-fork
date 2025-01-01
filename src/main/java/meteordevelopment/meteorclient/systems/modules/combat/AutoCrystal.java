@@ -43,6 +43,8 @@ import meteordevelopment.meteorclient.utils.misc.Pool;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.player.Timer;
+import meteordevelopment.meteorclient.utils.render.WireframeEntityRenderer;
+import meteordevelopment.meteorclient.utils.render.WireframeEntityRenderer.RenderablePart;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
@@ -261,7 +263,7 @@ public class AutoCrystal extends Module {
     private final Map<BlockPos, Long> crystalPlaceDelays = new HashMap<>();
 
     private final Map<BlockPos, Long> crystalRenderPlaceDelays = new HashMap<>();
-    private final Map<BlockPos, Long> crystalRenderBreakDelays = new HashMap<>();
+    private final Map<CrystalBreakRender, Long> crystalRenderBreakDelays = new HashMap<>();
 
     private final List<Boolean> cachedValidSpots = new ArrayList<>();
 
@@ -530,7 +532,11 @@ public class AutoCrystal extends Module {
         }
 
         crystalBreakDelays.put(entity.getId(), System.currentTimeMillis());
-        crystalRenderBreakDelays.put(entity.getBlockPos(), System.currentTimeMillis());
+
+        CrystalBreakRender breakRender = new CrystalBreakRender();
+        breakRender.pos = new Vec3d(0, 0, 0);
+        breakRender.entity = entity;
+        crystalRenderBreakDelays.put(breakRender, System.currentTimeMillis());
 
         if (crystalPlaceDelays.containsKey(entity.getBlockPos().down())) {
             crystalPlaceDelays.remove(entity.getBlockPos().down());
@@ -937,17 +943,25 @@ public class AutoCrystal extends Module {
                     placeDelayColor.get(), placeDelayColor.get(), placeDelayShapeMode.get());
         }
 
-        for (Map.Entry<BlockPos, Long> breakDelay : crystalRenderBreakDelays.entrySet()) {
+        for (Map.Entry<CrystalBreakRender, Long> breakDelay : crystalRenderBreakDelays.entrySet()) {
             if (currentTime - breakDelay.getValue() > breakDelayFadeTime.get() * 1000) {
                 continue;
+            }
+
+            CrystalBreakRender render = breakDelay.getKey();
+
+            if (render.parts == null && render.entity != null) {
+                render.parts = WireframeEntityRenderer.cloneEntityForRendering(event, render.entity, render.pos);
+                render.entity = null;
             }
 
             double time = (currentTime - breakDelay.getValue()) / 1000.0;
 
             double timeCompletion = time / breakDelayFadeTime.get();
 
-            renderBoxSized(event, breakDelay.getKey(), 1.0, 1 - timeCompletion,
-                    breakDelayColor.get(), breakDelayColor.get(), breakDelayShapeMode.get());
+            Color color = breakDelayColor.get().copy().a((int) (breakDelayColor.get().a * (1 - timeCompletion)));
+
+            WireframeEntityRenderer.render(event, render.pos, render.parts, 1.0, color, color, breakDelayShapeMode.get());
         }
     }
 
@@ -997,22 +1011,7 @@ public class AutoCrystal extends Module {
         event.renderer.box(x1, y1, z1, x2, y2, z2, sideColor.copy().a((int) (sideColor.a * alpha)),
                 sideColor.copy().a((int) (lineColor.a * alpha)), shapeMode, 0);
     }
-
-    // @EventHandler
-    // private void onRender2D(Render2DEvent event) {
-    // if (NametagUtils.to2D(vec3, 1.0)) {
-    // NametagUtils.begin(vec3);
-    // TextRenderer.get().begin(1, false, true);
-
-    // String text = String.format("%.1f", bestPos.damage);
-    // double w = TextRenderer.get().getWidth(text) / 2;
-    // TextRenderer.get().render(text, -w, 0, Color.WHITE.a(100), true);
-
-    // TextRenderer.get().end();
-    // NametagUtils.end();
-    // }
-    // }
-
+    
     private boolean intersectsWithEntities(Box box) {
         return intersectsWithEntity(box,
                 entity -> !entity.isSpectator() && !explodedCrystals.contains(entity.getId()));
@@ -1135,6 +1134,14 @@ public class AutoCrystal extends Module {
         public double damage = 0.0;
 
         public boolean isSlowPlace = false;
+    }
+
+    private class CrystalBreakRender {
+        public Vec3d pos;
+
+        public List<RenderablePart> parts;
+
+        public Entity entity;
     }
 
     private enum SwitchMode {
