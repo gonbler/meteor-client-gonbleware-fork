@@ -35,6 +35,10 @@ repositories {
         name = "ViaVersion"
         url = "https://repo.viaversion.com"
     }
+    // maven {
+    //     name = 'babbaj-repo'
+    //     url = 'https://babbaj.github.io/maven/'
+    // }
     mavenCentral()
 }
 
@@ -64,6 +68,9 @@ dependencies {
 
     // Baritone (https://github.com/MeteorDevelopment/baritone)
     modCompileOnly "meteordevelopment:baritone:${project.baritone_version}-SNAPSHOT"
+
+    // Nether pathfinder
+    // implementation "dev.babbaj:nether-pathfinder:${project.nether_pathfinder_version}"
 
     // Libraries
     library "meteordevelopment:orbit:${project.orbit_version}"
