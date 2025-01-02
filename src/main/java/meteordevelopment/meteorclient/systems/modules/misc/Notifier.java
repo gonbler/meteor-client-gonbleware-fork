@@ -25,6 +25,8 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.thrown.EnderPearlEntity;
+import net.minecraft.network.packet.s2c.play.PlayerListS2CPacket;
+import net.minecraft.network.packet.s2c.play.PlayerRemoveS2CPacket;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.MutableText;
@@ -369,6 +371,17 @@ public class Notifier extends Module {
                     + Formatting.GRAY + " left."
             ));
         }
+    }
+
+    // Useless functions to not break Stardust
+    @SuppressWarnings("unused")
+    private void createJoinNotifications(PlayerListS2CPacket packet) {
+
+    }
+
+    @SuppressWarnings("unused")
+    private void createLeaveNotification(PlayerRemoveS2CPacket packet) {
+
     }
 
     public enum Event {
