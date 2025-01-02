@@ -6,7 +6,9 @@
 package meteordevelopment.meteorclient.systems.modules.combat;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
@@ -14,6 +16,7 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.ColorSetting;
+import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
@@ -22,6 +25,7 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
+import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
@@ -58,24 +62,30 @@ public class Surround extends Module {
             .defaultValue(true).build());
 
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("render")
-            .description("Renders a block overlay where the obsidian will be placed.")
+            .description("Renders a block overlay when you try to place obsidian.")
             .defaultValue(true).build());
+
+    private final Setting<Double> fadeTime = sgRender.add(new DoubleSetting.Builder()
+            .name("fadeTime").description("How many seconds it takes to fade.").defaultValue(0.2)
+            .min(0).sliderMax(1.0).build());
 
     private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builder<ShapeMode>()
             .name("shape-mode").description("How the shapes are rendered.")
             .defaultValue(ShapeMode.Both).build());
 
-    private final Setting<SettingColor> normalSideColor = sgRender.add(new ColorSetting.Builder()
-            .name("normal-side-color").description("The side color for normal blocks.")
-            .defaultValue(new SettingColor(0, 255, 238, 12))
-            .visible(() -> render.get() && shapeMode.get() != ShapeMode.Lines).build());
+    private final Setting<SettingColor> sideColor =
+            sgRender.add(new ColorSetting.Builder().name("side-color")
+                    .description("The side color.").defaultValue(new SettingColor(85, 0, 255, 40))
+                    .visible(() -> render.get() && shapeMode.get() != ShapeMode.Lines).build());
 
-    private final Setting<SettingColor> normalLineColor = sgRender.add(new ColorSetting.Builder()
-            .name("normal-line-color").description("The line color for normal blocks.")
-            .defaultValue(new SettingColor(0, 255, 238, 100))
-            .visible(() -> render.get() && shapeMode.get() != ShapeMode.Sides).build());
+    private final Setting<SettingColor> lineColor =
+            sgRender.add(new ColorSetting.Builder().name("line-color")
+                    .description("The line color.").defaultValue(new SettingColor(255, 255, 255, 60))
+                    .visible(() -> render.get() && shapeMode.get() != ShapeMode.Sides).build());
 
     private List<BlockPos> placePoses = new ArrayList<>();
+
+    private Map<BlockPos, Long> renderLastPlacedBlock = new HashMap<>();
 
     private long lastTimeOfCrystalNearHead = 0;
     private long lastAttackTime = 0;
@@ -102,7 +112,22 @@ public class Surround extends Module {
     }
 
     private void draw(Render3DEvent event) {
-        // TODO
+        long currentTime = System.currentTimeMillis();
+
+        for (Map.Entry<BlockPos, Long> entry : renderLastPlacedBlock.entrySet()) {
+            if (currentTime - entry.getValue() > fadeTime.get() * 1000) {
+                continue;
+            }
+
+            double time = (currentTime - entry.getValue()) / 1000.0;
+
+            double timeCompletion = time / fadeTime.get();
+
+            Color fadedSideColor = sideColor.get().copy().a((int) (sideColor.get().a * (1 - timeCompletion)));
+            Color fadedLineColor = lineColor.get().copy().a((int) (lineColor.get().a * (1 - timeCompletion)));
+
+            event.renderer.box(entry.getKey(), fadedSideColor, fadedLineColor, shapeMode.get(), 0);
+        }
     }
 
     private void update() {
@@ -250,6 +275,8 @@ public class Surround extends Module {
 
         actualPlacePositions.forEach(blockPos -> {
             MeteorClient.BLOCK.placeBlock(blockPos);
+
+            renderLastPlacedBlock.put(blockPos, currentTime);
         });
 
         MeteorClient.BLOCK.endPlacement();

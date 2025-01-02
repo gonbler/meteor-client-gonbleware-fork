@@ -12,11 +12,9 @@ import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.entity.fakeplayer.FakePlayerEntity;
 import meteordevelopment.meteorclient.utils.render.WireframeEntityRenderer;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.fabricmc.loader.impl.lib.sat4j.core.Vec;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
@@ -84,7 +82,7 @@ public class PopChams extends Module {
     private final Setting<SettingColor> lineColor = sgGeneral.add(new ColorSetting.Builder()
         .name("line-color")
         .description("The line color.")
-        .defaultValue(new SettingColor(255, 255, 255, 127))
+        .defaultValue(new SettingColor(255, 255, 255, 60))
         .build()
     );
 
@@ -107,7 +105,7 @@ public class PopChams extends Module {
         if (p.getStatus() != 35) return;
 
         Entity entity = p.getEntity(mc.world);
-        if (!(entity instanceof PlayerEntity player)/* || entity == mc.player*/) return;
+        if (!(entity instanceof PlayerEntity player) || entity == mc.player) return;
 
         synchronized (ghosts) {
             if (onlyOne.get()) ghosts.removeIf(ghostPlayer -> ghostPlayer.uuid.equals(entity.getUuid()));
