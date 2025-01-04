@@ -17,29 +17,19 @@ import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
-import meteordevelopment.meteorclient.systems.modules.combat.AutoCrystal;
 import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.entity.DamageUtils;
-import meteordevelopment.meteorclient.utils.player.FindItemResult;
-import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.network.packet.s2c.common.DisconnectS2CPacket;
 import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
-import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Colors;
 import net.minecraft.util.Formatting;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 public class AutoLog extends Module {
@@ -76,6 +66,10 @@ public class AutoLog extends Module {
     private final Setting<Boolean> toggleOff =
             sgGeneral.add(new BoolSetting.Builder().name("toggle-off")
                     .description("Disables Auto Log after usage.").defaultValue(true).build());
+
+    private final Setting<Boolean> toggleAutoRecconect = sgGeneral.add(new BoolSetting.Builder()
+            .name("toggle-auto-reconnect").description("Disables Auto Reconnect after usage.")
+            .defaultValue(true).build());
 
     // Entities
 
@@ -114,9 +108,10 @@ public class AutoLog extends Module {
                     "Toggle between counting the total number of all selected entities or each entity individually.")
             .defaultValue(true).build());
 
-    private final Setting<Integer> chainPopLogCount = sgAntiChainPop.add(new IntSetting.Builder()
-            .name("consecutive-pops-to-log").description("Number of pops to take before disconnecting.")
-            .defaultValue(3).min(1).sliderMax(4).visible(() -> antiChainPop.get()).build());
+    private final Setting<Integer> chainPopLogCount =
+            sgAntiChainPop.add(new IntSetting.Builder().name("consecutive-pops-to-log")
+                    .description("Number of pops to take before disconnecting.").defaultValue(3)
+                    .min(1).sliderMax(4).visible(() -> antiChainPop.get()).build());
 
     // Declaring variables outside the loop for better efficiency
     private final Object2IntMap<EntityType<?>> entityCounts = new Object2IntOpenHashMap<>();
@@ -232,7 +227,7 @@ public class AutoLog extends Module {
             }
         }
 
-        
+
     }
 
     @EventHandler
@@ -257,11 +252,13 @@ public class AutoLog extends Module {
         MutableText text = Text.literal("[AutoLog] ");
         text.append(reason);
 
-        AutoReconnect autoReconnect = Modules.get().get(AutoReconnect.class);
-        if (autoReconnect.isActive()) {
-            text.append(
-                    Text.literal("\n\nINFO - AutoReconnect was disabled").withColor(Colors.GRAY));
-            autoReconnect.toggle();
+        if (toggleAutoRecconect.get()) {
+            AutoReconnect autoReconnect = Modules.get().get(AutoReconnect.class);
+            if (autoReconnect.isActive()) {
+                text.append(Text.literal("\n\nINFO - AutoReconnect was disabled")
+                        .withColor(Colors.GRAY));
+                autoReconnect.toggle();
+            }
         }
 
         mc.player.networkHandler.onDisconnect(new DisconnectS2CPacket(text));

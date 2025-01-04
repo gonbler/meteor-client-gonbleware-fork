@@ -123,12 +123,6 @@ public abstract class LivingEntityMixin extends Entity {
         boolean elytra = cir.getReturnValue();
         ElytraFly elytraFly = Modules.get().get(ElytraFly.class);
         ElytraFakeFly fakeFly = Modules.get().get(ElytraFakeFly.class);
-        GrimDisabler grimDisabler = Modules.get().get(GrimDisabler.class);
-
-        /*if ((Object) this == mc.player && grimDisabler.isActive()) {
-            cir.setReturnValue(grimDisabler.isInElytraFlyState());
-            return;
-        }*/
 
         if ((Object) this == mc.player && fakeFly.isFlying()) {
             cir.setReturnValue(false);
