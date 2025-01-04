@@ -13,10 +13,10 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
+import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
@@ -71,7 +71,6 @@ public class ElytraFakeFly extends Module {
     private Vec3d lastMovement = Vec3d.ZERO;
 
     private Vec3d currentVelocity = Vec3d.ZERO;
-    private InventorySlotSwap slotSwap = null;
 
     private long timeOfLastRubberband = 0;
     private Vec3d lastRubberband = Vec3d.ZERO;
@@ -92,7 +91,7 @@ public class ElytraFakeFly extends Module {
 
     @Override
     public void onDeactivate() {
-        equipChestplate(slotSwap);
+        PlayerUtils.silentSwapEquipChestplate();
 
         // Force a sync of the sneaking
         mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player,
@@ -197,7 +196,7 @@ public class ElytraFakeFly extends Module {
             fireworkTicksLeft = 0;
         }
 
-        slotSwap = equipElytra();
+        PlayerUtils.silentSwapEquipElytra();
 
         mc.player.networkHandler.sendPacket(new ClientCommandC2SPacket(mc.player,
                 ClientCommandC2SPacket.Mode.START_FALL_FLYING));
@@ -218,8 +217,7 @@ public class ElytraFakeFly extends Module {
         }
 
         if (mode.get() == Mode.Chestplate) {
-            equipChestplate(slotSwap);
-            slotSwap = null;
+            PlayerUtils.silentSwapEquipChestplate();
         }
     }
 
@@ -297,82 +295,7 @@ public class ElytraFakeFly extends Module {
         return isActive();
     }
 
-    public void equipChestplate(InventorySlotSwap slotSwap) {
-        if (mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem()
-                .equals(Items.DIAMOND_CHESTPLATE)
-                || mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem()
-                        .equals(Items.NETHERITE_CHESTPLATE)) {
-            return;
-        }
-
-        FindItemResult result = InvUtils.findInHotbar(Items.NETHERITE_CHESTPLATE);
-        if (!result.found()) {
-            result = InvUtils.findInHotbar(Items.DIAMOND_CHESTPLATE);
-        }
-
-        if (result.found()) {
-            mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, 6, result.slot(),
-                    SlotActionType.SWAP, mc.player);
-
-            if (slotSwap != null) {
-                // Move elytra to inventory slot
-                mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
-                        slotSwap.inventorySlot, result.slot(), SlotActionType.SWAP, mc.player);
-            }
-            return;
-        }
-
-        result = InvUtils.find(Items.NETHERITE_CHESTPLATE);
-        if (!result.found()) {
-            result = InvUtils.find(Items.DIAMOND_CHESTPLATE);
-        }
-
-        if (result.found()) {
-            InvUtils.move().from(result.slot()).toArmor(2);
-        }
-    }
-
-    public InventorySlotSwap equipElytra() {
-        if (mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem().equals(Items.ELYTRA)) {
-            return null;
-        }
-
-        FindItemResult result = InvUtils.findInHotbar(Items.ELYTRA);
-
-        if (result.found()) {
-            mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, 6, result.slot(),
-                    SlotActionType.SWAP, mc.player);
-            return null;
-        }
-
-        result = InvUtils.find(Items.ELYTRA);
-
-        if (!result.found()) {
-            return null;
-        }
-
-        FindItemResult hotbarSlot = InvUtils.findInHotbar(x -> {
-            if (x.getItem() == Items.TOTEM_OF_UNDYING) {
-                return false;
-            }
-            return true;
-        });
-
-        // Move elytra to hotbarSlot
-        mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, result.slot(),
-                hotbarSlot.found() ? hotbarSlot.slot() : 0, SlotActionType.SWAP, mc.player);
-
-        // Equip elytra
-        mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, 6,
-                hotbarSlot.found() ? hotbarSlot.slot() : 0, SlotActionType.SWAP, mc.player);
-
-        InventorySlotSwap slotSwap = new InventorySlotSwap();
-        slotSwap.hotbarSlot = hotbarSlot.found() ? hotbarSlot.slot() : 0;
-        slotSwap.inventorySlot = result.slot();
-
-        return slotSwap;
-    }
-
+    
     private void useFirework() {
         fireworkTicksLeft = (int) (fireworkDelay.get() * 20.0);
 
@@ -448,10 +371,7 @@ public class ElytraFakeFly extends Module {
         return accelTime.get();
     }
 
-    private class InventorySlotSwap {
-        public int hotbarSlot;
-        public int inventorySlot;
-    }
+    
 
     public enum Mode {
         Chestplate, Elytra
