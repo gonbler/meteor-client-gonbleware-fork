@@ -602,6 +602,7 @@ public class Modules extends System<Modules> {
         add(new VeinMiner());
 
         add(new SourceFiller());
+        add(new MapAura());
 
         if (BaritoneUtils.IS_AVAILABLE) {
             add(new Excavator());
