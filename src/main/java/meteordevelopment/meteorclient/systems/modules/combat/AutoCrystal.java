@@ -112,7 +112,7 @@ public class AutoCrystal extends Module {
 
     private final Setting<Double> maxPlace = sgPlace.add(
             new DoubleSetting.Builder().name("max-place").description("Max self damage to place.")
-                    .defaultValue(15).min(0).sliderRange(0, 20).build());
+                    .defaultValue(20).min(0).sliderRange(0, 20).build());
 
     private final Setting<Boolean> antiSurroundPlace = sgPlace.add(new BoolSetting.Builder()
             .name("anti-surround")
@@ -161,7 +161,7 @@ public class AutoCrystal extends Module {
 
     private final Setting<Double> maxBreak = sgBreak.add(
             new DoubleSetting.Builder().name("max-break").description("Max self damage to break.")
-                    .defaultValue(15).min(0).sliderRange(0, 20).build());
+                    .defaultValue(20).min(0).sliderRange(0, 20).build());
 
     // -- Switch -- //
     private final Setting<SwitchMode> switchMode =
@@ -202,7 +202,7 @@ public class AutoCrystal extends Module {
 
     // -- Render -- //
     private final Setting<RenderMode> renderMode =
-            sgSwitch.add(new EnumSetting.Builder<RenderMode>().name("render-mode")
+            sgRender.add(new EnumSetting.Builder<RenderMode>().name("render-mode")
                     .description("Mode for rendering.").defaultValue(RenderMode.DelayDraw).build());
 
     // Simple mode
@@ -299,7 +299,6 @@ public class AutoCrystal extends Module {
         deadPlayers.clear();
     }
 
-
     @EventHandler
     private void onTick(TickEvent.Post event) {
         synchronized (deadPlayers) {
@@ -366,7 +365,6 @@ public class AutoCrystal extends Module {
                         continue;
                     }
 
-
                     PlacePosition testPos = findBestPlacePosition(player);
 
                     if (testPos != null
@@ -387,8 +385,8 @@ public class AutoCrystal extends Module {
                             }
                         }
                     } else {
-                        if (((double) (currentTime - lastPlaceTimeMS)) / 1000.0 > 1.0
-                                / placeSpeedLimit.get()) {
+                        if (breakSpeedLimit.get() == 0 || ((double) (currentTime - lastPlaceTimeMS))
+                                / 1000.0 > 1.0 / placeSpeedLimit.get()) {
 
                             if (placeCrystal(bestPlacePos.blockPos.down(),
                                     bestPlacePos.placeDirection)) {
@@ -414,8 +412,9 @@ public class AutoCrystal extends Module {
 
                     long currentTime = System.currentTimeMillis();
 
-                    boolean speedCheck = ((double) (currentTime - lastBreakTimeMS)) / 1000.0 > 1.0
-                            / breakSpeedLimit.get();
+                    boolean speedCheck =
+                            breakSpeedLimit.get() == 0 || ((double) (currentTime - lastBreakTimeMS))
+                                    / 1000.0 > 1.0 / breakSpeedLimit.get();
 
                     if (!speedCheck) {
                         break;
@@ -717,8 +716,7 @@ public class AutoCrystal extends Module {
                     }
 
                     // Range check
-                    if (!inPlaceRange(downPos) || !inBreakRange(
-                            new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5))) {
+                    if (!inPlaceRange(downPos)) {
                         continue;
                     }
 
@@ -881,8 +879,9 @@ public class AutoCrystal extends Module {
 
                 long currentTime = System.currentTimeMillis();
 
-                boolean speedCheck = ((double) (currentTime - lastBreakTimeMS)) / 1000.0 > 1.0
-                        / breakSpeedLimit.get();
+                boolean speedCheck =
+                        breakSpeedLimit.get() == 0 || ((double) (currentTime - lastBreakTimeMS))
+                                / 1000.0 > 1.0 / breakSpeedLimit.get();
 
                 if (!speedCheck) {
                     return;
@@ -951,7 +950,8 @@ public class AutoCrystal extends Module {
             CrystalBreakRender render = breakDelay.getKey();
 
             if (render.parts == null && render.entity != null) {
-                render.parts = WireframeEntityRenderer.cloneEntityForRendering(event, render.entity, render.pos);
+                render.parts = WireframeEntityRenderer.cloneEntityForRendering(event, render.entity,
+                        render.pos);
                 render.entity = null;
             }
 
@@ -959,9 +959,11 @@ public class AutoCrystal extends Module {
 
             double timeCompletion = time / breakDelayFadeTime.get();
 
-            Color color = breakDelayColor.get().copy().a((int) (breakDelayColor.get().a * (1 - timeCompletion)));
+            Color color = breakDelayColor.get().copy()
+                    .a((int) (breakDelayColor.get().a * (1 - timeCompletion)));
 
-            WireframeEntityRenderer.render(event, render.pos, render.parts, 1.0, color, color, breakDelayShapeMode.get());
+            WireframeEntityRenderer.render(event, render.pos, render.parts, 1.0, color, color,
+                    breakDelayShapeMode.get());
         }
     }
 
@@ -1011,7 +1013,7 @@ public class AutoCrystal extends Module {
         event.renderer.box(x1, y1, z1, x2, y2, z2, sideColor.copy().a((int) (sideColor.a * alpha)),
                 sideColor.copy().a((int) (lineColor.a * alpha)), shapeMode, 0);
     }
-    
+
     private boolean intersectsWithEntities(Box box) {
         return intersectsWithEntity(box,
                 entity -> !entity.isSpectator() && !explodedCrystals.contains(entity.getId()));
@@ -1020,7 +1022,8 @@ public class AutoCrystal extends Module {
     public boolean intersectsWithEntity(Box box, Predicate<Entity> predicate) {
         EntityLookup<Entity> entityLookup = ((WorldAccessor) mc.world).getEntityLookup();
 
-        // Fast implementation using SimpleEntityLookup that returns on the first intersecting
+        // Fast implementation using SimpleEntityLookup that returns on the first
+        // intersecting
         // entity
         if (entityLookup instanceof SimpleEntityLookup<Entity> simpleEntityLookup) {
             SectionedEntityCache<Entity> cache =
@@ -1068,7 +1071,8 @@ public class AutoCrystal extends Module {
             return false;
         }
 
-        // Slow implementation that loops every entity if for some reason the EntityLookup
+        // Slow implementation that loops every entity if for some reason the
+        // EntityLookup
         // implementation is changed
         AtomicBoolean found = new AtomicBoolean(false);
 
