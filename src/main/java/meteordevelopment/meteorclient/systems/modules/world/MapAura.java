@@ -3,6 +3,7 @@ package meteordevelopment.meteorclient.systems.modules.world;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.Setting;
@@ -17,11 +18,14 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.decoration.ItemFrameEntity;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.item.Items;
+import net.minecraft.network.packet.c2s.play.HandSwingC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractBlockC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
+import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.TypeFilter;
 import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
@@ -155,6 +159,13 @@ public class MapAura extends Module {
         long currentTime = System.currentTimeMillis();
         ItemFrameEntity entity = entities.getFirst();
 
+        MeteorClient.ROTATION.requestRotation(
+                getClosestPointOnBox(entity.getBoundingBox(), mc.player.getEyePos()), 5);
+
+        if (!MeteorClient.ROTATION.lookingAt(entity.getBoundingBox())) {
+            return false;
+        }
+
         if (timeOfLastMapInteract.containsKey(entity.getId())) {
             if (((double) currentTime - (double) timeOfLastMapInteract.get(entity.getId()))
                     / 1000.0 < placeDelay.get()) {
@@ -162,8 +173,21 @@ public class MapAura extends Module {
             }
         }
 
-        mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.interact(entity, false, Hand.MAIN_HAND));
-        mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.interact(entity, false, Hand.MAIN_HAND));
+
+        EntityHitResult entityHitResult = new EntityHitResult(entity, getClosestPointOnBox(entity.getBoundingBox(), mc.player.getEyePos()));
+        
+        ActionResult actionResult = mc.interactionManager.interactEntityAtLocation(mc.player,
+                entity, entityHitResult, Hand.MAIN_HAND);
+
+        if (!actionResult.isAccepted()) {
+            actionResult = mc.interactionManager.interactEntity(mc.player, entity, Hand.MAIN_HAND);
+        }
+        
+        if (actionResult.isAccepted() && actionResult.shouldSwingHand()) {
+            mc.getNetworkHandler().sendPacket(new HandSwingC2SPacket(Hand.MAIN_HAND));
+        }
+
+        info("Placed map");
 
         timeOfLastMapInteract.put(entity.getId(), currentTime);
 
@@ -172,7 +196,8 @@ public class MapAura extends Module {
 
     private boolean checkEntity(Entity entity) {
         if (entity instanceof ItemFrameEntity itemFrame) {
-            if (!getClosestPointOnBox(entity.getBoundingBox(), mc.player.getEyePos()).isWithinRangeOf(mc.player.getEyePos(), placeRange.get(), placeRange.get())) {
+            if (!getClosestPointOnBox(entity.getBoundingBox(), mc.player.getEyePos())
+                    .isWithinRangeOf(mc.player.getEyePos(), placeRange.get(), placeRange.get())) {
                 return false;
             }
 
