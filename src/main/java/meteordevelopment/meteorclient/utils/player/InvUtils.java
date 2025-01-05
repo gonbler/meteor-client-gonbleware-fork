@@ -145,11 +145,30 @@ public class InvUtils {
         return new FindItemResult(slot, count);
     }
 
-    public static FindItemResult findFastestTool(BlockState state) {
+    public static FindItemResult findFastestToolHotbar(BlockState state) {
         float bestScore = 1;
         int slot = -1;
 
         for (int i = 0; i < 9; i++) {
+            ItemStack stack = mc.player.getInventory().getStack(i);
+            if (!stack.isSuitableFor(state))
+                continue;
+
+            float score = stack.getMiningSpeedMultiplier(state);
+            if (score > bestScore) {
+                bestScore = score;
+                slot = i;
+            }
+        }
+
+        return new FindItemResult(slot, 1);
+    }
+
+    public static FindItemResult findFastestTool(BlockState state) {
+        float bestScore = 1;
+        int slot = -1;
+
+        for (int i = 0; i < mc.player.getInventory().size(); i++) {
             ItemStack stack = mc.player.getInventory().getStack(i);
             if (!stack.isSuitableFor(state))
                 continue;

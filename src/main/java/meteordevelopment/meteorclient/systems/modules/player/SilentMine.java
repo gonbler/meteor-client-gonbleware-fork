@@ -44,8 +44,8 @@ public class SilentMine extends Module {
             .add(new DoubleSetting.Builder().name("range").description("Range to activate use at")
                     .defaultValue(5.14).min(0.0).sliderMax(7.0).build());
 
-    private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder()
-            .name("auto-switch").description("Automatically switches to the best tool.")
+    private final Setting<Boolean> silentSwap = sgGeneral.add(new BoolSetting.Builder()
+            .name("silent-swap").description("Whether or not to use silent swap from inventory.")
             .defaultValue(true).build());
 
     public final Setting<Boolean> antiRubberband = sgGeneral.add(new BoolSetting.Builder()
@@ -60,9 +60,10 @@ public class SilentMine extends Module {
                     "Pre-switches to your pickaxe when the singlebreak block is almost done, for more responsive breaking.")
             .defaultValue(true).build());
 
-    private final Setting<Integer> singleBreakFailTicks = sgGeneral
-            .add(new IntSetting.Builder().name("").description("Number of ticks to wait before retrying a singlebreak in case of fail.")
-                    .defaultValue(20).min(5).sliderMax(50).build());
+    private final Setting<Integer> singleBreakFailTicks = sgGeneral.add(new IntSetting.Builder()
+            .name("")
+            .description("Number of ticks to wait before retrying a singlebreak in case of fail.")
+            .defaultValue(20).min(5).sliderMax(50).build());
 
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("do-render")
             .description("Renders the blocks in queue to be broken.").defaultValue(true).build());
@@ -133,16 +134,20 @@ public class SilentMine extends Module {
         }
 
         // Update our doublemine block
-        if (hasDelayedDestroy() && delayedDestroyBlock.ticksHeldPickaxe <= singleBreakFailTicks.get()) {
+        if (hasDelayedDestroy()
+                && delayedDestroyBlock.ticksHeldPickaxe <= singleBreakFailTicks.get()) {
             BlockState blockState = mc.world.getBlockState(delayedDestroyBlock.blockPos);
 
             if (!blockState.isAir()) {
                 FindItemResult slot = InvUtils.findFastestTool(blockState);
 
                 if (delayedDestroyBlock.isReady(false) && !mc.player.isUsingItem()) {
-                    if (autoSwitch.get() && slot.found()
-                            && mc.player.getInventory().selectedSlot != slot.slot()) {
-                        InvUtils.swap(slot.slot(), true);
+                    if (slot.found() && mc.player.getInventory().selectedSlot != slot.slot()) {
+                        if (silentSwap.get()) {
+                            InvUtils.quickSwap(slot.slot(), mc.player.getInventory().selectedSlot);
+                        } else {
+                            InvUtils.swap(slot.slot(), true);
+                        }
 
                         needSwapBack = true;
                     }
@@ -168,10 +173,15 @@ public class SilentMine extends Module {
 
                 if (rebreakBlock.isReady(true) && !mc.player.isUsingItem()) {
                     if (inBreakRange(rebreakBlock.blockPos)) {
-                        if (autoSwitch.get() && slot.found()
-                                && mc.player.getInventory().selectedSlot != slot.slot()
+                        if (slot.found() && mc.player.getInventory().selectedSlot != slot.slot()
                                 && !needSwapBack) {
-                            InvUtils.swap(slot.slot(), true);
+                                    
+                            if (silentSwap.get()) {
+                                InvUtils.quickSwap(slot.slot(),
+                                        mc.player.getInventory().selectedSlot);
+                            } else {
+                                InvUtils.swap(slot.slot(), true);
+                            }
 
                             needSwapBack = true;
                         }
@@ -188,7 +198,8 @@ public class SilentMine extends Module {
             }
         }
 
-        if (hasDelayedDestroy() && delayedDestroyBlock.ticksHeldPickaxe > singleBreakFailTicks.get()) {
+        if (hasDelayedDestroy()
+                && delayedDestroyBlock.ticksHeldPickaxe > singleBreakFailTicks.get()) {
             if (inBreakRange(delayedDestroyBlock.blockPos)) {
                 delayedDestroyBlock.startBreaking(true);
             } else {
@@ -206,14 +217,13 @@ public class SilentMine extends Module {
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
         if (event.packet instanceof BlockUpdateS2CPacket packet) {
-            if (canRebreakRebreakBlock() && packet.getPos().equals(rebreakBlock.blockPos)) {
+            if (canRebreakRebreakBlock() && packet.getPos().equals(rebreakBlock.blockPos) && !mc.player.isUsingItem()) {
                 BlockState blockState = packet.getState();
 
                 if (!blockState.isAir()) {
-                    FindItemResult slot = InvUtils.findFastestTool(blockState);
+                    FindItemResult slot = InvUtils.findFastestToolHotbar(blockState);
 
-                    if (autoSwitch.get() && slot.found()
-                            && mc.player.getInventory().selectedSlot != slot.slot()
+                    if (slot.found() && mc.player.getInventory().selectedSlot != slot.slot()
                             && !needSwapBack) {
                         InvUtils.swap(slot.slot(), true);
                     }
@@ -223,7 +233,7 @@ public class SilentMine extends Module {
 
                     rebreakBlock.tryBreak();
 
-                    if (autoSwitch.get() && slot.found()) {
+                    if (slot.found()) {
                         InvUtils.swapBack();
                     }
                 }
@@ -531,7 +541,7 @@ public class SilentMine extends Module {
         public double getBreakProgress(double gameTick) {
             BlockState state = mc.world.getBlockState(blockPos);
 
-            FindItemResult slot = InvUtils.findFastestTool(mc.world.getBlockState(blockPos));
+            FindItemResult slot = InvUtils.findFastestToolHotbar(mc.world.getBlockState(blockPos));
 
             double breakingSpeed = BlockUtils.getBlockBreakingSpeed(
                     slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot, state);
