@@ -118,7 +118,7 @@ public class BetterTab extends Module {
     }
 
     public boolean shouldShowPlayer(PlayerListEntry playerListEntry) {
-        if (onlyFriendsAndEnemeies.get()) {
+        if (isActive() && onlyFriendsAndEnemeies.get()) {
             if (Friends.get().isFriend(playerListEntry) || Friends.get().isEnemy(playerListEntry)) {
                 return true;
             }
