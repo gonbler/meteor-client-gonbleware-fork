@@ -14,10 +14,13 @@ import meteordevelopment.meteorclient.gui.GuiThemes;
 import meteordevelopment.meteorclient.gui.WidgetScreen;
 import meteordevelopment.meteorclient.gui.tabs.TabScreen;
 import meteordevelopment.meteorclient.gui.tabs.Tabs;
+import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.Utils;
+import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import net.minecraft.command.CommandSource;
+import net.minecraft.util.Formatting;
 
 public class SettingCommand extends Command {
     public SettingCommand() {
@@ -72,7 +75,14 @@ public class SettingCommand extends Command {
                                     String value = SettingValueArgumentType.get(context);
 
                                     if (setting.parse(value)) {
-                                        ModuleArgumentType.get(context).info("Setting (highlight)%s(default) changed to (highlight)%s(default).", setting.title, value);
+                                        if (setting instanceof BoolSetting _setting) {
+                                            Setting<Boolean> boolSetting = (Setting<Boolean>)_setting;
+
+                                            ChatUtils.forceNextPrefixClass(getClass());
+                                            ChatUtils.sendMsg(this.hashCode(), Formatting.GRAY, "Toggled (highlight)%s %s(default) %s(default).", ModuleArgumentType.get(context).title, setting.title, boolSetting.get() ? Formatting.GREEN + "on" : Formatting.RED + "off");
+                                        } else {
+                                            ModuleArgumentType.get(context).info("Setting (highlight)%s(default) changed to (highlight)%s(default).", setting.title, value);
+                                        }
                                     }
 
                                     return SINGLE_SUCCESS;
