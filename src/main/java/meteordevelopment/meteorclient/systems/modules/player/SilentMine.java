@@ -41,7 +41,7 @@ public class SilentMine extends Module {
 
     private final Setting<Double> range = sgGeneral
             .add(new DoubleSetting.Builder().name("range").description("Range to activate use at")
-                    .defaultValue(5.4).min(0.0).sliderMax(7.0).build());
+                    .defaultValue(5.14).min(0.0).sliderMax(7.0).build());
 
     private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder()
             .name("auto-switch").description("Automatically switches to the best tool.")

@@ -63,7 +63,8 @@ public class SwordAura extends Module {
             .defaultValue(true).visible(() -> silentSwap.get()).build());
 
     private final Setting<Boolean> rotate = sgGeneral.add(new BoolSetting.Builder().name("rotate")
-            .description("Whether or not to rotate to the entity to attack it.").build());
+            .description("Whether or not to rotate to the entity to attack it.").defaultValue(true)
+            .build());
 
     private final Setting<Set<EntityType<?>>> entities = sgGeneral.add(
             new EntityTypeListSetting.Builder().name("entities").description("Entities to attack.")
@@ -190,7 +191,7 @@ public class SwordAura extends Module {
 
         if (!target.isAlive())
             return;
-        
+
         int delayCheckSlot = result.slot();
 
         if (silentSwap.get() && silentSwapOverrideDelay.get()) {
