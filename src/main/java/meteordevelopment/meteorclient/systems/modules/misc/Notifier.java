@@ -89,6 +89,10 @@ public class Notifier extends Module {
                     .description("Which entities to notify about.").defaultValue(EntityType.PLAYER)
                     .build());
 
+    private final Setting<Boolean> visualRangeIgnoreNakeds =
+            sgVisualRange.add(new BoolSetting.Builder().name("ignore-nakeds")
+                    .description("Ignore players with no items.").defaultValue(true).build());
+
     private final Setting<Boolean> visualRangeIgnoreFriends =
             sgVisualRange.add(new BoolSetting.Builder().name("ignore-friends")
                     .description("Ignores friends.").defaultValue(true).build());
@@ -100,10 +104,6 @@ public class Notifier extends Module {
     private final Setting<Boolean> visualMakeSound = sgVisualRange.add(new BoolSetting.Builder()
             .name("sound").description("Emits a sound effect on enter / leave").defaultValue(true)
             .build());
-
-    private final Setting<Boolean> visualRangeIgnoreNakeds =
-            sgVisualRange.add(new BoolSetting.Builder().name("ignore-nakeds")
-                    .description("Ignore players with no items.").defaultValue(true).build());
 
     // Pearl
 
