@@ -51,15 +51,18 @@ public class Surround extends Module {
                     "Attempts to break crystals around surround positions to prevent surround break.")
             .defaultValue(true).build());
 
-    private final Setting<AutoSelfTrapMode> autoSelfTrapMode =
-            sgGeneral.add(new EnumSetting.Builder<AutoSelfTrapMode>().name("auto-self-trap-mode")
-                    .description("When to build double high").defaultValue(AutoSelfTrapMode.Smart)
-                    .build());
+    private final Setting<Boolean> selfTrapEnabled = sgGeneral.add(new BoolSetting.Builder()
+            .name("self-trap").description("Enables self trap").defaultValue(true).build());
+
+    private final Setting<SelfTrapMode> autoSelfTrapMode =
+            sgGeneral.add(new EnumSetting.Builder<SelfTrapMode>().name("self-trap-mode")
+                    .description("When to build double high").defaultValue(SelfTrapMode.Smart)
+                    .visible(() -> selfTrapEnabled.get()).build());
 
     private final Setting<Boolean> selfTrapHead = sgGeneral.add(new BoolSetting.Builder()
             .name("self-trap-head")
             .description("Places a block above your head to prevent you from velo failing upwards")
-            .defaultValue(true).build());
+            .visible(() -> selfTrapEnabled.get()).defaultValue(true).build());
 
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("render")
             .description("Renders a block overlay when you try to place obsidian.")
@@ -78,9 +81,9 @@ public class Surround extends Module {
                     .description("The side color.").defaultValue(new SettingColor(85, 0, 255, 40))
                     .visible(() -> render.get() && shapeMode.get() != ShapeMode.Lines).build());
 
-    private final Setting<SettingColor> lineColor =
-            sgRender.add(new ColorSetting.Builder().name("line-color")
-                    .description("The line color.").defaultValue(new SettingColor(255, 255, 255, 60))
+    private final Setting<SettingColor> lineColor = sgRender
+            .add(new ColorSetting.Builder().name("line-color").description("The line color.")
+                    .defaultValue(new SettingColor(255, 255, 255, 60))
                     .visible(() -> render.get() && shapeMode.get() != ShapeMode.Sides).build());
 
     private List<BlockPos> placePoses = new ArrayList<>();
@@ -123,8 +126,10 @@ public class Surround extends Module {
 
             double timeCompletion = time / fadeTime.get();
 
-            Color fadedSideColor = sideColor.get().copy().a((int) (sideColor.get().a * (1 - timeCompletion)));
-            Color fadedLineColor = lineColor.get().copy().a((int) (lineColor.get().a * (1 - timeCompletion)));
+            Color fadedSideColor =
+                    sideColor.get().copy().a((int) (sideColor.get().a * (1 - timeCompletion)));
+            Color fadedLineColor =
+                    lineColor.get().copy().a((int) (lineColor.get().a * (1 - timeCompletion)));
 
             event.renderer.box(entry.getKey(), fadedSideColor, fadedLineColor, shapeMode.get(), 0);
         }
@@ -172,19 +177,19 @@ public class Surround extends Module {
                             placePoses.add(adjacentPos);
                         }
 
-                        if (autoSelfTrapMode.get() == AutoSelfTrapMode.None) {
+                        if (autoSelfTrapMode.get() == SelfTrapMode.None || !selfTrapEnabled.get()) {
                             continue;
                         }
 
                         BlockPos facePlacePos = adjacentPos.add(0, 1, 0);
                         boolean shouldBuildDoubleHigh =
-                                autoSelfTrapMode.get() == AutoSelfTrapMode.Always;
+                                autoSelfTrapMode.get() == SelfTrapMode.Always;
 
                         Box box = new Box(facePlacePos.getX() - 1, facePlacePos.getY() - 1,
                                 facePlacePos.getZ() - 1, facePlacePos.getX() + 1,
                                 facePlacePos.getY() + 1, facePlacePos.getZ() + 1);
 
-                        if (autoSelfTrapMode.get() == AutoSelfTrapMode.Smart) {
+                        if (autoSelfTrapMode.get() == SelfTrapMode.Smart) {
                             Predicate<Entity> entityPredicate =
                                     entity -> entity instanceof EndCrystalEntity;
 
@@ -227,7 +232,7 @@ public class Surround extends Module {
             }
         }
 
-        if (selfTrapHead.get()) {
+        if (selfTrapEnabled.get() && selfTrapHead.get()) {
             placePoses.add(mc.player.getBlockPos().offset(Direction.UP, 2));
         }
 
@@ -282,7 +287,7 @@ public class Surround extends Module {
         MeteorClient.BLOCK.endPlacement();
     }
 
-    public enum AutoSelfTrapMode {
+    public enum SelfTrapMode {
         None, Smart, Always
     }
 }
