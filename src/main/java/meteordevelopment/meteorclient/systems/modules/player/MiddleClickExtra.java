@@ -98,10 +98,10 @@ public class MiddleClickExtra extends Module {
             wasHeld = result.isMainHand();
 
             if (!wasHeld) {
-                if (!quickSwap.get())
-                    InvUtils.swap(result.slot(), swapBack.get());
+                if (quickSwap.get())
+                    InvUtils.quickSwap(itemSlot, selectedSlot);
                 else
-                    InvUtils.quickSwap().fromId(selectedSlot).to(itemSlot);
+                    InvUtils.swap(result.slot(), swapBack.get());
             }
 
             if (mode.get().immediate) {
@@ -146,10 +146,10 @@ public class MiddleClickExtra extends Module {
         wasHeld = result.isMainHand();
 
         if (!wasHeld) {
-            if (!quickSwap.get())
-                InvUtils.swap(result.slot(), swapBack.get());
+            if (quickSwap.get())
+                InvUtils.quickSwap(itemSlot, selectedSlot);
             else
-                InvUtils.quickSwap().fromId(selectedSlot).to(itemSlot);
+                InvUtils.swap(result.slot(), swapBack.get());
         }
 
         if (mode.get().immediate) {
@@ -159,7 +159,7 @@ public class MiddleClickExtra extends Module {
             mc.options.useKey.setPressed(true);
             isUsing = true;
         }
-        
+
         event.cancel();
     }
 
@@ -206,7 +206,7 @@ public class MiddleClickExtra extends Module {
             return;
 
         if (quickSwap.get()) {
-            InvUtils.quickSwap().fromId(selectedSlot).to(itemSlot);
+            InvUtils.quickSwap(selectedSlot, itemSlot);
         } else {
             if (!swapBack.get() || wasCancelled)
                 return;

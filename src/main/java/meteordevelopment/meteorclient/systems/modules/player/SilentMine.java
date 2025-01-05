@@ -16,6 +16,7 @@ import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.ColorSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
+import meteordevelopment.meteorclient.settings.IntSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Categories;
@@ -58,6 +59,10 @@ public class SilentMine extends Module {
             .description(
                     "Pre-switches to your pickaxe when the singlebreak block is almost done, for more responsive breaking.")
             .defaultValue(true).build());
+
+    private final Setting<Integer> singleBreakFailTicks = sgGeneral
+            .add(new IntSetting.Builder().name("").description("Number of ticks to wait before retrying a singlebreak in case of fail.")
+                    .defaultValue(20).min(5).sliderMax(50).build());
 
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("do-render")
             .description("Renders the blocks in queue to be broken.").defaultValue(true).build());
@@ -108,7 +113,8 @@ public class SilentMine extends Module {
     private void onTick(TickEvent.Pre event) {
         currentGameTickCalculated = RenderUtils.getCurrentGameTickCalculated();
 
-        if (hasDelayedDestroy() && (mc.world.getBlockState(delayedDestroyBlock.blockPos).isAir() || !BlockUtils.canBreak(delayedDestroyBlock.blockPos))) {
+        if (hasDelayedDestroy() && (mc.world.getBlockState(delayedDestroyBlock.blockPos).isAir()
+                || !BlockUtils.canBreak(delayedDestroyBlock.blockPos))) {
             MeteorClient.EVENT_BUS
                     .post(new SilentMineFinishedEvent.Post(delayedDestroyBlock.blockPos, false));
 
@@ -127,7 +133,7 @@ public class SilentMine extends Module {
         }
 
         // Update our doublemine block
-        if (hasDelayedDestroy() && delayedDestroyBlock.ticksHeldPickaxe <= 15) {
+        if (hasDelayedDestroy() && delayedDestroyBlock.ticksHeldPickaxe <= singleBreakFailTicks.get()) {
             BlockState blockState = mc.world.getBlockState(delayedDestroyBlock.blockPos);
 
             if (!blockState.isAir()) {
@@ -182,7 +188,7 @@ public class SilentMine extends Module {
             }
         }
 
-        if (hasDelayedDestroy() && delayedDestroyBlock.ticksHeldPickaxe > 15) {
+        if (hasDelayedDestroy() && delayedDestroyBlock.ticksHeldPickaxe > singleBreakFailTicks.get()) {
             if (inBreakRange(delayedDestroyBlock.blockPos)) {
                 delayedDestroyBlock.startBreaking(true);
             } else {
