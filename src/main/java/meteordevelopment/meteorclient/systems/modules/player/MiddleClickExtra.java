@@ -99,7 +99,7 @@ public class MiddleClickExtra extends Module {
 
             if (!wasHeld) {
                 if (quickSwap.get())
-                    InvUtils.quickSwap(itemSlot, selectedSlot);
+                    InvUtils.quickSwap().fromId(selectedSlot).to(itemSlot);
                 else
                     InvUtils.swap(result.slot(), swapBack.get());
             }
@@ -147,7 +147,7 @@ public class MiddleClickExtra extends Module {
 
         if (!wasHeld) {
             if (quickSwap.get())
-                InvUtils.quickSwap(itemSlot, selectedSlot);
+                InvUtils.quickSwap().fromId(selectedSlot).to(itemSlot);
             else
                 InvUtils.swap(result.slot(), swapBack.get());
         }
@@ -206,7 +206,7 @@ public class MiddleClickExtra extends Module {
             return;
 
         if (quickSwap.get()) {
-            InvUtils.quickSwap(selectedSlot, itemSlot);
+            InvUtils.quickSwap().fromId(selectedSlot).to(itemSlot);
         } else {
             if (!swapBack.get() || wasCancelled)
                 return;

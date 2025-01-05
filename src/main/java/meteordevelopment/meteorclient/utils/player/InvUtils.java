@@ -9,7 +9,6 @@ import meteordevelopment.meteorclient.mixininterface.IClientPlayerInteractionMan
 import net.minecraft.block.BlockState;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.SlotActionType;
 
@@ -231,36 +230,6 @@ public class InvUtils {
         return ACTION;
     }
 
-    public static void quickSwap(int from, int to) {
-        boolean fromInHotbar = from <= SlotUtils.HOTBAR_END && from >= SlotUtils.HOTBAR_START;
-        boolean toInHotbar = from <= SlotUtils.HOTBAR_END && from >= SlotUtils.HOTBAR_START;
-
-        if (fromInHotbar) {
-            mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, to, from,
-                    SlotActionType.SWAP, mc.player);
-        } else if (toInHotbar) {
-            mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, from, to,
-                    SlotActionType.SWAP, mc.player);
-        } else {
-            FindItemResult hotbarSlot = InvUtils.findInHotbar(x -> {
-                if (x.getItem() == Items.TOTEM_OF_UNDYING) {
-                    return false;
-                }
-                
-                return true;
-            });
-
-            mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, from,
-                    hotbarSlot.found() ? hotbarSlot.slot() : 0, SlotActionType.SWAP, mc.player);
-
-            mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, to,
-                    hotbarSlot.found() ? hotbarSlot.slot() : 0, SlotActionType.SWAP, mc.player);
-
-            mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, from,
-                    hotbarSlot.found() ? hotbarSlot.slot() : 0, SlotActionType.SWAP, mc.player);
-        }
-    }
-
     public static Action shiftClick() {
         ACTION.type = SlotActionType.QUICK_MOVE;
         return ACTION;
@@ -376,10 +345,7 @@ public class InvUtils {
             boolean hadEmptyCursor = mc.player.currentScreenHandler.getCursorStack().isEmpty();
 
             if (type == SlotActionType.SWAP) {
-                data = from;
-                from = to;
-
-                mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, from, data,
+                mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, to, from,
                         type, mc.player);
                 return;
             }

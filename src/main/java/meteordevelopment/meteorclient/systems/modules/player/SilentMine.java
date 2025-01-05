@@ -44,10 +44,6 @@ public class SilentMine extends Module {
             .add(new DoubleSetting.Builder().name("range").description("Range to activate use at")
                     .defaultValue(5.14).min(0.0).sliderMax(7.0).build());
 
-    private final Setting<Boolean> silentSwap = sgGeneral.add(new BoolSetting.Builder()
-            .name("silent-swap").description("Whether or not to use silent swap from inventory.")
-            .defaultValue(true).build());
-
     public final Setting<Boolean> antiRubberband = sgGeneral.add(new BoolSetting.Builder()
             .name("strict-anti-rubberband")
             .description(
@@ -143,11 +139,7 @@ public class SilentMine extends Module {
 
                 if (delayedDestroyBlock.isReady(false) && !mc.player.isUsingItem()) {
                     if (slot.found() && mc.player.getInventory().selectedSlot != slot.slot()) {
-                        if (silentSwap.get()) {
-                            InvUtils.quickSwap(slot.slot(), mc.player.getInventory().selectedSlot);
-                        } else {
-                            InvUtils.swap(slot.slot(), true);
-                        }
+                        InvUtils.swap(slot.slot(), true);
 
                         needSwapBack = true;
                     }
@@ -175,13 +167,7 @@ public class SilentMine extends Module {
                     if (inBreakRange(rebreakBlock.blockPos)) {
                         if (slot.found() && mc.player.getInventory().selectedSlot != slot.slot()
                                 && !needSwapBack) {
-                                    
-                            if (silentSwap.get()) {
-                                InvUtils.quickSwap(slot.slot(),
-                                        mc.player.getInventory().selectedSlot);
-                            } else {
-                                InvUtils.swap(slot.slot(), true);
-                            }
+                            InvUtils.swap(slot.slot(), true);
 
                             needSwapBack = true;
                         }
@@ -217,7 +203,8 @@ public class SilentMine extends Module {
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
         if (event.packet instanceof BlockUpdateS2CPacket packet) {
-            if (canRebreakRebreakBlock() && packet.getPos().equals(rebreakBlock.blockPos) && !mc.player.isUsingItem()) {
+            if (canRebreakRebreakBlock() && packet.getPos().equals(rebreakBlock.blockPos)
+                    && !mc.player.isUsingItem()) {
                 BlockState blockState = packet.getState();
 
                 if (!blockState.isAir()) {
