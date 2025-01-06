@@ -120,7 +120,11 @@ public class ESPChunk {
         return schunk;
     }
 
+    // Why the fuck is World::isChunkLoaded deprecated?
+    @SuppressWarnings("deprecation")
     private static boolean isChestNearSpawner(BlockPos spawnerPos) {
+        // Search 3x3 radius
+        // NOTE: Maybe increase to be the actual bounding box of the spawner?
         for (int dx = -3; dx <= 3; dx++) {
             for (int dy = -3; dy <= 3; dy++) {
                 for (int dz = -3; dz <= 3; dz++) {
