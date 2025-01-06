@@ -11,6 +11,8 @@ import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.block.entity.LootableContainerBlockEntity;
 import net.minecraft.block.entity.MobSpawnerBlockEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkSectionPos;
@@ -104,7 +106,7 @@ public class ESPChunk {
 
                     if (blocks.contains(bs.getBlock())) {
                         if (activatedSpawners && bs.isOf(Blocks.SPAWNER) && chunk.getBlockEntity(blockPos) instanceof MobSpawnerBlockEntity spawner) {
-                            if (spawner.getLogic().spawnDelay != 20) {
+                            if (spawner.getLogic().spawnDelay != 20 && isChestNearSpawner(blockPos)) {
                                 schunk.add(blockPos, false);
                             }
                         } else {
@@ -116,5 +118,26 @@ public class ESPChunk {
         }
 
         return schunk;
+    }
+
+    private static boolean isChestNearSpawner(BlockPos spawnerPos) {
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dy = -3; dy <= 3; dy++) {
+                for (int dz = -3; dz <= 3; dz++) {
+                    BlockPos checkPos = spawnerPos.add(dx, dy, dz);
+
+                    if (!mc.world.isChunkLoaded(checkPos)) {
+                        continue;
+                    }
+
+                    BlockEntity blockEntity = mc.world.getBlockEntity(checkPos);
+                    if (blockEntity != null && blockEntity instanceof LootableContainerBlockEntity) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 }
