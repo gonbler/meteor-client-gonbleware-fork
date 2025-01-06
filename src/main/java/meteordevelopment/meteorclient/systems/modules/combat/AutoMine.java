@@ -10,10 +10,12 @@ import java.util.Queue;
 import meteordevelopment.meteorclient.events.meteor.SilentMineFinishedEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
+import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
@@ -37,12 +39,16 @@ public class AutoMine extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
     private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder().name("range")
-            .description("Max range to target").defaultValue(6.0).min(0).sliderMax(7.0).build());
+            .description("Max range to target").defaultValue(6.5).min(0).sliderMax(7.0).build());
 
     private final Setting<SortPriority> targetPriority =
             sgGeneral.add(new EnumSetting.Builder<SortPriority>().name("target-priority")
                     .description("How to choose the target").defaultValue(SortPriority.ClosestAngle)
                     .build());
+
+    private final Setting<Boolean> ignoreNakeds =
+            sgGeneral.add(new BoolSetting.Builder().name("ignore-nakeds")
+                    .description("Ignore players with no items.").defaultValue(true).build());
 
     private final Setting<AntiSwimMode> antiSwim =
             sgGeneral.add(new EnumSetting.Builder<AntiSwimMode>().name("anti-swim-mode")
@@ -193,7 +199,37 @@ public class AutoMine extends Module {
             }
         }
 
-        targetPlayer = TargetUtils.getPlayerTarget(range.get(), targetPriority.get());
+        targetPlayer = (PlayerEntity) TargetUtils.get(entity -> {
+            if (entity.equals(mc.player) || entity.equals(mc.cameraEntity))
+                return false;
+
+            if (!(entity instanceof PlayerEntity player)) {
+                return false;
+            }
+
+            if (!player.isAlive() || player.isDead())
+                return false;
+
+            if (player.isCreative())
+                return false;
+
+            if (!Friends.get().shouldAttack(player))
+                return false;
+
+            if (entity.getPos().distanceTo(mc.player.getEyePos()) > range.get()) {
+                return false;
+            }
+
+            if (ignoreNakeds.get()) {
+                if (player.getInventory().armor.get(0).isEmpty()
+                        && player.getInventory().armor.get(1).isEmpty()
+                        && player.getInventory().armor.get(2).isEmpty()
+                        && player.getInventory().armor.get(3).isEmpty())
+                    return false;
+            }
+
+            return true;
+        }, targetPriority.get());
 
         if (targetPlayer == null) {
             return;
