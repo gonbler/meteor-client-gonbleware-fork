@@ -36,7 +36,7 @@ import net.minecraft.util.collection.ArrayListDeque;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.*;
-
+import java.util.concurrent.ConcurrentLinkedQueue;
 import static meteordevelopment.meteorclient.utils.player.ChatUtils.formatCoords;
 
 public class Notifier extends Module {
@@ -147,6 +147,7 @@ public class Notifier extends Module {
     private final Object2IntMap<UUID> chatIdMap = new Object2IntOpenHashMap<>();
     private final Map<Integer, Vec3d> pearlStartPosMap = new HashMap<>();
     private final ArrayListDeque<Text> messageQueue = new ArrayListDeque<>();
+    private final Queue<PlayerEntity> visualRangeEnterQueue = new ConcurrentLinkedQueue<>();
 
     private final Random random = new Random();
 
@@ -167,22 +168,8 @@ public class Notifier extends Module {
                         && (!visualRangeIgnoreFakes.get()
                                 || !(event.entity instanceof FakePlayerEntity))) {
 
-                    if (visualRangeIgnoreNakeds.get()) {
-                        if (player.getInventory().armor.get(0).isEmpty()
-                                && player.getInventory().armor.get(1).isEmpty()
-                                && player.getInventory().armor.get(2).isEmpty()
-                                && player.getInventory().armor.get(3).isEmpty())
-                            return;
-                    }
+                    visualRangeEnterQueue.add(player);
 
-                    ChatUtils.sendMsg(event.entity.getId() + 100, Formatting.GRAY,
-                            "(highlight)%s(default) has entered your visual range!",
-                            event.entity.getName().getString());
-
-                    if (visualMakeSound.get())
-                        mc.world.playSoundFromEntity(mc.player, mc.player,
-                                SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, SoundCategory.AMBIENT,
-                                3.0F, 1.0F);
                 }
             } else {
                 MutableText text = Text.literal(event.entity.getType().getName().getString())
@@ -334,6 +321,33 @@ public class Notifier extends Module {
                     mc.player.sendMessage(messageQueue.removeFirst());
                 } else {
                     ChatUtils.sendMsg(messageQueue.removeFirst());
+                }
+            }
+        }
+
+        while (!visualRangeEnterQueue.isEmpty()) {
+            PlayerEntity player = visualRangeEnterQueue.peek();
+
+            if (player.age > 0) {
+                visualRangeEnterQueue.remove();
+
+                if (visualRangeIgnoreNakeds.get()) {
+                    if (player.getInventory().armor.get(0).isEmpty()
+                            && player.getInventory().armor.get(1).isEmpty()
+                            && player.getInventory().armor.get(2).isEmpty()
+                            && player.getInventory().armor.get(3).isEmpty())
+                        return;
+                }
+
+
+                ChatUtils.sendMsg(player.getId() + 100, Formatting.GRAY,
+                        "(highlight)%s(default) has entered your visual range!",
+                        player.getName().getString());
+
+                if (visualMakeSound.get()) {
+                    mc.world.playSoundFromEntity(mc.player, mc.player,
+                            SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, SoundCategory.AMBIENT, 3.0F,
+                            1.0F);
                 }
             }
         }
