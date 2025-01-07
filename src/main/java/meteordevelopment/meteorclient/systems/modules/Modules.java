@@ -42,6 +42,7 @@ import meteordevelopment.meteorclient.utils.misc.input.Input;
 import meteordevelopment.meteorclient.utils.misc.input.KeyAction;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
+import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
@@ -342,7 +343,7 @@ public class Modules extends System<Modules> {
     private void onRender3D(Render3DEvent event) {
         for (Module module : moduleInstances.values()) {
             if (module.toggleOnBindRelease) {
-                if (module.keybind.isPressed()) {
+                if (module.keybind.isPressed() && !(mc.currentScreen instanceof ChatScreen)) {
                     if (!module.isActive()) {
                         module.toggle();
                     }
