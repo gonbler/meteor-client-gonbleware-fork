@@ -251,6 +251,11 @@ public class AutoCrystal extends Module {
             .min(0.0).sliderMax(2.0).visible(() -> renderMode.get() == RenderMode.DelayDraw)
             .build());
 
+    private final Setting<Double> breakDelayFadeExponent = sgRender.add(new DoubleSetting.Builder()
+            .name("break-delay-fade-exponent").description("Adds an exponent to the fade")
+            .defaultValue(1.6).min(0.2).sliderMax(4.0)
+            .visible(() -> renderMode.get() == RenderMode.DelayDraw).build());
+
     public final List<Entity> forceBreakCrystals = new ArrayList<>();
 
     private final Pool<PlacePosition> placePositionPool = new Pool<>(PlacePosition::new);
@@ -960,7 +965,7 @@ public class AutoCrystal extends Module {
             double timeCompletion = time / breakDelayFadeTime.get();
 
             Color color = breakDelayColor.get().copy()
-                    .a((int) (breakDelayColor.get().a * (1 - timeCompletion)));
+                    .a((int) (breakDelayColor.get().a * Math.pow(1 - timeCompletion, breakDelayFadeExponent.get())));
 
             WireframeEntityRenderer.render(event, render.pos, render.parts, 1.0, color, color,
                     breakDelayShapeMode.get());

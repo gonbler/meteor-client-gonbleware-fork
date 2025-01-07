@@ -10,7 +10,6 @@ import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.renderer.Renderer2D;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.*;
-import meteordevelopment.meteorclient.systems.config.Config;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
@@ -117,72 +116,122 @@ public class ESP extends Module {
 
     // Colors
 
-    public final Setting<Boolean> distance = sgColors.add(new BoolSetting.Builder()
-        .name("distance-colors")
-        .description("Changes the color of tracers depending on distance.")
-        .defaultValue(false)
-        .build()
-    );
-
-    public final Setting<Boolean> friendOverride = sgColors.add(new BoolSetting.Builder()
-        .name("show-friend-colors")
-        .description("Whether or not to override the distance color of friends with the friend color.")
-        .defaultValue(true)
-        .visible(distance::get)
-        .build()
-    );
-
-    private final Setting<SettingColor> playersColor = sgColors.add(new ColorSetting.Builder()
-        .name("players-color")
-        .description("The other player's color.")
+    private final Setting<SettingColor> playersLineColor = sgColors.add(new ColorSetting.Builder()
+        .name("players-line-color")
+        .description("The line color for players.")
         .defaultValue(new SettingColor(255, 255, 255))
-        .visible(() -> !distance.get())
         .build()
     );
 
-    private final Setting<SettingColor> animalsColor = sgColors.add(new ColorSetting.Builder()
-        .name("animals-color")
-        .description("The animal's color.")
+    private final Setting<SettingColor> playersSideColor = sgColors.add(new ColorSetting.Builder()
+        .name("players-side-color")
+        .description("The side color for players.")
+        .defaultValue(new SettingColor(255, 255, 255))
+        .build()
+    );
+
+    private final Setting<SettingColor> friendPlayersLineColor = sgColors.add(new ColorSetting.Builder()
+        .name("friend-players-line-color")
+        .description("The line color for players you have added.")
+        .defaultValue(new SettingColor(255, 255, 255))
+        .build()
+    );
+
+    private final Setting<SettingColor> friendPlayersSideColor = sgColors.add(new ColorSetting.Builder()
+        .name("friend-players-side-color")
+        .description("The side color for playersyou have added.")
+        .defaultValue(new SettingColor(255, 255, 255))
+        .build()
+    );
+
+    private final Setting<SettingColor> enemyPlayersLineColor = sgColors.add(new ColorSetting.Builder()
+        .name("enemy-players-line-color")
+        .description("The line color for players you have enemied.")
+        .defaultValue(new SettingColor(255, 255, 255))
+        .build()
+    );
+
+    private final Setting<SettingColor> enemyPlayersSideColor = sgColors.add(new ColorSetting.Builder()
+        .name("enemy-players-side-color")
+        .description("The side color for players you have enemied.")
+        .defaultValue(new SettingColor(255, 255, 255))
+        .build()
+    );
+
+    private final Setting<SettingColor> animalsLineColor = sgColors.add(new ColorSetting.Builder()
+        .name("animals-line-color")
+        .description("The line color for animals.")
         .defaultValue(new SettingColor(25, 255, 25, 255))
-        .visible(() -> !distance.get())
         .build()
     );
 
-    private final Setting<SettingColor> waterAnimalsColor = sgColors.add(new ColorSetting.Builder()
-        .name("water-animals-color")
-        .description("The water animal's color.")
+    private final Setting<SettingColor> animalsSideColor = sgColors.add(new ColorSetting.Builder()
+        .name("animals-side-color")
+        .description("The side color for animals.")
+        .defaultValue(new SettingColor(25, 255, 25, 255))
+        .build()
+    );
+
+    private final Setting<SettingColor> waterAnimalsLineColor = sgColors.add(new ColorSetting.Builder()
+        .name("water-animals-line-color")
+        .description("The line color for water animals.")
         .defaultValue(new SettingColor(25, 25, 255, 255))
-        .visible(() -> !distance.get())
         .build()
     );
 
-    private final Setting<SettingColor> monstersColor = sgColors.add(new ColorSetting.Builder()
-        .name("monsters-color")
-        .description("The monster's color.")
+    private final Setting<SettingColor> waterAnimalsSideColor = sgColors.add(new ColorSetting.Builder()
+        .name("water-animals-side-color")
+        .description("The side color for water animals.")
+        .defaultValue(new SettingColor(25, 25, 255, 255))
+        .build()
+    );
+
+    private final Setting<SettingColor> monstersLineColor = sgColors.add(new ColorSetting.Builder()
+        .name("monsters-line-color")
+        .description("The line color for monsters.")
         .defaultValue(new SettingColor(255, 25, 25, 255))
-        .visible(() -> !distance.get())
         .build()
     );
 
-    private final Setting<SettingColor> ambientColor = sgColors.add(new ColorSetting.Builder()
-        .name("ambient-color")
-        .description("The ambient's color.")
+    private final Setting<SettingColor> monstersSideColor = sgColors.add(new ColorSetting.Builder()
+        .name("monsters-side-color")
+        .description("The side color for monsters.")
+        .defaultValue(new SettingColor(255, 25, 25, 255))
+        .build()
+    );
+
+    private final Setting<SettingColor> ambientLineColor = sgColors.add(new ColorSetting.Builder()
+        .name("ambient-line-color")
+        .description("The line color for ambient entities.")
         .defaultValue(new SettingColor(25, 25, 25, 255))
-        .visible(() -> !distance.get())
         .build()
     );
 
-    private final Setting<SettingColor> miscColor = sgColors.add(new ColorSetting.Builder()
-        .name("misc-color")
-        .description("The misc color.")
+    private final Setting<SettingColor> ambientSideColor = sgColors.add(new ColorSetting.Builder()
+        .name("ambient-side-color")
+        .description("The side color for ambient entities.")
+        .defaultValue(new SettingColor(25, 25, 25, 255))
+        .build()
+    );
+
+    private final Setting<SettingColor> miscLineColor = sgColors.add(new ColorSetting.Builder()
+        .name("misc-line-color")
+        .description("The line color for miscellaneous entities.")
         .defaultValue(new SettingColor(175, 175, 175, 255))
-        .visible(() -> !distance.get())
+        .build()
+    );
+
+    private final Setting<SettingColor> miscSideColor = sgColors.add(new ColorSetting.Builder()
+        .name("misc-side-color")
+        .description("The side color for miscellaneous entities.")
+        .defaultValue(new SettingColor(175, 175, 175, 255))
         .build()
     );
 
     private final Color lineColor = new Color();
     private final Color sideColor = new Color();
-    private final Color baseColor = new Color();
+    private final Color baseSideColor = new Color();
+    private final Color baseLineColor = new Color();
 
     private final Vector3d pos1 = new Vector3d();
     private final Vector3d pos2 = new Vector3d();
@@ -211,8 +260,9 @@ public class ESP extends Module {
     }
 
     private void drawBoundingBox(Render3DEvent event, Entity entity) {
-        Color color = getColor(entity);
-        if (color != null) {
+        Color entitySideColor = getSideColor(entity);
+        Color entityLineColor = getLineColor(entity);
+        if (entitySideColor != null && entityLineColor != null) {
             double alpha = 1.0;
 
             if (entity instanceof EndCrystalEntity) {
@@ -238,8 +288,8 @@ public class ESP extends Module {
                 }
             }
 
-            lineColor.set(color);
-            sideColor.set(color).a((int) (sideColor.a * fillOpacity.get() * alpha * alpha));
+            sideColor.set(entitySideColor).a((int) (sideColor.a * fillOpacity.get() * alpha * alpha));
+            lineColor.set(entityLineColor).a((int) (lineColor.a * alpha * alpha));
         }
 
         if (mode.get() == Mode.Box) {
@@ -289,10 +339,11 @@ public class ESP extends Module {
             if (checkCorner(box.maxX + x, box.maxY + y, box.maxZ + z, pos1, pos2)) continue;
 
             // Setup color
-            Color color = getColor(entity);
-            if (color != null) {
-                lineColor.set(color);
-                sideColor.set(color).a((int) (sideColor.a * fillOpacity.get()));
+            Color entitySideColor = getSideColor(entity);
+            Color entityLineColor = getLineColor(entity);
+            if (entitySideColor != null && entityLineColor != null) {
+                sideColor.set(entitySideColor).a((int) (sideColor.a * fillOpacity.get()));
+                lineColor.set(entityLineColor);
             }
 
             // Render
@@ -339,14 +390,68 @@ public class ESP extends Module {
         return !EntityUtils.isInRenderDistance(entity);
     }
 
-    public Color getColor(Entity entity) {
+    public Color getLineColor(Entity entity) {
         if (!entities.get().contains(entity.getType())) return null;
 
         double alpha = getFadeAlpha(entity);
         if (alpha == 0) return null;
 
-        Color color = getEntityTypeColor(entity);
-        return baseColor.set(color.r, color.g, color.b, (int) (color.a * alpha));
+        Color color = getEntityTypeLineColor(entity);
+        return baseLineColor.set(color.r, color.g, color.b, (int) (color.a * alpha));
+    }
+
+    public Color getSideColor(Entity entity) {
+        if (!entities.get().contains(entity.getType())) return null;
+
+        double alpha = getFadeAlpha(entity);
+        if (alpha == 0) return null;
+
+        Color color = getEntityTypeSideColor(entity);
+        return baseSideColor.set(color.r, color.g, color.b, (int) (color.a * alpha));
+    }
+
+    public Color getEntityTypeLineColor(Entity entity) {
+        if (entity instanceof PlayerEntity player) {
+            if (Friends.get().isFriend(player)) {
+                return friendPlayersLineColor.get();
+            }
+
+            if (Friends.get().isEnemy(player)) {
+                return enemyPlayersLineColor.get();
+            }
+            
+            return playersLineColor.get();
+        } else {
+            return switch (entity.getType().getSpawnGroup()) {
+                case CREATURE -> animalsLineColor.get();
+                case WATER_AMBIENT, WATER_CREATURE, UNDERGROUND_WATER_CREATURE, AXOLOTLS -> waterAnimalsLineColor.get();
+                case MONSTER -> monstersLineColor.get();
+                case AMBIENT -> ambientLineColor.get();
+                default -> miscLineColor.get();
+            };
+        }
+    }
+
+    public Color getEntityTypeSideColor(Entity entity) {
+        if (entity instanceof PlayerEntity player) {
+            if (Friends.get().isFriend(player)) {
+                return friendPlayersSideColor.get();
+            }
+
+            if (Friends.get().isEnemy(player)) {
+                return enemyPlayersSideColor.get();
+            }
+            
+            return playersSideColor.get();
+        } else {
+            return switch (entity.getType().getSpawnGroup()) {
+                case CREATURE -> animalsSideColor.get();
+                case WATER_AMBIENT, WATER_CREATURE, UNDERGROUND_WATER_CREATURE, AXOLOTLS -> waterAnimalsSideColor.get();
+                case MONSTER -> monstersSideColor.get();
+                case AMBIENT -> ambientSideColor.get();
+                default -> miscSideColor.get();
+            };
+        }
     }
 
     private double getFadeAlpha(Entity entity) {
@@ -356,30 +461,6 @@ public class ESP extends Module {
         if (dist <= fadeDist * fadeDist) alpha = (float) (Math.sqrt(dist) / fadeDist);
         if (alpha <= 0.075) alpha = 0;
         return alpha;
-    }
-
-    public Color getEntityTypeColor(Entity entity) {
-        if (distance.get()) {
-            if (friendOverride.get()) {
-                if (Friends.get().isFriend((PlayerEntity) entity)) {
-                    return Config.get().friendColor.get();
-                } if (Friends.get().isEnemy((PlayerEntity) entity)) {
-                    return Config.get().enemyColor.get();
-                }
-            }
-             
-            return EntityUtils.getColorFromDistance(entity);
-        } else if (entity instanceof PlayerEntity) {
-            return PlayerUtils.getPlayerColor(((PlayerEntity) entity), playersColor.get());
-        } else {
-            return switch (entity.getType().getSpawnGroup()) {
-                case CREATURE -> animalsColor.get();
-                case WATER_AMBIENT, WATER_CREATURE, UNDERGROUND_WATER_CREATURE, AXOLOTLS -> waterAnimalsColor.get();
-                case MONSTER -> monstersColor.get();
-                case AMBIENT -> ambientColor.get();
-                default -> miscColor.get();
-            };
-        }
     }
 
     @Override

@@ -82,7 +82,7 @@ public abstract class WorldRendererMixin {
     @Inject(method = "renderEntity", at = @At("HEAD"))
     private void renderEntity(Entity entity, double cameraX, double cameraY, double cameraZ, float tickDelta, MatrixStack matrices, VertexConsumerProvider vertexConsumers, CallbackInfo info) {
         draw(entity, cameraX, cameraY, cameraZ, tickDelta, vertexConsumers, matrices, PostProcessShaders.CHAMS, Color.WHITE);
-        draw(entity, cameraX, cameraY, cameraZ, tickDelta, vertexConsumers, matrices, PostProcessShaders.ENTITY_OUTLINE, Modules.get().get(ESP.class).getColor(entity));
+        draw(entity, cameraX, cameraY, cameraZ, tickDelta, vertexConsumers, matrices, PostProcessShaders.ENTITY_OUTLINE, Modules.get().get(ESP.class).getSideColor(entity));
     }
 
     @Unique
@@ -109,14 +109,14 @@ public abstract class WorldRendererMixin {
     private boolean shouldMobGlow(boolean original, @Local Entity entity) {
         if (!getESP().isGlow() || getESP().shouldSkip(entity)) return original;
 
-        return getESP().getColor(entity) != null || original;
+        return getESP().getSideColor(entity) != null || original;
     }
 
     @WrapOperation(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/OutlineVertexConsumerProvider;setColor(IIII)V"))
     private void setGlowColor(OutlineVertexConsumerProvider instance, int red, int green, int blue, int alpha, Operation<Void> original, @Local LocalRef<Entity> entity) {
         if (!getESP().isGlow() || getESP().shouldSkip(entity.get())) original.call(instance, red, green, blue, alpha);
         else {
-            Color color = getESP().getColor(entity.get());
+            Color color = getESP().getSideColor(entity.get());
 
             if (color == null) original.call(instance, red, green, blue, alpha);
             else instance.setColor(color.r, color.g, color.b, color.a);
