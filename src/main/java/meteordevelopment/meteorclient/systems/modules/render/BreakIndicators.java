@@ -5,11 +5,14 @@
 
 package meteordevelopment.meteorclient.systems.modules.render;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Collectors;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
@@ -41,6 +44,16 @@ import net.minecraft.util.shape.VoxelShape;
 public class BreakIndicators extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgRender = settings.createGroup("Render");
+
+    private final Setting<Boolean> useDoubleminePrediction =
+            sgGeneral.add(new BoolSetting.Builder().name("use-doublemine-predicition")
+                    .description("Does some fancy stuff to make indicators more accurate.")
+                    .defaultValue(false).build());
+
+    private final Setting<Double> rebreakCompletionAmount =
+            sgGeneral.add(new DoubleSetting.Builder().name("rebreak-completion-amount").description(
+                    "Determines how fast rendering increases of a suspected rebreak block. Smaller is faster.")
+                    .defaultValue(0.7).min(0).sliderMax(1.5).build());
 
     private final Setting<Double> completionAmount =
             sgGeneral.add(new DoubleSetting.Builder().name("full-completion-amount")
@@ -104,6 +117,22 @@ public class BreakIndicators extends Module {
         while (!_breakPackets.isEmpty()) {
             BlockBreak breakEvent = _breakPackets.remove();
 
+            if (useDoubleminePrediction.get()) {
+                if (breakEvent.entity != null && breakEvent.entity instanceof PlayerEntity) {
+                    List<BlockBreak> playerBreakingBlocks = breakStartTimes.values().stream()
+                            .filter(x -> x.entity == breakEvent.entity
+                                    && !x.blockPos.equals(breakEvent.blockPos))
+                            .sorted((block1, block2) -> Double.compare(block1.startTick,
+                                    block2.startTick))
+                            .toList();
+
+                    // Remove old rebreak block
+                    if (playerBreakingBlocks.size() >= 2) {
+                        breakStartTimes.remove(playerBreakingBlocks.getLast().blockPos);
+                    }
+                }
+            }
+
             if (!breakStartTimes.containsKey(breakEvent.blockPos)) {
                 breakStartTimes.put(breakEvent.blockPos, breakEvent);
             }
@@ -122,8 +151,14 @@ public class BreakIndicators extends Module {
                     || !BlockUtils.canBreak(entry.getKey())) {
 
                 iterator.remove();
+
+                continue;
             }
+
+
         }
+
+
 
         for (Map.Entry<BlockPos, BlockBreak> entry : breakStartTimes.entrySet()) {
             if (ignoreFriends.get() && entry.getValue().entity != null
@@ -134,6 +169,26 @@ public class BreakIndicators extends Module {
 
             entry.getValue().renderBlock(event, currentGameTickCalculated);
         }
+
+        if (useDoubleminePrediction.get()) {
+
+            Map<PlayerEntity, List<BlockBreak>> playerBreakingBlocks = breakStartTimes.values()
+                    // Sort by time
+                    .stream().sorted(Comparator.comparingDouble(blockBreak -> blockBreak.startTick))
+                    .filter(blockBreak -> blockBreak.entity instanceof PlayerEntity)
+                    // Collect entities
+                    .collect(Collectors.groupingBy(blockBreak -> (PlayerEntity) blockBreak.entity,
+                            Collectors.toList()));
+
+
+            for (Map.Entry<PlayerEntity, List<BlockBreak>> entry : playerBreakingBlocks.entrySet()) {
+                entry.getValue().forEach(x -> x.isRebreak = false);
+
+                if (entry.getValue().size() >= 2) {
+                    entry.getValue().getLast().isRebreak = true;
+                }
+            }
+        }
     }
 
     private class BlockBreak {
@@ -142,6 +197,8 @@ public class BreakIndicators extends Module {
         public double startTick;
 
         public Entity entity;
+
+        public boolean isRebreak = false;
 
         public BlockBreak(BlockPos blockPos, double startTick, Entity entity) {
             this.blockPos = blockPos;
@@ -158,8 +215,10 @@ public class BreakIndicators extends Module {
 
             Box orig = shape.getBoundingBox();
 
-            double shrinkFactor = Math.clamp(
-                    1d - (getBreakProgress(currentTick) * (1 / completionAmount.get())), 0, 1.0);
+            double completion = isRebreak ? rebreakCompletionAmount.get() : completionAmount.get();
+
+            double shrinkFactor =
+                    Math.clamp(1d - (getBreakProgress(currentTick) * (1 / completion)), 0, 1.0);
             BlockPos pos = blockPos;
 
             Box box = orig.shrink(orig.getLengthX() * shrinkFactor,
