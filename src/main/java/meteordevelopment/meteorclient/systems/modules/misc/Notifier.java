@@ -349,6 +349,8 @@ public class Notifier extends Module {
                             SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, SoundCategory.AMBIENT, 3.0F,
                             1.0F);
                 }
+            } else {
+                break;
             }
         }
     }
