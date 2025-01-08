@@ -100,48 +100,11 @@ public class Surround extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-
-    }
-
-    // Render
-
-    @EventHandler
-    private void onRender3D(Render3DEvent event) {
-        update();
-
-        if (render.get()) {
-            draw(event);
-        }
-    }
-
-    private void draw(Render3DEvent event) {
-        long currentTime = System.currentTimeMillis();
-
-        for (Map.Entry<BlockPos, Long> entry : renderLastPlacedBlock.entrySet()) {
-            if (currentTime - entry.getValue() > fadeTime.get() * 1000) {
-                continue;
-            }
-
-            double time = (currentTime - entry.getValue()) / 1000.0;
-
-            double timeCompletion = time / fadeTime.get();
-
-            Color fadedSideColor =
-                    sideColor.get().copy().a((int) (sideColor.get().a * (1 - timeCompletion)));
-            Color fadedLineColor =
-                    lineColor.get().copy().a((int) (lineColor.get().a * (1 - timeCompletion)));
-
-            event.renderer.box(entry.getKey(), fadedSideColor, fadedLineColor, shapeMode.get(), 0);
-        }
-    }
-
-    private void update() {
         placePoses.clear();
 
         long currentTime = System.currentTimeMillis();
 
-        Box boundingBox = mc.player.getBoundingBox().shrink(0.05, 0.1, 0.05); // Tighter bounding
-                                                                              // box
+        Box boundingBox = mc.player.getBoundingBox().shrink(0.01, 0.1, 0.01); // Tighter bounding box to avoid weird bugs
         int feetY = mc.player.getBlockPos().getY();
 
         SilentMine silentMine = Modules.get().get(SilentMine.class);
@@ -227,8 +190,6 @@ public class Surround extends Module {
                 if (belowFeetState.isAir() || belowFeetState.isReplaceable()) {
                     placePoses.add(belowFeetPos);
                 }
-
-
             }
         }
 
@@ -285,6 +246,35 @@ public class Surround extends Module {
         });
 
         MeteorClient.BLOCK.endPlacement();
+    }
+
+    // Render
+    @EventHandler
+    private void onRender3D(Render3DEvent event) {
+        if (render.get()) {
+            draw(event);
+        }
+    }
+
+    private void draw(Render3DEvent event) {
+        long currentTime = System.currentTimeMillis();
+
+        for (Map.Entry<BlockPos, Long> entry : renderLastPlacedBlock.entrySet()) {
+            if (currentTime - entry.getValue() > fadeTime.get() * 1000) {
+                continue;
+            }
+
+            double time = (currentTime - entry.getValue()) / 1000.0;
+
+            double timeCompletion = time / fadeTime.get();
+
+            Color fadedSideColor =
+                    sideColor.get().copy().a((int) (sideColor.get().a * (1 - timeCompletion)));
+            Color fadedLineColor =
+                    lineColor.get().copy().a((int) (lineColor.get().a * (1 - timeCompletion)));
+
+            event.renderer.box(entry.getKey(), fadedSideColor, fadedLineColor, shapeMode.get(), 0);
+        }
     }
 
     public enum SelfTrapMode {

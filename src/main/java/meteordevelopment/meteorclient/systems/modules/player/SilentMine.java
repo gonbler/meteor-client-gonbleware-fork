@@ -29,8 +29,8 @@ import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
-import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
@@ -176,6 +176,10 @@ public class SilentMine extends Module {
                                 .post(new SilentMineFinishedEvent.Pre(rebreakBlock.blockPos, true));
 
                         rebreakBlock.tryBreak();
+
+                        if (canRebreakRebreakBlock()) {
+                            mc.world.setBlockState(rebreakBlock.blockPos, Blocks.AIR.getDefaultState());
+                        }
                     } else {
                         rebreakBlock.cancelBreaking();
                         rebreakBlock = null;
@@ -197,34 +201,6 @@ public class SilentMine extends Module {
         if (canSwapBack()) {
             InvUtils.swapBack();
             needSwapBack = false;
-        }
-    }
-
-    @EventHandler
-    private void onPacketReceive(PacketEvent.Receive event) {
-        if (event.packet instanceof BlockUpdateS2CPacket packet) {
-            if (canRebreakRebreakBlock() && packet.getPos().equals(rebreakBlock.blockPos)
-                    && !mc.player.isUsingItem()) {
-                BlockState blockState = packet.getState();
-
-                if (!blockState.isAir()) {
-                    FindItemResult slot = InvUtils.findFastestToolHotbar(blockState);
-
-                    if (slot.found() && mc.player.getInventory().selectedSlot != slot.slot()
-                            && !needSwapBack) {
-                        InvUtils.swap(slot.slot(), true);
-                    }
-
-                    MeteorClient.EVENT_BUS
-                            .post(new SilentMineFinishedEvent.Pre(rebreakBlock.blockPos, true));
-
-                    rebreakBlock.tryBreak();
-
-                    if (slot.found()) {
-                        InvUtils.swapBack();
-                    }
-                }
-            }
         }
     }
 
@@ -506,9 +482,6 @@ public class SilentMine extends Module {
                             getSeq()));
 
             if (!antiRubberband.get()) {
-                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
-
                 mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
                         PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK, blockPos, direction));
             }

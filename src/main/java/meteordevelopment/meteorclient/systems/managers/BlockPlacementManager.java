@@ -1,14 +1,17 @@
 package meteordevelopment.meteorclient.systems.managers;
 
 import meteordevelopment.meteorclient.MeteorClient;
+import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.systems.config.AntiCheatConfig;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
+import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.item.Item;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractBlockC2SPacket;
+import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
@@ -214,6 +217,15 @@ public class BlockPlacementManager {
 
             return true;
         });
+    }
+
+    @EventHandler
+    private void onPacketReceive(PacketEvent.Receive event) {
+        if (event.packet instanceof BlockUpdateS2CPacket packet) {
+            if (placeCooldowns.containsKey(packet.getPos()) && !packet.getState().isAir()) {
+                placeCooldowns.remove(packet.getPos());
+            }
+        }
     }
 
     public static Direction getPlaceOnDirection(BlockPos pos) {

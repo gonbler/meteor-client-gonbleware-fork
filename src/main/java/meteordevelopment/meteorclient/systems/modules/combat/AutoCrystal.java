@@ -120,6 +120,11 @@ public class AutoCrystal extends Module {
                     "Ignores auto-mine blocks from calculations to place outside of their surround.")
             .defaultValue(true).build());
 
+    private final Setting<Double> placeDelay = sgPlace.add(new DoubleSetting.Builder()
+            .name("place-delay")
+            .description("The number of seconds to wait to retry placing a crystal at a position.")
+            .defaultValue(0.05).min(0).sliderMax(0.6).build());
+
     // -- Face Place -- //
     private final Setting<Boolean> facePlaceMissingArmor =
             sgFacePlace.add(new BoolSetting.Builder().name("face-place-missing-armor")
@@ -162,6 +167,11 @@ public class AutoCrystal extends Module {
     private final Setting<Double> maxBreak = sgBreak.add(
             new DoubleSetting.Builder().name("max-break").description("Max self damage to break.")
                     .defaultValue(20).min(0).sliderRange(0, 20).build());
+
+    private final Setting<Double> breakDelay =
+            sgBreak.add(new DoubleSetting.Builder().name("break-delay")
+                    .description("The number of seconds to wait to retry breaking a crystal.")
+                    .defaultValue(0.05).min(0).sliderMax(0.6).build());
 
     // -- Switch -- //
     private final Setting<SwitchMode> switchMode =
@@ -463,14 +473,16 @@ public class AutoCrystal extends Module {
             }
         }
 
+        long currentTime = System.currentTimeMillis();
+
         if (crystalPlaceDelays.containsKey(pos)) {
-            if (System.currentTimeMillis() - crystalPlaceDelays.get(pos) < 50) {
+            if ((currentTime - crystalPlaceDelays.get(pos)) / 1000.0 < placeDelay.get()) {
                 return false;
             }
         }
 
-        crystalPlaceDelays.put(pos, System.currentTimeMillis());
-        crystalRenderPlaceDelays.put(pos, System.currentTimeMillis());
+        crystalPlaceDelays.put(pos, currentTime);
+        crystalRenderPlaceDelays.put(pos, currentTime);
 
         switch (switchMode.get()) {
             case Silent -> InvUtils.swap(result.slot(), true);
@@ -529,22 +541,21 @@ public class AutoCrystal extends Module {
             }
         }
 
+        long currentTime = System.currentTimeMillis();
+
         if (crystalBreakDelays.containsKey(entity.getId())) {
-            if (System.currentTimeMillis() - crystalBreakDelays.get(entity.getId()) < 50) {
+            if ((currentTime - crystalBreakDelays.get(entity.getId())) / 1000.0 < breakDelay
+                    .get()) {
                 return false;
             }
         }
 
-        crystalBreakDelays.put(entity.getId(), System.currentTimeMillis());
+        crystalBreakDelays.put(entity.getId(), currentTime);
 
         CrystalBreakRender breakRender = new CrystalBreakRender();
         breakRender.pos = new Vec3d(0, 0, 0);
         breakRender.entity = entity;
-        crystalRenderBreakDelays.put(breakRender, System.currentTimeMillis());
-
-        if (crystalPlaceDelays.containsKey(entity.getBlockPos().down())) {
-            crystalPlaceDelays.remove(entity.getBlockPos().down());
-        }
+        crystalRenderBreakDelays.put(breakRender, currentTime);
 
         PlayerInteractEntityC2SPacket packet =
                 PlayerInteractEntityC2SPacket.attack(entity, mc.player.isSneaking());
@@ -859,43 +870,39 @@ public class AutoCrystal extends Module {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     private void onEntity(EntityAddedEvent event) {
-        if (packetBreak.get()) {
-            Entity entity = event.entity;
-            if (!(entity instanceof EndCrystalEntity)) {
+        Entity entity = event.entity;
+        if (!(entity instanceof EndCrystalEntity)) {
+            return;
+        }
+
+        BlockPos blockPos = entity.getBlockPos().down();
+        if (crystalPlaceDelays.containsKey(blockPos)) {
+            crystalPlaceDelays.remove(blockPos);
+        }
+
+        if (breakCrystals.get() && packetBreak.get()) {
+            if (!(entity instanceof EndCrystalEntity))
+                return;
+
+            if (!inBreakRange(entity.getPos())) {
                 return;
             }
 
-            if (breakCrystals.get()) {
-                if (!(entity instanceof EndCrystalEntity))
-                    return;
-
-                BlockPos down = entity.getBlockPos().down();
-                if (crystalPlaceDelays.containsKey(down)) {
-                    crystalPlaceDelays.remove(down);
-                }
-
-                if (!inBreakRange(entity.getPos())) {
-                    return;
-                }
-
-                if (!shouldBreakCrystal(entity)) {
-                    return;
-                }
-
-                long currentTime = System.currentTimeMillis();
-
-                boolean speedCheck =
-                        breakSpeedLimit.get() == 0 || ((double) (currentTime - lastBreakTimeMS))
-                                / 1000.0 > 1.0 / breakSpeedLimit.get();
-
-                if (!speedCheck) {
-                    return;
-                }
-
-                if (breakCrystal(entity)) {
-
-                }
+            if (!shouldBreakCrystal(entity)) {
+                return;
             }
+
+            long currentTime = System.currentTimeMillis();
+
+            boolean speedCheck =
+                    breakSpeedLimit.get() == 0 || ((double) (currentTime - lastBreakTimeMS))
+                            / 1000.0 > 1.0 / breakSpeedLimit.get();
+
+            if (!speedCheck) {
+                return;
+            }
+
+            breakCrystal(entity);
         }
     }
 
@@ -905,8 +912,6 @@ public class AutoCrystal extends Module {
             return;
 
         update(event);
-
-        // Basic renderer
 
         switch (renderMode.get()) {
             case Simple -> drawSimple(event);
@@ -964,8 +969,8 @@ public class AutoCrystal extends Module {
 
             double timeCompletion = time / breakDelayFadeTime.get();
 
-            Color color = breakDelayColor.get().copy()
-                    .a((int) (breakDelayColor.get().a * Math.pow(1 - timeCompletion, breakDelayFadeExponent.get())));
+            Color color = breakDelayColor.get().copy().a((int) (breakDelayColor.get().a
+                    * Math.pow(1 - timeCompletion, breakDelayFadeExponent.get())));
 
             WireframeEntityRenderer.render(event, render.pos, render.parts, 1.0, color, color,
                     breakDelayShapeMode.get());
