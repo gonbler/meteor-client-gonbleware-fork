@@ -140,17 +140,6 @@ public class AutoTrap extends Module {
         }
 
         placePoses.forEach(blockPos -> {
-            boolean isCrystalBlock = false;
-            for (Direction dir : Direction.Type.HORIZONTAL) {
-                if (blockPos.equals(target.getBlockPos().offset(dir))) {
-                    isCrystalBlock = true;
-                }
-            }
-
-            if (isCrystalBlock) {
-                return;
-            }
-
             MeteorClient.BLOCK.placeBlock(blockPos);
         });
 
@@ -176,7 +165,7 @@ public class AutoTrap extends Module {
     }
 
     private List<BlockPos> getBlockPoses() {
-        List<BlockPos> list = new ArrayList<>();
+        List<BlockPos> placePoses = new ArrayList<>();
 
         Box boundingBox = target.getBoundingBox().shrink(0.05, 0.1, 0.05);
         double feetY = target.getY();
@@ -184,25 +173,79 @@ public class AutoTrap extends Module {
         Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
                 feetY + 0.1, boundingBox.maxZ);
 
-        for (BlockPos pos : BlockPos.iterate((int) Math.floor(feetBox.minX),
-                (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
-                (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
-                (int) Math.floor(feetBox.maxZ))) {
+        if (target.isCrawling()) {
+            for (BlockPos pos : BlockPos.iterate((int) Math.floor(feetBox.minX),
+                    (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
+                    (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
+                    (int) Math.floor(feetBox.maxZ))) {
+                
+                // Iterate over all the blocks adjacent to their feet
+                for (int offsetX = -1; offsetX <= 1; offsetX++) {
+                    for (int offsetZ = -1; offsetZ <= 1; offsetZ++) {
+                        if (Math.abs(offsetX) + Math.abs(offsetZ) != 1) {
+                            continue;
+                        }
 
-            for (int y = -1; y < 3; y++) {
-                if (y < 2) {
-                    for (Direction dir : Direction.Type.HORIZONTAL) {
-                        BlockPos actualPos = pos.add(0, y, 0).offset(dir);
+                        BlockPos adjacentPos = pos.add(offsetX, 0, offsetZ);
+                        // If it's solid there, just ignore it
+                        if (!mc.world.getBlockState(adjacentPos).isAir()) {
+                            continue;
+                        }
 
-                        list.add(actualPos);
+                        // Basically surround their surround
+                        for (Direction dir : Direction.Type.HORIZONTAL) {
+                            BlockPos actualPos = adjacentPos.offset(dir);
+
+                            boolean isGoodCrystalPos = false;
+                            // Don't place if it's adjacent to the player
+                            for (Direction dir2 : Direction.Type.HORIZONTAL) {
+                                BlockPos playerAdjacent = target.getBlockPos().offset(dir2);
+
+                                if (playerAdjacent.equals(actualPos)) {
+                                    isGoodCrystalPos = true;
+                                    break;
+                                }
+                            }
+
+                            if (isGoodCrystalPos || actualPos.equals(pos) || placePoses.contains(actualPos)) {
+                                continue;
+                            }
+
+                            placePoses.add(actualPos);
+                        }
                     }
                 }
 
-                list.add(pos.add(0, y, 0));
+                // Add all the blocks below and above the target
+                placePoses.add(pos.up());
+                placePoses.add(pos.down());
+            }
+
+        } else {
+            for (BlockPos pos : BlockPos.iterate((int) Math.floor(feetBox.minX),
+                    (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
+                    (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
+                    (int) Math.floor(feetBox.maxZ))) {
+
+                for (int y = -1; y < 3; y++) {
+                    if (pos.getY() + y == target.getBlockY()) {
+                        continue;
+                    }
+
+                    if (y < 2) {
+                        for (Direction dir : Direction.Type.HORIZONTAL) {
+                            BlockPos actualPos = pos.add(0, y, 0).offset(dir);
+
+                            placePoses.add(actualPos);
+                        }
+                    }
+
+                    placePoses.add(pos.add(0, y, 0));
+                }
             }
         }
 
-        return list;
+        return placePoses;
     }
 
     @EventHandler

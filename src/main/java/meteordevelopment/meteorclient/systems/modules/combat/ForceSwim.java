@@ -154,7 +154,7 @@ public class ForceSwim extends Module {
     private List<BlockPos> getBlockPoses() {
         List<BlockPos> list = new ArrayList<>();
 
-        Box boundingBox = target.getBoundingBox().expand(0.5, 0.0, 0.5);
+        Box boundingBox = target.getBoundingBox().expand(0.7, 0.0, 0.7);
         double feetY = target.getY();
 
         Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
