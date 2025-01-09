@@ -61,6 +61,10 @@ public class SilentMine extends Module {
             .description("Number of ticks to wait before retrying a singlebreak in case of fail.")
             .defaultValue(20).min(5).sliderMax(50).build());
 
+    public final Setting<Boolean> rebreakSetBlockBroken = sgGeneral.add(new BoolSetting.Builder()
+            .name("set-rebreak-block-broken")
+            .description("Breaks the rebreak client side instantly.").defaultValue(true).build());
+
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("do-render")
             .description("Renders the blocks in queue to be broken.").defaultValue(true).build());
 
@@ -177,8 +181,9 @@ public class SilentMine extends Module {
 
                         rebreakBlock.tryBreak();
 
-                        if (canRebreakRebreakBlock()) {
-                            mc.world.setBlockState(rebreakBlock.blockPos, Blocks.AIR.getDefaultState());
+                        if (rebreakSetBlockBroken.get() && canRebreakRebreakBlock()) {
+                            mc.world.setBlockState(rebreakBlock.blockPos,
+                                    Blocks.AIR.getDefaultState());
                         }
                     } else {
                         rebreakBlock.cancelBreaking();
