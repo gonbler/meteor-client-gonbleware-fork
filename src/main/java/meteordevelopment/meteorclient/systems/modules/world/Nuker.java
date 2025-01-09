@@ -5,6 +5,7 @@
 
 package meteordevelopment.meteorclient.systems.modules.world;
 
+import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.player.BlockBreakingCooldownEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
@@ -23,6 +24,7 @@ import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
 import net.minecraft.block.Block;
+import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
@@ -169,6 +171,13 @@ public class Nuker extends Module {
             .description("Rotates server-side to the block being mined.")
             .defaultValue(true)
             .visible(() -> !silentMine.get())
+            .build()
+    );
+
+    private final Setting<Boolean> belowAirScaffold = sgGeneral.add(new BoolSetting.Builder()
+            .name("below-air-scaffold")
+            .description("Scaffolds one block below you, to prevent you from failling. Useful for clearing large areas vertically.")
+            .defaultValue(false)
             .build()
     );
 
@@ -467,6 +476,19 @@ public class Nuker extends Module {
             // Clear current block positions
             blocks.clear();
         });
+    
+        if (belowAirScaffold.get()) {
+            List<BlockPos> placePoses = new ArrayList<>();
+            placePoses.add(mc.player.getBlockPos().down(2));
+
+            if (MeteorClient.BLOCK.beginPlacement(placePoses, Items.OBSIDIAN)) {
+                placePoses.forEach(blockPos -> {
+                    MeteorClient.BLOCK.placeBlock(blockPos);
+                });
+
+                MeteorClient.BLOCK.endPlacement();
+            }
+        }
     }
 
     private void breakBlock(BlockPos blockPos) {
