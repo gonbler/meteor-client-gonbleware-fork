@@ -57,7 +57,7 @@ public class SilentMine extends Module {
             .defaultValue(true).build());
 
     private final Setting<Integer> singleBreakFailTicks = sgGeneral.add(new IntSetting.Builder()
-            .name("")
+            .name("single-break-fail-ticks")
             .description("Number of ticks to wait before retrying a singlebreak in case of fail.")
             .defaultValue(20).min(5).sliderMax(50).build());
 

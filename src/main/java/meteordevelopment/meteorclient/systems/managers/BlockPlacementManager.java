@@ -62,7 +62,7 @@ public class BlockPlacementManager {
             return false;
         }
 
-        if (positions.isEmpty()) {
+        if (positions.stream().filter(this::checkPlacement).findAny().isEmpty()) {
             return false;
         }
 

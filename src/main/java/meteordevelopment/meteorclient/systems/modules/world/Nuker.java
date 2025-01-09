@@ -479,9 +479,9 @@ public class Nuker extends Module {
     
         if (belowAirScaffold.get()) {
             List<BlockPos> placePoses = new ArrayList<>();
-            placePoses.add(mc.player.getBlockPos().down(2));
+            placePoses.add(mc.player.getBlockPos().down(3));
 
-            if (MeteorClient.BLOCK.beginPlacement(placePoses, Items.OBSIDIAN)) {
+            if (!mc.player.isUsingItem() && MeteorClient.BLOCK.beginPlacement(placePoses, Items.OBSIDIAN)) {
                 placePoses.forEach(blockPos -> {
                     MeteorClient.BLOCK.placeBlock(blockPos);
                 });
