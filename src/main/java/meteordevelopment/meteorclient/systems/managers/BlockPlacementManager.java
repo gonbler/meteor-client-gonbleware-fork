@@ -2,6 +2,7 @@ package meteordevelopment.meteorclient.systems.managers;
 
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
+import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.systems.config.AntiCheatConfig;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
@@ -21,7 +22,6 @@ import net.minecraft.world.World;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 
@@ -36,7 +36,7 @@ public class BlockPlacementManager {
     private final Map<BlockPos, Long> placeCooldowns = new HashMap<>();
 
     private long endPlaceCooldown = 0;
-    private int placesThisPlacement = 0;
+    private int placesThisTick = 0;
 
     private boolean locked = false;
 
@@ -91,20 +91,22 @@ public class BlockPlacementManager {
             }
         }
 
-        placesThisPlacement = 0;
-
         return true;
     }
 
     public boolean placeBlock(BlockPos blockPos) {
         long currentTime = System.currentTimeMillis();
 
-        if (placesThisPlacement > 9) {
+        if (placesThisTick > 9) {
             return false;
         }
 
         if (placeCooldowns.values().stream().filter(x -> currentTime - x <= 1000)
                 .count() >= antiCheatConfig.blocksPerSecondCap.get()) {
+            return false;
+        }
+
+        if (!checkPlacement(blockPos)) {
             return false;
         }
 
@@ -159,7 +161,31 @@ public class BlockPlacementManager {
                             Direction.DOWN));
         }
 
-        placesThisPlacement++;
+        placesThisTick++;
+
+        return true;
+    }
+
+    public boolean checkPlacement(BlockPos blockPos) {
+        if (!antiCheatConfig.blockPlaceAirPlace.get() && getPlaceOnDirection(blockPos) == null) {
+            return false;
+        }
+
+        // Replaceable check
+        if (!mc.world.getBlockState(blockPos).isReplaceable()) {
+            return false;
+        }
+
+        // Height check
+        if (!World.isValid(blockPos)) {
+            return false;
+        }
+
+        // Entity check
+        if (!mc.world.canPlace(Blocks.OBSIDIAN.getDefaultState(), blockPos,
+                ShapeContext.absent())) {
+            return false;
+        }
 
         return true;
     }
@@ -170,10 +196,6 @@ public class BlockPlacementManager {
         }
 
         locked = false;
-
-        if (placesThisPlacement > 2) {
-            endPlaceCooldown = System.currentTimeMillis() + placesThisPlacement * 37;
-        }
 
         switch (antiCheatConfig.blockPlaceItemSwapMode.get()) {
             case SilentHotbar -> InvUtils.swapBack();
@@ -191,33 +213,15 @@ public class BlockPlacementManager {
         }
     }
 
-    public Stream<BlockPos> filterCanPlace(Stream<BlockPos> positions) {
-        return positions.filter(blockPos -> {
-            // Air place check
-            if (!antiCheatConfig.blockPlaceAirPlace.get()
-                    && getPlaceOnDirection(blockPos) == null) {
-                return false;
-            }
+    // Decently high priority?
+    @EventHandler(priority = 100)
+    private void onPostTick(TickEvent.Pre pre) {
+        if (placesThisTick > 2) {
+            endPlaceCooldown = System.currentTimeMillis() + placesThisTick * 38;
+        }
 
-            // Replaceable check
-            if (!mc.world.getBlockState(blockPos).isReplaceable()) {
-                return false;
-            }
-
-            // Height check
-            if (!World.isValid(blockPos)) {
-                return false;
-            }
-
-            // Entity check
-            if (!mc.world.canPlace(Blocks.OBSIDIAN.getDefaultState(), blockPos,
-                    ShapeContext.absent())) {
-                return false;
-            }
-
-            return true;
-        });
-    }
+        placesThisTick = 0;
+    } 
 
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {

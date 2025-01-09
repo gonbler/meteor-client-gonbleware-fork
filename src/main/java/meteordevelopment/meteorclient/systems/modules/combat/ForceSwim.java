@@ -111,14 +111,11 @@ public class ForceSwim extends Module {
 
         List<BlockPos> placePoses = getBlockPoses();
 
-        List<BlockPos> actualPlacePositions =
-                MeteorClient.BLOCK.filterCanPlace(placePoses.stream()).toList();
-
-        if (!MeteorClient.BLOCK.beginPlacement(actualPlacePositions, useItem)) {
+        if (!MeteorClient.BLOCK.beginPlacement(placePoses, useItem)) {
             return;
         }
 
-        actualPlacePositions.forEach(blockPos -> {
+        placePoses.forEach(blockPos -> {
             boolean isCrystalBlock = false;
             for (Direction dir : Direction.Type.HORIZONTAL) {
                 if (blockPos.equals(target.getBlockPos().offset(dir))) {

@@ -104,7 +104,9 @@ public class Surround extends Module {
 
         long currentTime = System.currentTimeMillis();
 
-        Box boundingBox = mc.player.getBoundingBox().shrink(0.01, 0.1, 0.01); // Tighter bounding box to avoid weird bugs
+        Box boundingBox = mc.player.getBoundingBox().shrink(0.01, 0.1, 0.01); // Tighter bounding
+                                                                              // box to avoid weird
+                                                                              // bugs
         int feetY = mc.player.getBlockPos().getY();
 
         SilentMine silentMine = Modules.get().get(SilentMine.class);
@@ -232,17 +234,14 @@ public class Surround extends Module {
             });
         }
 
-        List<BlockPos> actualPlacePositions =
-                MeteorClient.BLOCK.filterCanPlace(placePoses.stream()).toList();
-
-        if (!MeteorClient.BLOCK.beginPlacement(actualPlacePositions, Items.OBSIDIAN)) {
+        if (!MeteorClient.BLOCK.beginPlacement(placePoses, Items.OBSIDIAN)) {
             return;
         }
 
-        actualPlacePositions.forEach(blockPos -> {
-            MeteorClient.BLOCK.placeBlock(blockPos);
-
-            renderLastPlacedBlock.put(blockPos, currentTime);
+        placePoses.forEach(blockPos -> {
+            if (MeteorClient.BLOCK.placeBlock(blockPos)) {
+                renderLastPlacedBlock.put(blockPos, currentTime);
+            }
         });
 
         MeteorClient.BLOCK.endPlacement();
