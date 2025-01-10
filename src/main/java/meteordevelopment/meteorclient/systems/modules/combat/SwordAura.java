@@ -51,16 +51,15 @@ public class SwordAura extends Module {
             .description("The maximum range the entity can be to attack it.").defaultValue(2.85)
             .min(0).sliderMax(6).build());
 
-    private final Setting<Boolean> silentSwap =
-            sgGeneral.add(new BoolSetting.Builder().name("silent-swap")
-                    .description("Whether or not to silently switch to your sword to attack")
-                    .defaultValue(true).build());
+    private final Setting<SwitchMode> switchMode =
+            sgGeneral.add(new EnumSetting.Builder<SwitchMode>().name("switch-mode")
+                    .description("How to swap to the sword").defaultValue(SwitchMode.Auto).build());
 
     private final Setting<Boolean> silentSwapOverrideDelay = sgGeneral.add(new BoolSetting.Builder()
             .name("silent-swap-override-delay")
             .description(
                     "Whether or not to use the held items delay when attacking with silent swap")
-            .defaultValue(true).visible(() -> silentSwap.get()).build());
+            .defaultValue(true).visible(() -> switchMode.get() != SwitchMode.None).build());
 
     private final Setting<Boolean> rotate = sgGeneral.add(new BoolSetting.Builder().name("rotate")
             .description("Whether or not to rotate to the entity to attack it.").defaultValue(true)
@@ -79,9 +78,9 @@ public class SwordAura extends Module {
             sgGeneral.add(new BoolSetting.Builder().name("ignore-passive")
                     .description("Does not attack passive mobs.").defaultValue(false).build());
 
-    private final Setting<Boolean> pauseOnEat = sgGeneral.add(new BoolSetting.Builder()
-            .name("pause-on-eat").description("Does not attack while using an item.")
-            .defaultValue(true).build());
+    private final Setting<Boolean> forcePauseEat = sgGeneral.add(new BoolSetting.Builder()
+            .name("force-pause-on-eat").description("Does not attack while using an item.")
+            .defaultValue(false).build());
 
     private final Setting<Boolean> pauseInAir = sgGeneral.add(new BoolSetting.Builder()
             .name("pause-in-air").description("Does not attack while jumping or falling")
@@ -112,6 +111,10 @@ public class SwordAura extends Module {
     private Entity target = null;
     private Entity lastAttackedEntity = null;
 
+    private int silentInvSlot;
+    private int selectedSlot;
+    private boolean didSilentSwap;
+
     public SwordAura() {
         super(Categories.Combat, "sword-aura", "Automatically attacks entities with your sword");
     }
@@ -124,7 +127,7 @@ public class SwordAura extends Module {
             return;
         }
 
-        if (pauseOnEat.get() && mc.player.isUsingItem()
+        if (forcePauseEat.get() && mc.player.isUsingItem()
                 && mc.player.getActiveHand() == Hand.MAIN_HAND) {
             return;
         }
@@ -135,17 +138,17 @@ public class SwordAura extends Module {
 
         Item mainHandItem = mc.player.getInventory().getMainHandStack().getItem();
 
-        if (!silentSwap.get() && mainHandItem != Items.DIAMOND_SWORD
+        if (switchMode.get() == SwitchMode.None && mainHandItem != Items.DIAMOND_SWORD
                 && mainHandItem != Items.NETHERITE_SWORD) {
             return;
         }
 
-        FindItemResult result = InvUtils.findInHotbar(Items.NETHERITE_SWORD);
+        FindItemResult result = InvUtils.find(Items.NETHERITE_SWORD);
         if (!result.found()) {
-            result = InvUtils.findInHotbar(Items.DIAMOND_SWORD);
+            result = InvUtils.find(Items.DIAMOND_SWORD);
         }
 
-        if (!result.found()) {
+        if (!result.found() || (switchMode.get() == SwitchMode.SilentHotbar && !result.isHotbar())) {
             return;
         }
 
@@ -194,7 +197,7 @@ public class SwordAura extends Module {
 
         int delayCheckSlot = result.slot();
 
-        if (silentSwap.get() && silentSwapOverrideDelay.get()) {
+        if (switchMode.get() != SwitchMode.None && silentSwapOverrideDelay.get()) {
             delayCheckSlot = mc.player.getInventory().selectedSlot;
         }
 
@@ -208,15 +211,54 @@ public class SwordAura extends Module {
                 }
             }
 
-            if (silentSwap.get()) {
-                InvUtils.swap(result.slot(), true);
+            silentInvSlot = result.slot();
+            selectedSlot = mc.player.getInventory().selectedSlot;
+            didSilentSwap = false;
+            switch (switchMode.get()) {
+                case SilentHotbar -> {
+                    InvUtils.swap(result.slot(), true);
+                }
+                case Auto -> {
+                    // If we're eating from our main hand, force silent swap
+                    if (mc.player.isUsingItem() && mc.player.getActiveHand() == Hand.MAIN_HAND) {
+                        InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
+                        didSilentSwap = true;
+                    } else {
+                        // Otherwise, hotbar swap if it's in our hotbar, and only silent swap when it's not
+                        if (result.isHotbar()) {
+                            InvUtils.swap(result.slot(), true);
+                        } else if (silentInvSlot != mc.player.getInventory().selectedSlot) {
+                            InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
+                            didSilentSwap = true;
+                        }
+                    }
+                }
+                case SilentSwap -> {
+                    if (silentInvSlot != mc.player.getInventory().selectedSlot) {
+                        InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
+                        didSilentSwap = true;
+                    }
+                }
+                case None -> {
+                    // Fall
+                }
             }
 
             attack();
 
-            if (silentSwap.get()) {
-                InvUtils.swapBack();
+            switch (switchMode.get()) {
+                case SilentHotbar -> InvUtils.swapBack();
+                case None -> { }
+                default -> {
+                    if (didSilentSwap) {
+                        InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
+                    } else {
+                        InvUtils.swapBack();
+                    }
+                }
             }
+
+            
         }
     }
 
@@ -292,5 +334,9 @@ public class SwordAura extends Module {
         double y = Math.max(box.minY, Math.min(point.y, box.maxY));
         double z = Math.max(box.minZ, Math.min(point.z, box.maxZ));
         return new Vec3d(x, y, z);
+    }
+
+    public enum SwitchMode {
+        None, SilentHotbar, SilentSwap, Auto
     }
 }

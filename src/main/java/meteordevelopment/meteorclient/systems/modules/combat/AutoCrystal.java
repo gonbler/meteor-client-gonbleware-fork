@@ -90,11 +90,16 @@ public class AutoCrystal extends Module {
     private final Setting<Boolean> placeCrystals = sgGeneral.add(new BoolSetting.Builder()
             .name("place").description("Places crystals.").defaultValue(true).build());
 
+    private final Setting<Boolean> pauseEatPlace =
+            sgGeneral.add(new BoolSetting.Builder().name("pause-eat-place")
+                    .description("Pauses placing when eating").defaultValue(true).build());
+
     private final Setting<Boolean> breakCrystals = sgGeneral.add(new BoolSetting.Builder()
             .name("break").description("Breaks crystals.").defaultValue(true).build());
 
-    private final Setting<Boolean> pauseEat = sgGeneral.add(new BoolSetting.Builder()
-            .name("pause-eat").description("Pauses when eating").defaultValue(true).build());
+    private final Setting<Boolean> pauseEatBreak =
+            sgGeneral.add(new BoolSetting.Builder().name("pause-eat-break")
+                    .description("Pauses placing when breaking").defaultValue(false).build());
 
     private final Setting<Boolean> ignoreNakeds =
             sgGeneral.add(new BoolSetting.Builder().name("ignore-nakeds")
@@ -177,7 +182,7 @@ public class AutoCrystal extends Module {
     private final Setting<SwitchMode> switchMode =
             sgSwitch.add(new EnumSetting.Builder<SwitchMode>().name("switch-mode")
                     .description("Mode for switching to crystal in main hand.")
-                    .defaultValue(SwitchMode.Silent).build());
+                    .defaultValue(SwitchMode.Auto).build());
 
     // -- Rotate -- //
     private final Setting<Boolean> rotatePlace =
@@ -288,6 +293,10 @@ public class AutoCrystal extends Module {
     private long lastPlaceTimeMS = 0;
     private long lastBreakTimeMS = 0;
 
+    private int silentInvSlot;
+    private int selectedSlot;
+    private boolean didSilentSwap;
+
     private BlockPos simpleRenderPos = null;
     private Timer simpleRenderTimer = new Timer();
 
@@ -342,13 +351,9 @@ public class AutoCrystal extends Module {
 
         _placePositions.clear();
 
-        if (pauseEat.get() && mc.player.isUsingItem()) {
-            return;
-        }
-
         PlacePosition bestPlacePos = null;
         synchronized (deadPlayers) {
-            if (placeCrystals.get()) {
+            if (placeCrystals.get() && !(pauseEatPlace.get() && mc.player.isUsingItem())) {
                 cachedValidPlaceSpots();
 
                 for (PlayerEntity player : mc.world.getPlayers()) {
@@ -412,7 +417,7 @@ public class AutoCrystal extends Module {
                 }
             }
 
-            if (breakCrystals.get()) {
+            if (breakCrystals.get() && !(pauseEatBreak.get() && mc.player.isUsingItem())) {
                 for (Entity entity : mc.world.getEntities()) {
                     if (!(entity instanceof EndCrystalEntity))
                         continue;
@@ -484,12 +489,37 @@ public class AutoCrystal extends Module {
         crystalPlaceDelays.put(pos, currentTime);
         crystalRenderPlaceDelays.put(pos, currentTime);
 
+        silentInvSlot = result.slot();
+        selectedSlot = mc.player.getInventory().selectedSlot;
+        didSilentSwap = false;
         switch (switchMode.get()) {
-            case Silent -> InvUtils.swap(result.slot(), true);
-            case None -> {
-                if (mc.player.getInventory().getMainHandStack().getItem() != Items.END_CRYSTAL) {
-                    return false;
+            case SilentHotbar -> {
+                InvUtils.swap(result.slot(), true);
+            }
+            case Auto -> {
+                // If we're eating from our main hand, force silent swap
+                if (mc.player.isUsingItem() && mc.player.getActiveHand() == Hand.MAIN_HAND) {
+                    InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
+                    didSilentSwap = true;
+                } else {
+                    // Otherwise, hotbar swap if it's in our hotbar, and only silent swap when it's
+                    // not
+                    if (result.isHotbar()) {
+                        InvUtils.swap(result.slot(), true);
+                    } else if (silentInvSlot != mc.player.getInventory().selectedSlot) {
+                        InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
+                        didSilentSwap = true;
+                    }
                 }
+            }
+            case SilentSwap -> {
+                if (silentInvSlot != mc.player.getInventory().selectedSlot) {
+                    InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
+                    didSilentSwap = true;
+                }
+            }
+            case None -> {
+                // Fall
             }
         }
 
@@ -513,10 +543,14 @@ public class AutoCrystal extends Module {
             mc.getNetworkHandler().sendPacket(new HandSwingC2SPacket(hand));
 
         switch (switchMode.get()) {
-            case Silent -> InvUtils.swapBack();
+            case SilentHotbar -> InvUtils.swapBack();
             case None -> {
-                if (mc.player.getInventory().getMainHandStack().getItem() != Items.END_CRYSTAL) {
-                    return false;
+            }
+            default -> {
+                if (didSilentSwap) {
+                    InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
+                } else {
+                    InvUtils.swapBack();
                 }
             }
         }
@@ -1159,7 +1193,7 @@ public class AutoCrystal extends Module {
     }
 
     private enum SwitchMode {
-        None, Silent
+        None, SilentHotbar, SilentSwap, Auto
     }
 
     public enum SwingMode {
