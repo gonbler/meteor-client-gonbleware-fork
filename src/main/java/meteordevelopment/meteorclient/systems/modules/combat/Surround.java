@@ -239,7 +239,7 @@ public class Surround extends Module {
         }
 
         placePoses.forEach(blockPos -> {
-            if (MeteorClient.BLOCK.placeBlock(blockPos)) {
+            if (MeteorClient.BLOCK.placeBlock(Items.OBSIDIAN, blockPos)) {
                 renderLastPlacedBlock.put(blockPos, currentTime);
             }
         });

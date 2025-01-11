@@ -483,7 +483,7 @@ public class Nuker extends Module {
 
             if (!mc.player.isUsingItem() && MeteorClient.BLOCK.beginPlacement(placePoses, Items.OBSIDIAN)) {
                 placePoses.forEach(blockPos -> {
-                    MeteorClient.BLOCK.placeBlock(blockPos);
+                    MeteorClient.BLOCK.placeBlock(Items.OBSIDIAN, blockPos);
                 });
 
                 MeteorClient.BLOCK.endPlacement();

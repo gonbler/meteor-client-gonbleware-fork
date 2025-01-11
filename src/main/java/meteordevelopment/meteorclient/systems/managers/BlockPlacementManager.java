@@ -7,6 +7,7 @@ import meteordevelopment.meteorclient.systems.config.AntiCheatConfig;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
+import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.item.Item;
@@ -62,7 +63,7 @@ public class BlockPlacementManager {
             return false;
         }
 
-        if (positions.stream().filter(this::checkPlacement).findAny().isEmpty()) {
+        if (positions.stream().filter(x -> checkPlacement(item, x)).findAny().isEmpty()) {
             return false;
         }
 
@@ -94,7 +95,7 @@ public class BlockPlacementManager {
         return true;
     }
 
-    public boolean placeBlock(BlockPos blockPos) {
+    public boolean placeBlock(Item item, BlockPos blockPos) {
         long currentTime = System.currentTimeMillis();
 
         if (placesThisTick > 9) {
@@ -106,7 +107,7 @@ public class BlockPlacementManager {
             return false;
         }
 
-        if (!checkPlacement(blockPos)) {
+        if (!checkPlacement(item, blockPos)) {
             return false;
         }
 
@@ -166,7 +167,7 @@ public class BlockPlacementManager {
         return true;
     }
 
-    public boolean checkPlacement(BlockPos blockPos) {
+    public boolean checkPlacement(Item item, BlockPos blockPos) {
         if (!antiCheatConfig.blockPlaceAirPlace.get() && getPlaceOnDirection(blockPos) == null) {
             return false;
         }
@@ -182,7 +183,7 @@ public class BlockPlacementManager {
         }
 
         // Entity check
-        if (!mc.world.canPlace(Blocks.OBSIDIAN.getDefaultState(), blockPos,
+        if (!mc.world.canPlace(Block.getBlockFromItem(item).getDefaultState(), blockPos,
                 ShapeContext.absent())) {
             return false;
         }

@@ -362,6 +362,11 @@ public class AutoMine extends Module {
                     // Give lots of score to blocks that will make them swim
                     score += 100;
                 } else {
+                    // Ignore webs lol
+                    if (block.getBlock() == Blocks.COBWEB) {
+                        continue;
+                    }
+
                     // Mine out their feet-only phase
                     score += 30;
                 }

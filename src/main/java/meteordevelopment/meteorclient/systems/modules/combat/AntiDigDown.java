@@ -21,6 +21,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
+import net.minecraft.item.Items;
 import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
 import net.minecraft.util.math.BlockPos;
 import java.util.ArrayList;
@@ -154,7 +155,7 @@ public class AntiDigDown extends Module {
                 }
 
                 tempList1.forEach(blockPos -> {
-                    MeteorClient.BLOCK.placeBlock(blockPos);
+                    MeteorClient.BLOCK.placeBlock(Items.OBSIDIAN, blockPos);
                 });
 
                 MeteorClient.BLOCK.endPlacement();

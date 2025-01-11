@@ -26,6 +26,7 @@ import net.minecraft.block.Blocks;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
+import net.minecraft.item.Items;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
@@ -140,7 +141,7 @@ public class AutoTrap extends Module {
         }
 
         placePoses.forEach(blockPos -> {
-            MeteorClient.BLOCK.placeBlock(blockPos);
+            MeteorClient.BLOCK.placeBlock(Items.OBSIDIAN, blockPos);
         });
 
         MeteorClient.BLOCK.endPlacement();
