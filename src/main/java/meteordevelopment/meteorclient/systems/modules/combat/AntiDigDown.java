@@ -21,10 +21,8 @@ import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
-import net.minecraft.item.Items;
 import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
 import net.minecraft.util.math.BlockPos;
-import java.util.ArrayList;
 import java.util.List;
 
 public class AntiDigDown extends Module {
@@ -143,20 +141,16 @@ public class AntiDigDown extends Module {
                     && belowPos.equals(silentMine.getDelayedDestroyBlockPos()))
                     || (silentMine.getRebreakBlockPos() != null
                             && belowPos.equals(silentMine.getRebreakBlockPos()))) {
-                return;     
+                return;
             }
 
             if (packet.getPos().equals(belowPos) && packet.getState().isAir()) {
-                List<BlockPos> tempList1 = new ArrayList<>();
-                tempList1.add(belowPos);
 
-                if (!MeteorClient.BLOCK.beginPlacement(tempList1, useItem)) {
+                if (!MeteorClient.BLOCK.beginPlacement(belowPos, packet.getState(), useItem)) {
                     return;
                 }
 
-                tempList1.forEach(blockPos -> {
-                    MeteorClient.BLOCK.placeBlock(Items.OBSIDIAN, blockPos);
-                });
+                MeteorClient.BLOCK.placeBlock(useItem, belowPos, packet.getState());
 
                 MeteorClient.BLOCK.endPlacement();
             }

@@ -8,7 +8,7 @@ import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
+import net.minecraft.block.BlockState;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.item.Item;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
@@ -44,6 +44,56 @@ public class BlockPlacementManager {
     private int silentInvSlot;
     private int selectedSlot;
     private boolean didSilentSwap;
+
+    public boolean beginPlacement(BlockPos position, BlockState state, Item item) {
+        if (switch (antiCheatConfig.blockPlaceItemSwapMode.get()) {
+            case SilentHotbar -> !InvUtils.findInHotbar(item).found();
+            case SilentSwap -> !InvUtils.find(item).found();
+            case None -> mc.player.getMainHandStack().getItem() != item;
+        }) {
+            return false;
+        }
+
+        if (System.currentTimeMillis() < endPlaceCooldown) {
+            return false;
+        }
+
+        // Lock placements until the current placement ends
+        if (locked) {
+            return false;
+        }
+
+        if (!checkPlacement(item, position, state)) {
+            return false;
+        }
+
+        locked = true;
+        silentInvSlot = InvUtils.find(item).slot();
+        selectedSlot = mc.player.getInventory().selectedSlot;
+        didSilentSwap = false;
+
+        boolean inHotbar = InvUtils.findInHotbar(item).found();
+
+        switch (antiCheatConfig.blockPlaceItemSwapMode.get()) {
+            case SilentHotbar -> {
+                InvUtils.swap(InvUtils.findInHotbar(item).slot(), true);
+            }
+            case SilentSwap -> {
+                // If the block is in our hotbar, don't SilentSwap, just SilentHotbar
+                if (inHotbar) {
+                    InvUtils.swap(InvUtils.findInHotbar(item).slot(), true);
+                } else if (silentInvSlot != mc.player.getInventory().selectedSlot) {
+                    InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
+                    didSilentSwap = true;
+                }
+            }
+            case None -> {
+                // Fall
+            }
+        }
+
+        return true;
+    }
 
     public boolean beginPlacement(List<BlockPos> positions, Item item) {
         if (switch (antiCheatConfig.blockPlaceItemSwapMode.get()) {
@@ -96,6 +146,10 @@ public class BlockPlacementManager {
     }
 
     public boolean placeBlock(Item item, BlockPos blockPos) {
+        return placeBlock(item, blockPos, mc.world.getBlockState(blockPos));
+    }
+
+    public boolean placeBlock(Item item, BlockPos blockPos, BlockState state) {
         long currentTime = System.currentTimeMillis();
 
         if (placesThisTick > 9) {
@@ -107,7 +161,7 @@ public class BlockPlacementManager {
             return false;
         }
 
-        if (!checkPlacement(item, blockPos)) {
+        if (!checkPlacement(item, blockPos, state)) {
             return false;
         }
 
@@ -168,12 +222,16 @@ public class BlockPlacementManager {
     }
 
     public boolean checkPlacement(Item item, BlockPos blockPos) {
+        return checkPlacement(item, blockPos, mc.world.getBlockState(blockPos));
+    }
+
+    public boolean checkPlacement(Item item, BlockPos blockPos, BlockState state) {
         if (!antiCheatConfig.blockPlaceAirPlace.get() && getPlaceOnDirection(blockPos) == null) {
             return false;
         }
 
         // Replaceable check
-        if (!mc.world.getBlockState(blockPos).isReplaceable()) {
+        if (!state.isReplaceable()) {
             return false;
         }
 
@@ -222,7 +280,7 @@ public class BlockPlacementManager {
         }
 
         placesThisTick = 0;
-    } 
+    }
 
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
