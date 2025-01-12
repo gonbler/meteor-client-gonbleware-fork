@@ -20,10 +20,9 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import java.util.concurrent.ConcurrentHashMap;
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 
 public class BlockPlacementManager {
@@ -34,7 +33,7 @@ public class BlockPlacementManager {
 
     private final AntiCheatConfig antiCheatConfig = AntiCheatConfig.get();
 
-    private final Map<BlockPos, Long> placeCooldowns = new HashMap<>();
+    private final Map<BlockPos, Long> placeCooldowns = new ConcurrentHashMap<>();
 
     private long endPlaceCooldown = 0;
     private int placesThisTick = 0;
