@@ -132,12 +132,6 @@ public class Surround extends Module {
                         BlockPos adjacentPos = feetPos.add(offsetX, 0, offsetZ);
                         BlockState adjacentState = mc.world.getBlockState(adjacentPos);
 
-                        // Don't place if we're mining that block
-                        if (adjacentPos.equals(silentMine.getRebreakBlockPos())
-                                || adjacentPos.equals(silentMine.getDelayedDestroyBlockPos())) {
-                            // continue;
-                        }
-
                         if (adjacentState.isAir() || adjacentState.isReplaceable()) {
                             placePoses.add(adjacentPos);
                         }
@@ -239,6 +233,12 @@ public class Surround extends Module {
         }
 
         placePoses.forEach(blockPos -> {
+            // Use the last ticks delayed destroy block because it gets instantly cleared
+            if (blockPos.equals(silentMine.getRebreakBlockPos())
+                    || blockPos.equals(silentMine.getLastDelayedDestroyBlockPos())) {
+                return;
+            }
+
             if (MeteorClient.BLOCK.placeBlock(Items.OBSIDIAN, blockPos)) {
                 renderLastPlacedBlock.put(blockPos, currentTime);
             }

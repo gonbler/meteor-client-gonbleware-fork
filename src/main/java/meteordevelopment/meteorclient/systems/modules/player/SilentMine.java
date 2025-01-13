@@ -93,6 +93,7 @@ public class SilentMine extends Module {
 
     private SilentMineBlock rebreakBlock = null;
     private SilentMineBlock delayedDestroyBlock = null;
+    private BlockPos lastDelayedDestroyBlockPos = null;
 
     private double currentGameTickCalculated = 0;
 
@@ -114,12 +115,18 @@ public class SilentMine extends Module {
     private void onTick(TickEvent.Pre event) {
         currentGameTickCalculated = RenderUtils.getCurrentGameTickCalculated();
 
+        if (hasDelayedDestroy()) {
+            lastDelayedDestroyBlockPos = delayedDestroyBlock.blockPos;
+        } else {
+            lastDelayedDestroyBlockPos = null;
+        }
+
         if (hasDelayedDestroy() && (mc.world.getBlockState(delayedDestroyBlock.blockPos).isAir()
                 || !BlockUtils.canBreak(delayedDestroyBlock.blockPos))) {
             MeteorClient.EVENT_BUS
                     .post(new SilentMineFinishedEvent.Post(delayedDestroyBlock.blockPos, false));
 
-            removeDelayedDestroy(false);
+            delayedDestroyBlock = null;
         }
 
         if (rebreakBlock != null && (mc.world.getBlockState(rebreakBlock.blockPos).isAir()
@@ -297,21 +304,18 @@ public class SilentMine extends Module {
         return rebreakBlock != null && !rebreakBlock.beenAir;
     }
 
-    public void removeDelayedDestroy(boolean sendAbort) {
-        if (hasDelayedDestroy()) {
-            if (sendAbort) {
-                delayedDestroyBlock.cancelBreaking();
-            }
-            delayedDestroyBlock = null;
-        }
-    }
-
     public BlockPos getDelayedDestroyBlockPos() {
         if (delayedDestroyBlock == null) {
             return null;
         }
 
         return delayedDestroyBlock.blockPos;
+    }
+
+    // Returns the last ticks delayed destroy block position if there was one, otherwise returns null
+    // Useful for something like knowing if we should place a surround block there to dig down
+    public BlockPos getLastDelayedDestroyBlockPos() {
+        return lastDelayedDestroyBlockPos;
     }
 
     public double getDelayedDestroyProgress() {
