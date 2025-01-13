@@ -3,10 +3,12 @@ package meteordevelopment.meteorclient.systems.modules.combat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import meteordevelopment.meteorclient.events.meteor.SilentMineFinishedEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
@@ -21,7 +23,6 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
 import meteordevelopment.meteorclient.systems.modules.render.BreakIndicators;
-import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.entity.EntityUtils;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
@@ -36,6 +37,8 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 
 public class AutoMine extends Module {
+    private final double INVALID_SCORE = -1000;
+
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
     private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder().name("range")
@@ -300,8 +303,109 @@ public class AutoMine extends Module {
         boolean set = false;
         CityBlock bestBlock = new CityBlock();
 
-        List<BlockPos> checkPos = new ArrayList<>();
+        Set<BlockPos> checkPos = new HashSet<>();
 
+        Box boundingBox = targetPlayer.getBoundingBox().shrink(0.01, 0.1, 0.01);
+        double feetY = targetPlayer.getY();
+        Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
+                feetY + 0.1, boundingBox.maxZ);
+
+        boolean inBedrock = BlockPos.stream(feetBox).anyMatch(blockPos -> {
+            return mc.world.getBlockState(blockPos).getBlock() == Blocks.BEDROCK;
+        });
+
+        if (inBedrock) {
+            addBedrockCaseCheckPositions(checkPos);
+        } else {
+            addNormalCaseCheckPositions(checkPos);
+        }
+
+        for (BlockPos pos : checkPos) {
+            if (pos.equals(exclude)) {
+                continue;
+            }
+
+            BlockState block = mc.world.getBlockState(pos);
+            boolean isPosGoodRebreak = false;
+
+            if (silentMine.canRebreakRebreakBlock()
+                    && pos.equals(silentMine.getRebreakBlockPos())) {
+                if (inBedrock) {
+                    boolean isSelfTrapBlock = false;
+
+                    for (Direction dir : Direction.HORIZONTAL) {
+                        if (targetPlayer.getBlockPos().up().offset(dir).equals(pos)) {
+                            isSelfTrapBlock = true;
+                            break;
+                        }
+                    }
+
+
+                    boolean canFacePlace =
+                            mc.world.getBlockState(targetPlayer.getBlockPos().up()).isAir();
+
+                    // It's a good rebreak if it's a self trap block for their head or the block
+                    // above their head (no velo meta)
+                    isPosGoodRebreak = BlockPos.stream(feetBox).count() == 1
+                            && (pos.equals(targetPlayer.getBlockPos().up(2))
+                                    || (isSelfTrapBlock && canFacePlace));
+                } else {
+                    // It's a good rebreak if it's not their feet block
+                    isPosGoodRebreak =
+                            !pos.equals(targetPlayer.getBlockPos()) && !isBlockInFeet(pos);
+                }
+            }
+
+            if (block.isAir() && !isPosGoodRebreak) {
+                continue;
+            }
+
+            boolean isFeetBlock = isBlockInFeet(pos);
+
+            if (!BlockUtils.canBreak(pos, block) && !isPosGoodRebreak) {
+                continue;
+            }
+
+
+            if (!silentMine.inBreakRange(pos)) {
+                continue;
+            }
+
+            double score = 0;
+
+            if (inBedrock) {
+                score = scoreBedrockCityBlock(pos);
+            } else {
+                score = scoreNormalCityBlock(pos);
+            }
+
+            // Ignore blocks with -1000
+            if (score == INVALID_SCORE) {
+                continue;
+            }
+
+            // If it's a good rebreak, keep it
+            if (isPosGoodRebreak) {
+                score += 40;
+            }
+
+            if (score > bestBlock.score) {
+                bestBlock.score = score;
+                bestBlock.blockPos = pos;
+                bestBlock.isFeetBlock = isFeetBlock;
+                set = true;
+            }
+        }
+
+        if (set) {
+            return bestBlock;
+        } else {
+            return null;
+        }
+    }
+
+    // Adds the positions for normal flat pvp (like obsidian and shit)
+    private void addNormalCaseCheckPositions(Set<BlockPos> checkPos) {
         Box boundingBox = targetPlayer.getBoundingBox().shrink(0.01, 0.1, 0.01);
         double feetY = targetPlayer.getY();
         Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
@@ -324,132 +428,183 @@ public class AutoMine extends Module {
         }
 
         checkPos.add(targetPlayer.getBlockPos());
+    }
 
-        if (mc.world.getBlockState(targetPlayer.getBlockPos()).getBlock() == Blocks.BEDROCK) {
-            checkPos.clear();
+    private void addBedrockCaseCheckPositions(Set<BlockPos> checkPos) {
+        Box boundingBox = targetPlayer.getBoundingBox().shrink(0.01, 0.1, 0.01);
+        double feetY = targetPlayer.getY();
+        Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
+                feetY + 0.1, boundingBox.maxZ);
 
-            checkPos.add(targetPlayer.getBlockPos().down());
+        // Only mine them down if they can actually fall
+        boolean canFallDown = BlockPos.stream(feetBox).allMatch(blockPos -> {
+            return mc.world.getBlockState(blockPos.down()).getBlock() != Blocks.BEDROCK;
+        });
+
+        // Only break their head if they can actually be pushed up
+        boolean canBeHitUp = BlockPos.stream(feetBox).allMatch(blockPos -> {
+            return mc.world.getBlockState(blockPos.up(2)).getBlock() != Blocks.BEDROCK;
+        });
+
+        for (BlockPos pos : BlockPos.iterate((int) Math.floor(feetBox.minX),
+                (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
+                (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
+                (int) Math.floor(feetBox.maxZ))) {
+
+            if (canFallDown) {
+                // Mine out obsidian below them to make them swim and die horribly
+                checkPos.add(pos.down());
+            }
+
+            if (canBeHitUp) {
+                // Head for velo fails
+                checkPos.add(pos.up(2));
+            }
+
+            // Face place
+            checkPos.add(pos.up());
+
+            for (Direction dir : Direction.Type.HORIZONTAL) {
+                checkPos.add(pos.up().offset(dir));
+            }
+
+            // Feet place when half in bedrock/obsidian
+            checkPos.add(pos);
+
+            for (Direction dir : Direction.Type.HORIZONTAL) {
+                checkPos.add(pos.offset(dir));
+            }
         }
+    }
 
-        for (BlockPos pos : checkPos) {
-            if (pos.equals(exclude)) {
-                continue;
+    private double scoreNormalCityBlock(BlockPos pos) {
+        double score = 0;
+
+        BlockState block = mc.world.getBlockState(pos);
+
+        // Feet / swim case
+        if (pos.equals(targetPlayer.getBlockPos())) {
+            BlockState headBlock = mc.world.getBlockState(pos.up());
+
+            // If they're in 2-tall bedrock, mine out their feet
+            if (headBlock.getBlock().equals(Blocks.OBSIDIAN)) {
+                // Always prioritize swimming them
+                score += 100;
+            } else {
+                // Ignore webs lol
+                if (block.getBlock() == Blocks.COBWEB) {
+                    return INVALID_SCORE;
+                }
+
+                // Mine out their feet-only phase
+                score += 50;
+            }
+        } else {
+            BlockState selfFeetBlock = mc.world.getBlockState(mc.player.getBlockPos());
+            BlockState selfHeadBlock = mc.world.getBlockState(mc.player.getBlockPos().up());
+
+            if (pos.equals(mc.player.getBlockPos())
+                    && (selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
+                            || selfHeadBlock.getBlock().equals(Blocks.BEDROCK))) {
+                return INVALID_SCORE;
             }
 
-            BlockState block = mc.world.getBlockState(pos);
-            boolean isPosGoodRebreak = silentMine.canRebreakRebreakBlock()
-                    && pos.equals(silentMine.getRebreakBlockPos())
-                    && !pos.equals(targetPlayer.getBlockPos()) && !isBlockInFeet(pos);
-
-            if (block.isAir() && !isPosGoodRebreak) {
-                continue;
-            }
-
-            double score = 0;
-
-            if (!BlockUtils.canBreak(pos, block) && !isPosGoodRebreak) {
-                continue;
-            }
-
-            boolean isFeetBlock = isBlockInFeet(pos);
-
-            // Feet / swim case
-            if (pos.equals(targetPlayer.getBlockPos())) {
-                BlockState headBlock = mc.world.getBlockState(pos.up());
-
-                // If their in 2-tall bedrock, mine out their feet
-                if (headBlock.getBlock().equals(Blocks.OBSIDIAN)) {
-                    // Give lots of score to blocks that will make them swim
-                    score += 100;
-                } else {
-                    // Ignore webs lol
-                    if (block.getBlock() == Blocks.COBWEB) {
+            if (!selfFeetBlock.getBlock().equals(Blocks.OBSIDIAN)
+                    && !selfFeetBlock.getBlock().equals(Blocks.BEDROCK)) {
+                boolean isPosSurroundBlock = false;
+                for (Direction dir : Direction.Type.HORIZONTAL) {
+                    if (!mc.player.getBlockPos().offset(dir).equals(pos)) {
                         continue;
                     }
 
-                    // Mine out their feet-only phase
-                    score += 30;
-                }
-            } else {
-                BlockState selfFeetBlock = mc.world.getBlockState(mc.player.getBlockPos());
-                BlockState selfHeadBlock = mc.world.getBlockState(mc.player.getBlockPos().up());
-
-                if (pos.equals(mc.player.getBlockPos())
-                        && (selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
-                                || selfHeadBlock.getBlock().equals(Blocks.BEDROCK))) {
-                    continue;
+                    BlockState possibleSurroundBlock =
+                            mc.world.getBlockState(mc.player.getBlockPos().offset(dir));
+                    if (possibleSurroundBlock.getBlock().equals(Blocks.OBSIDIAN)) {
+                        isPosSurroundBlock = true;
+                        break;
+                    }
                 }
 
-                if (!selfFeetBlock.getBlock().equals(Blocks.OBSIDIAN)
-                        && !selfFeetBlock.getBlock().equals(Blocks.BEDROCK)) {
-                    boolean isPosSurroundBlock = false;
-                    for (Direction dir : Direction.Type.HORIZONTAL) {
-                        if (!mc.player.getBlockPos().offset(dir).equals(pos)) {
-                            continue;
-                        }
+                if (isPosSurroundBlock) {
+                    score -= 5;
+                }
 
-                        BlockState possibleSurroundBlock =
-                                mc.world.getBlockState(mc.player.getBlockPos().offset(dir));
-                        if (possibleSurroundBlock.getBlock().equals(Blocks.OBSIDIAN)) {
-                            isPosSurroundBlock = true;
+                boolean isPosAntiSurround = false;
+                for (Direction dir : Direction.Type.HORIZONTAL) {
+                    if (pos.offset(dir).equals(pos)
+                            || pos.offset(dir).equals(targetPlayer.getBlockPos())) {
+                        continue;
+                    }
+
+                    if (mc.world.getBlockState(pos.offset(dir)).isAir()) {
+                        isPosAntiSurround = true;
+                        break;
+                    }
+                }
+
+                if (isPosAntiSurround) {
+                    score += 15;
+                }
+            }
+        }
+
+
+        // The closer the block is, the higher score it gets
+        double d = targetPlayer.getPos().distanceTo(Vec3d.ofCenter(pos));
+        score += 10 / d;
+
+        return score;
+    }
+
+    private double scoreBedrockCityBlock(BlockPos pos) {
+        double score = 0;
+        BlockState block = mc.world.getBlockState(pos);
+
+        // Prioritize the blocks above and below them to either velo fail or make them fall down
+        if (pos.getY() == targetPlayer.getBlockY() + 2
+                || pos.getY() == targetPlayer.getBlockY() - 1) {
+            score += 10;
+        }
+
+        Box boundingBox = targetPlayer.getBoundingBox().shrink(0.01, 0.1, 0.01);
+        double feetY = targetPlayer.getY();
+        Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
+                feetY + 0.1, boundingBox.maxZ);
+
+        if (BlockPos.stream(feetBox).count() == 1) {
+            boolean canMineFaceBlock = mc.world.getBlockState(targetPlayer.getBlockPos().up())
+                    .getBlock() != Blocks.BEDROCK;
+
+            if (canMineFaceBlock) {
+                // Prioritize mining their face block first
+                // And also only mine the self trap blocks when they can be face placed
+                if (pos.equals(targetPlayer.getBlockPos().up())) {
+                    score += 20;
+                } else {
+                    boolean isSelfTrapBlock = false;
+
+                    for (Direction dir : Direction.HORIZONTAL) {
+                        if (targetPlayer.getBlockPos().up().offset(dir).equals(pos)) {
+                            isSelfTrapBlock = true;
                             break;
                         }
                     }
 
-                    if (isPosSurroundBlock) {
-                        score -= 5;
-                    }
-
-                    boolean isPosAntiSurround = false;
-                    for (Direction dir : Direction.Type.HORIZONTAL) {
-                        if (pos.offset(dir).equals(pos)
-                                || pos.offset(dir).equals(targetPlayer.getBlockPos())) {
-                            continue;
-                        }
-
-                        if (mc.world.getBlockState(pos.offset(dir)).isAir()) {
-                            isPosAntiSurround = true;
-                            break;
-                        }
-                    }
-
-                    if (isPosAntiSurround) {
-                        score += 15;
+                    // Prioritize self trap blocks
+                    if (isSelfTrapBlock) {
+                        score += 7.5;
                     }
                 }
-
-                if (isPosGoodRebreak) {
-                    score += 50;
-                }
-            }
-
-            boolean outOfRange = Utils.distance(mc.player.getX() - 0.5,
-                    mc.player.getY() + mc.player.getEyeHeight(mc.player.getPose()),
-                    mc.player.getZ() - 0.5, pos.getX(), pos.getY(),
-                    pos.getZ()) > mc.player.getBlockInteractionRange() + 1;
-
-            if (outOfRange) {
-                continue;
-            }
-
-            double d = targetPlayer.getPos().distanceTo(Vec3d.ofCenter(pos));
-
-            // The closer the block is, the higher score it gets
-            score += 10 / d;
-
-            if (score > bestBlock.score) {
-                bestBlock.score = score;
-                bestBlock.blockPos = pos;
-                bestBlock.isFeetBlock = isFeetBlock;
-                set = true;
             }
         }
 
-        if (set) {
-            return bestBlock;
-        } else {
-            return null;
-        }
+        // The closer the block is, the higher score it gets
+        // This also prioritizes feet blocks (below them and stuff) since getPos returns their feet
+        // positions
+        double d = targetPlayer.getPos().distanceTo(Vec3d.ofCenter(pos));
+        score += 10 / d;
+
+        return score;
     }
 
     private boolean isBlockInFeet(BlockPos blockPos) {
