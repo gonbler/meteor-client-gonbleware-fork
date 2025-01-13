@@ -3,7 +3,6 @@ package meteordevelopment.meteorclient.systems.modules.combat;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.settings.DoubleSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.KeybindSetting;
 import meteordevelopment.meteorclient.settings.Setting;
@@ -15,8 +14,6 @@ import meteordevelopment.meteorclient.utils.misc.Keybind;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
-import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractItemC2SPacket;
@@ -37,11 +34,6 @@ public class PearlPhase extends Module {
     private final Setting<Keybind> phaseBind = sgGeneral.add(new KeybindSetting.Builder()
             .name("key-bind").description("Phase on keybind press").build());
 
-    private final Setting<Double> movementPredictionFactor =
-            sgGeneral.add(new DoubleSetting.Builder().name("movement-prediction-factor")
-                    .description("How far to predict your movement ahead").defaultValue(0)
-                    .range(-5, 5).sliderRange(-5, 5).build());
-
     private final Setting<RotateMode> rotateMode =
             sgGeneral.add(new EnumSetting.Builder<RotateMode>().name("rotate-mode")
                     .description("Which method of rotating should be used.")
@@ -60,36 +52,7 @@ public class PearlPhase extends Module {
         if (mc.player == null || mc.world == null)
             return;
 
-        Box boundingBox = mc.player.getBoundingBox().shrink(0.05, 0.1, 0.05);
-        double feetY = mc.player.getY();
-
-        Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
-                feetY + 0.1, boundingBox.maxZ);
-
-        for (BlockPos pos : BlockPos.iterate((int) Math.floor(feetBox.minX),
-                (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
-                (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
-                (int) Math.floor(feetBox.maxZ))) {
-            Block block = mc.world.getBlockState(pos).getBlock();
-
-            if (block.equals(Blocks.OBSIDIAN) || block.equals(Blocks.BEDROCK)) {
-                deactivate(false);
-                return;
-            }
-        }
-
-        if (switch (switchMode.get()) {
-            case SilentHotbar -> !InvUtils.findInHotbar(Items.ENDER_PEARL).found();
-            case SilentSwap -> !InvUtils.find(Items.ENDER_PEARL).found();
-        }) {
-            deactivate(false);
-            return;
-        }
-
-        if (mc.options.sneakKey.isPressed()) {
-            deactivate(false);
-            return;
-        }
+        update();
     }
 
     private void deactivate(boolean phased) {
@@ -101,14 +64,8 @@ public class PearlPhase extends Module {
     }
 
     private void update() {
-        if (!phaseBind.get().isPressed()) {
-            keyUnpressed = true;
-        }
-
-        if (phaseBind.get().isPressed() && keyUnpressed
-                && !(mc.currentScreen instanceof ChatScreen)) {
-            activate();
-            keyUnpressed = false;
+        if (mc.player == null || mc.world == null) {
+            return;
         }
 
         if (!active) {
@@ -121,18 +78,12 @@ public class PearlPhase extends Module {
         Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
                 feetY + 0.1, boundingBox.maxZ);
 
-        for (BlockPos pos : BlockPos.iterate((int) Math.floor(feetBox.minX),
-                (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
-                (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
-                (int) Math.floor(feetBox.maxZ))) {
-            Block block = mc.world.getBlockState(pos).getBlock();
-
-            if (block.equals(Blocks.OBSIDIAN) || block.equals(Blocks.BEDROCK)) {
-                deactivate(false);
-                return;
-            }
+        // Can't phase if we're already phased
+        if (BlockPos.stream(feetBox).anyMatch(blockPos -> {
+            return mc.world.getBlockState(blockPos).isSolidBlock(mc.world, blockPos);
+        })) {
+            deactivate(false);
         }
-
 
         if (switch (switchMode.get()) {
             case SilentHotbar -> !InvUtils.findInHotbar(Items.ENDER_PEARL).found();
@@ -142,12 +93,11 @@ public class PearlPhase extends Module {
             return;
         }
 
+        // Can't phase while sneaking
         if (mc.options.sneakKey.isPressed()) {
             deactivate(false);
             return;
         }
-
-
     }
 
     @EventHandler
@@ -162,9 +112,11 @@ public class PearlPhase extends Module {
         // Rotation Modes:
         // Movement: Requests a rotation from the RotationManager and waits for it to be fulfilled
         // Instant: Instantly sends a movement packet with the rotation
-        // DelayedInstant: Requests a rotation from the RotationManager and waits for it to be fulfilled, then sends a movement packet with the rotation
-        // DelayedInstantWebOnly: Same as DelayedInstant, but only sends a movement packet when in webs
-        
+        // DelayedInstant: Requests a rotation from the RotationManager and waits for it to be
+        // fulfilled, then sends a movement packet with the rotation
+        // DelayedInstantWebOnly: Same as DelayedInstant, but only sends a movement packet when in
+        // webs
+
         // Movement fails in webs on Grim,
         // instant is a bit iffy since it doesn't work when you rubberband
 
@@ -172,7 +124,7 @@ public class PearlPhase extends Module {
         switch (rotateMode.get()) {
             case Movement -> {
                 MeteorClient.ROTATION.requestRotation(targetPos, 1000f);
-        
+
                 if (MeteorClient.ROTATION.lookingAt(Box.of(targetPos, 0.05, 0.05, 0.05))) {
                     throwPearl(angle[0], angle[1]);
                 }
@@ -180,13 +132,13 @@ public class PearlPhase extends Module {
             case Instant -> {
                 if (mc.player.isOnGround()) {
                     MeteorClient.ROTATION.snapAt(targetPos);
-                    
+
                     throwPearl(angle[0], angle[1]);
                 }
             }
             case DelayedInstant -> {
                 MeteorClient.ROTATION.requestRotation(targetPos, 1000f);
-        
+
                 if (MeteorClient.ROTATION.lookingAt(Box.of(targetPos, 0.05, 0.05, 0.05))) {
                     MeteorClient.ROTATION.snapAt(targetPos);
 
@@ -195,7 +147,7 @@ public class PearlPhase extends Module {
             }
             case DelayedInstantWebOnly -> {
                 MeteorClient.ROTATION.requestRotation(targetPos, 1000f);
-        
+
                 if (MeteorClient.ROTATION.lookingAt(Box.of(targetPos, 0.05, 0.05, 0.05))) {
                     if (MovementFix.inWebs) {
                         MeteorClient.ROTATION.snapAt(targetPos);
@@ -206,7 +158,6 @@ public class PearlPhase extends Module {
             }
         }
     }
-
 
     private void throwPearl(float yaw, float pitch) {
         int invSlot = InvUtils.find(Items.ENDER_PEARL).slot();
@@ -242,9 +193,19 @@ public class PearlPhase extends Module {
         }
     }
 
-
     @EventHandler(priority = EventPriority.HIGHEST)
     private void onRender(Render3DEvent event) {
+        // Custom keypress implementation because.... I don't like binding modules like this? idk
+        if (!phaseBind.get().isPressed()) {
+            keyUnpressed = true;
+        }
+
+        if (phaseBind.get().isPressed() && keyUnpressed
+                && !(mc.currentScreen instanceof ChatScreen)) {
+            activate();
+            keyUnpressed = false;
+        }
+
         update();
     }
 
@@ -252,29 +213,23 @@ public class PearlPhase extends Module {
         final double X_OFFSET = Math.PI / 13;
         final double Z_OFFSET = Math.PI / 4;
 
-        // Get the player's current velocity
-        Vec3d velocity = mc.player.getVelocity();
+        // cache pos
+        double playerX = mc.player.getX();
+        double playerZ = mc.player.getZ();
 
-        // Predict future player position
-        double predictedX = mc.player.getX() + velocity.x * movementPredictionFactor.get();
-        double predictedZ = mc.player.getZ() + velocity.z * movementPredictionFactor.get();
+        // Calculate position based on the x and z offets
+        double x = playerX + MathHelper.clamp(
+                toClosest(playerX, Math.floor(playerX) + X_OFFSET, Math.floor(playerX) + Z_OFFSET)
+                        - playerX,
+                -0.2, 0.2);
 
-        // Calculate target Y position
-        double y = mc.player.getY() - 0.5;
+        double z = playerZ + MathHelper.clamp(
+                toClosest(playerZ, Math.floor(playerZ) + X_OFFSET, Math.floor(playerZ) + Z_OFFSET)
+                        - playerZ,
+                -0.2, 0.2);
 
-        // Calculate target X position
-        double x = predictedX
-                + MathHelper.clamp(toClosest(predictedX, Math.floor(predictedX) + X_OFFSET,
-                        Math.floor(predictedX) + Z_OFFSET) - predictedX, -0.2, 0.2);
-
-        // Calculate target Z position
-        double z = predictedZ
-                + MathHelper.clamp(toClosest(predictedZ, Math.floor(predictedZ) + X_OFFSET,
-                        Math.floor(predictedZ) + Z_OFFSET) - predictedZ, -0.2, 0.2);
-
-        return new Vec3d(x, y, z);
+        return new Vec3d(x, mc.player.getY() - 0.5, z);
     }
-
 
     private double toClosest(double num, double min, double max) {
         double dmin = num - min;
