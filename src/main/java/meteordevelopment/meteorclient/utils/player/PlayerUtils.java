@@ -518,4 +518,10 @@ public class PlayerUtils {
 
         return true;
     }
+
+    // Thanks Vasler
+    public static boolean isPlayerPhased() {
+        return mc.world.getBlockCollisions(mc.player, mc.player.getBoundingBox()).iterator()
+                .hasNext();
+    }
 }

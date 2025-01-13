@@ -16,10 +16,9 @@ import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.managers.RotationManager;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
 
 public class Velocity extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -33,8 +32,17 @@ public class Velocity extends Module {
 
     public final Setting<Boolean> knockbackPhaseOnly = sgGeneral.add(new BoolSetting.Builder()
         .name("knockback-phase-only")
-        .description("Only disables knockback when phased into a wall.")
+        .description("Only modifies knockback when phased into a wall.")
         .defaultValue(true)
+        .visible(() -> knockback.get())
+        .build()
+    );
+
+    public final Setting<Boolean> knockbackPhaseInAir = sgGeneral.add(new BoolSetting.Builder()
+        .name("knockback-phase-disable-in-air")
+        .description("Doesn't modify knockback in a phase when you're in the air (like jumping).")
+        .defaultValue(true)
+        .visible(() -> knockback.get() && knockbackPhaseOnly.get())
         .build()
     );
 
@@ -169,28 +177,11 @@ public class Velocity extends Module {
         if (knockback.get() && event.packet instanceof EntityVelocityUpdateS2CPacket packet
             && packet.getEntityId() == mc.player.getId()) {
             if (knockbackPhaseOnly.get()) {
-                boolean isPhased = false;
-
-                Box boundingBox = mc.player.getBoundingBox().shrink(0.05, 0.1, 0.05);
-                double feetY = mc.player.getY();
-
-                Box feetBox = new Box(boundingBox.minX, feetY, boundingBox.minZ, boundingBox.maxX,
-                        feetY + 0.1, boundingBox.maxZ);
-
-                for (BlockPos pos : BlockPos.iterate((int) Math.floor(feetBox.minX),
-                        (int) Math.floor(feetBox.minY), (int) Math.floor(feetBox.minZ),
-                        (int) Math.floor(feetBox.maxX), (int) Math.floor(feetBox.maxY),
-                        (int) Math.floor(feetBox.maxZ))) {
-                    
-                    if (mc.world.getBlockState(pos).isSolidBlock(mc.world, pos)) {
-                        if (RotationManager.lastGround) {
-                            isPhased = true;
-                        }
-                        break;
-                    }
+                if (knockbackPhaseInAir.get() && !RotationManager.lastGround) {
+                    return;
                 }
-
-                if (!isPhased) {
+                
+                if (!PlayerUtils.isPlayerPhased()) {
                     return;
                 }
             } 
