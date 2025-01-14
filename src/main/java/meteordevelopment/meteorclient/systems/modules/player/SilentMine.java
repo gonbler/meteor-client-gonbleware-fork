@@ -97,7 +97,8 @@ public class SilentMine extends Module {
 
     private double currentGameTickCalculated = 0;
 
-    private boolean needSwapBack = false;
+    private boolean needDelayedDestroySwapBack = false;
+    private boolean needRebreakSwapBack = false;
 
     public SilentMine() {
         super(Categories.Player, "silent-mine",
@@ -145,24 +146,17 @@ public class SilentMine extends Module {
                 && delayedDestroyBlock.ticksHeldPickaxe <= singleBreakFailTicks.get()) {
             BlockState blockState = mc.world.getBlockState(delayedDestroyBlock.blockPos);
 
-            if (!blockState.isAir()) {
-                FindItemResult slot = InvUtils.findFastestTool(blockState);
+            if (delayedDestroyBlock.isReady(false)) {
+                FindItemResult result = InvUtils.findFastestTool(blockState);
 
-                if (delayedDestroyBlock.isReady(false) && !mc.player.isUsingItem()) {
-                    if (slot.found() && mc.player.getInventory().selectedSlot != slot.slot()) {
-                        InvUtils.swap(slot.slot(), true);
-
-                        needSwapBack = true;
+                if (result.found() && mc.player.getInventory().selectedSlot != result.slot()) {
+                    if (MeteorClient.SWAP.beginSwap(result, false)) {
+                        needDelayedDestroySwapBack = true;
                     }
-
-                    MeteorClient.EVENT_BUS.post(
-                            new SilentMineFinishedEvent.Pre(delayedDestroyBlock.blockPos, false));
                 }
 
-                if (delayedDestroyBlock.isReady(false)) {
-                    if (!slot.found() || mc.player.getInventory().selectedSlot == slot.slot()) {
-                        delayedDestroyBlock.ticksHeldPickaxe++;
-                    }
+                if (!result.found() || mc.player.getInventory().selectedSlot == result.slot()) {
+                    delayedDestroyBlock.ticksHeldPickaxe++;
                 }
             }
         }
@@ -171,31 +165,30 @@ public class SilentMine extends Module {
         if (rebreakBlock != null) {
             BlockState blockState = mc.world.getBlockState(rebreakBlock.blockPos);
 
-            if (!blockState.isAir()) {
-                FindItemResult slot = InvUtils.findFastestTool(blockState);
+            if (rebreakBlock.isReady(true)) {
+                if (inBreakRange(rebreakBlock.blockPos)) {
+                    FindItemResult result = InvUtils.findFastestTool(blockState);
 
-                if (rebreakBlock.isReady(true) && !mc.player.isUsingItem()) {
-                    if (inBreakRange(rebreakBlock.blockPos)) {
-                        if (slot.found() && mc.player.getInventory().selectedSlot != slot.slot()
-                                && !needSwapBack) {
-                            InvUtils.swap(slot.slot(), true);
-
-                            needSwapBack = true;
+                    if (result.found() && mc.player.getInventory().selectedSlot != result.slot()) {
+                        if (MeteorClient.SWAP.beginSwap(result, true)) {
+                            needRebreakSwapBack = true;
                         }
-
-                        MeteorClient.EVENT_BUS
-                                .post(new SilentMineFinishedEvent.Pre(rebreakBlock.blockPos, true));
-
-                        rebreakBlock.tryBreak();
-
-                        if (rebreakSetBlockBroken.get() && canRebreakRebreakBlock()) {
-                            mc.world.setBlockState(rebreakBlock.blockPos,
-                                    Blocks.AIR.getDefaultState());
-                        }
-                    } else {
-                        rebreakBlock.cancelBreaking();
-                        rebreakBlock = null;
                     }
+
+                    MeteorClient.EVENT_BUS
+                            .post(new SilentMineFinishedEvent.Pre(rebreakBlock.blockPos, true));
+
+                    rebreakBlock.tryBreak();
+
+                    if (needRebreakSwapBack) {
+                        MeteorClient.SWAP.endSwap(true);
+                    }
+
+                    if (rebreakSetBlockBroken.get() && canRebreakRebreakBlock()) {
+                        mc.world.setBlockState(rebreakBlock.blockPos, Blocks.AIR.getDefaultState());
+                    }
+                } else {
+                    rebreakBlock = null;
                 }
             }
         }
@@ -210,9 +203,12 @@ public class SilentMine extends Module {
             }
         }
 
-        if (canSwapBack()) {
-            InvUtils.swapBack();
-            needSwapBack = false;
+        boolean delayedDestroyFinished =
+                !(hasDelayedDestroy() && delayedDestroyBlock.isReady(false));
+
+        if (needDelayedDestroySwapBack && delayedDestroyFinished) {
+            MeteorClient.SWAP.endSwap(false);
+            needDelayedDestroySwapBack = false;
         }
     }
 
@@ -284,10 +280,7 @@ public class SilentMine extends Module {
     }
 
     public boolean canSwapBack() {
-        boolean result = false;
-        if (needSwapBack) {
-            result = true;
-        }
+        boolean result = needDelayedDestroySwapBack;
 
         if (hasDelayedDestroy() && delayedDestroyBlock.isReady(false)) {
             result = false;
@@ -312,7 +305,8 @@ public class SilentMine extends Module {
         return delayedDestroyBlock.blockPos;
     }
 
-    // Returns the last ticks delayed destroy block position if there was one, otherwise returns null
+    // Returns the last ticks delayed destroy block position if there was one, otherwise returns
+    // null
     // Useful for something like knowing if we should place a surround block there to dig down
     public BlockPos getLastDelayedDestroyBlockPos() {
         return lastDelayedDestroyBlockPos;
@@ -426,6 +420,10 @@ public class SilentMine extends Module {
         }
 
         public boolean isReady(boolean isRebreak) {
+            if (!BlockUtils.canBreak(blockPos)) {
+                return false;
+            }
+
             double breakProgressSingleTick = getBreakProgressSingleTick();
             double threshold = isRebreak ? 0.7
                     : 1.0 - (preSwitchSinglebreak.get() ? (breakProgressSingleTick / 2.0) : 0.0);

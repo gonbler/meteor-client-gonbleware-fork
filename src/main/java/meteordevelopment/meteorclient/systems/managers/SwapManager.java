@@ -1,10 +1,12 @@
 package meteordevelopment.meteorclient.systems.managers;
 
 import meteordevelopment.meteorclient.MeteorClient;
+import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.mixininterface.IClientPlayerInteractionManager;
 import meteordevelopment.meteorclient.systems.config.AntiCheatConfig;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
+import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.gui.screen.GameMenuScreen;
 import net.minecraft.item.Item;
 import net.minecraft.util.Hand;
@@ -56,7 +58,9 @@ public class SwapManager {
             return false;
         }
 
-
+        if (!instant && mc.player.isUsingItem() && mc.player.getActiveHand() == Hand.MAIN_HAND) {
+            return false;
+        }
 
         // Ues a mutex to swap to support multithreaded calls (idk like from network thread or
         // something)
@@ -77,7 +81,8 @@ public class SwapManager {
 
         switch (getItemSwapMode()) {
             case SilentHotbar -> {
-                swapState.previousSlot = mc.player.getInventory().selectedSlot;
+                swapState.hotbarSelectedSlot = mc.player.getInventory().selectedSlot;
+                swapState.hotbarItemSlot = result.slot();
                 swapState.didSilentSwap = false;
 
                 mc.player.getInventory().selectedSlot = result.slot();
@@ -103,8 +108,9 @@ public class SwapManager {
                     InvUtils.quickSwap().fromId(mc.player.getInventory().selectedSlot)
                             .to(result.slot());
                 } else {
+                    swapState.hotbarSelectedSlot = mc.player.getInventory().selectedSlot;
+                    swapState.hotbarItemSlot = result.slot();
                     swapState.didSilentSwap = false;
-                    swapState.previousSlot = mc.player.getInventory().selectedSlot;
 
                     mc.player.getInventory().selectedSlot = result.slot();
                     ((IClientPlayerInteractionManager) mc.interactionManager).meteor$syncSelected();
@@ -170,7 +176,7 @@ public class SwapManager {
             InvUtils.quickSwap().fromId(swapState.silentSwapSelectedSlot)
                     .to(swapState.silentSwapInventorySlot);
         } else {
-            mc.player.getInventory().selectedSlot = swapState.previousSlot;
+            mc.player.getInventory().selectedSlot = swapState.hotbarSelectedSlot;
             ((IClientPlayerInteractionManager) mc.interactionManager).meteor$syncSelected();
         }
 
@@ -179,6 +185,24 @@ public class SwapManager {
 
     public SwapMode getItemSwapMode() {
         return antiCheatConfig.swapMode.get();
+    }
+
+    @EventHandler
+    private void onTick(TickEvent.Pre event) {
+        // Ensure that the selected slot hasn't changed
+        if (multiTickSwapState.isSwapped) {
+            if (multiTickSwapState.didSilentSwap) {
+                if (multiTickSwapState.silentSwapSelectedSlot != mc.player.getInventory().selectedSlot) {
+                    mc.player.getInventory().selectedSlot = multiTickSwapState.silentSwapSelectedSlot;
+                    ((IClientPlayerInteractionManager) mc.interactionManager).meteor$syncSelected();
+                }
+            } else {
+                if (multiTickSwapState.hotbarItemSlot != mc.player.getInventory().selectedSlot) {
+                    mc.player.getInventory().selectedSlot = multiTickSwapState.hotbarItemSlot;
+                    ((IClientPlayerInteractionManager) mc.interactionManager).meteor$syncSelected();
+                }
+            }
+        }
     }
 
     private SwapState getSwapState(boolean instantSwap) {
@@ -198,7 +222,8 @@ public class SwapManager {
 
         public boolean didSilentSwap = false;
 
-        public int previousSlot = 0;
+        public int hotbarSelectedSlot = 0;
+        public int hotbarItemSlot = 0;
 
         public int silentSwapSelectedSlot = 0;
         public int silentSwapInventorySlot = 0;
