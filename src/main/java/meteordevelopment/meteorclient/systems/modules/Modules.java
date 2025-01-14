@@ -604,6 +604,7 @@ public class Modules extends System<Modules> {
 
         add(new SourceFiller());
         add(new MapAura());
+        add(new AutoPortal());
 
         if (BaritoneUtils.IS_AVAILABLE) {
             add(new Excavator());
