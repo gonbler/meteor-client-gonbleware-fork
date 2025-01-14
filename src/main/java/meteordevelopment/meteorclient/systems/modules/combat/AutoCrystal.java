@@ -77,8 +77,6 @@ public class AutoCrystal extends Module {
     private final SettingGroup sgFacePlace = settings.createGroup("Face Place");
     private final SettingGroup sgBreak = settings.createGroup("Break");
 
-    private final SettingGroup sgSwitch = settings.createGroup("Switch");
-
     private final SettingGroup sgRotate = settings.createGroup("Rotate");
     private final SettingGroup sgSwing = settings.createGroup("Swing");
 
@@ -177,13 +175,6 @@ public class AutoCrystal extends Module {
             sgBreak.add(new DoubleSetting.Builder().name("break-delay")
                     .description("The number of seconds to wait to retry breaking a crystal.")
                     .defaultValue(0.05).min(0).sliderMax(0.6).build());
-
-    // -- Switch -- //
-    private final Setting<SwitchMode> switchMode =
-            sgSwitch.add(new EnumSetting.Builder<SwitchMode>().name("switch-mode")
-                    .description("Mode for switching to crystal in main hand.")
-                    .defaultValue(SwitchMode.Auto).build());
-
     // -- Rotate -- //
     private final Setting<Boolean> rotatePlace =
             sgRotate.add(new BoolSetting.Builder().name("rotate-place")
@@ -292,10 +283,6 @@ public class AutoCrystal extends Module {
     private long lastSlowPlaceTimeMS = 0;
     private long lastPlaceTimeMS = 0;
     private long lastBreakTimeMS = 0;
-
-    private int silentInvSlot;
-    private int selectedSlot;
-    private boolean didSilentSwap;
 
     private BlockPos simpleRenderPos = null;
     private Timer simpleRenderTimer = new Timer();
@@ -464,7 +451,7 @@ public class AutoCrystal extends Module {
             return false;
         }
 
-        FindItemResult result = InvUtils.findInHotbar(Items.END_CRYSTAL);
+        FindItemResult result = InvUtils.find(Items.END_CRYSTAL);
 
         if (!result.found()) {
             return false;
@@ -489,38 +476,8 @@ public class AutoCrystal extends Module {
         crystalPlaceDelays.put(pos, currentTime);
         crystalRenderPlaceDelays.put(pos, currentTime);
 
-        silentInvSlot = result.slot();
-        selectedSlot = mc.player.getInventory().selectedSlot;
-        didSilentSwap = false;
-        switch (switchMode.get()) {
-            case SilentHotbar -> {
-                InvUtils.swap(result.slot(), true);
-            }
-            case Auto -> {
-                // If we're eating from our main hand, force silent swap
-                if (mc.player.isUsingItem() && mc.player.getActiveHand() == Hand.MAIN_HAND) {
-                    InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
-                    didSilentSwap = true;
-                } else {
-                    // Otherwise, hotbar swap if it's in our hotbar, and only silent swap when it's
-                    // not
-                    if (result.isHotbar()) {
-                        InvUtils.swap(result.slot(), true);
-                    } else if (silentInvSlot != mc.player.getInventory().selectedSlot) {
-                        InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
-                        didSilentSwap = true;
-                    }
-                }
-            }
-            case SilentSwap -> {
-                if (silentInvSlot != mc.player.getInventory().selectedSlot) {
-                    InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
-                    didSilentSwap = true;
-                }
-            }
-            case None -> {
-                // Fall
-            }
+        if (!MeteorClient.SWAP.beginSwap(result, true)) {
+            return false;
         }
 
         simpleRenderPos = pos;
@@ -542,18 +499,7 @@ public class AutoCrystal extends Module {
         if (placeSwingMode.get().packet())
             mc.getNetworkHandler().sendPacket(new HandSwingC2SPacket(hand));
 
-        switch (switchMode.get()) {
-            case SilentHotbar -> InvUtils.swapBack();
-            case None -> {
-            }
-            default -> {
-                if (didSilentSwap) {
-                    InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
-                } else {
-                    InvUtils.swapBack();
-                }
-            }
-        }
+        MeteorClient.SWAP.endSwap(true);
 
         return true;
     }
@@ -1190,10 +1136,6 @@ public class AutoCrystal extends Module {
         public List<RenderablePart> parts;
 
         public Entity entity;
-    }
-
-    private enum SwitchMode {
-        None, SilentHotbar, SilentSwap, Auto
     }
 
     public enum SwingMode {
