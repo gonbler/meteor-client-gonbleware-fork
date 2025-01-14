@@ -1,10 +1,13 @@
 package meteordevelopment.meteorclient.systems.managers;
 
+import static meteordevelopment.meteorclient.MeteorClient.mc;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.systems.config.AntiCheatConfig;
-import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Block;
@@ -20,10 +23,6 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import static meteordevelopment.meteorclient.MeteorClient.mc;
 
 public class BlockPlacementManager {
     public BlockPlacementManager() {
@@ -40,19 +39,7 @@ public class BlockPlacementManager {
 
     private boolean locked = false;
 
-    private int silentInvSlot;
-    private int selectedSlot;
-    private boolean didSilentSwap;
-
     public boolean beginPlacement(BlockPos position, BlockState state, Item item) {
-        if (switch (antiCheatConfig.blockPlaceItemSwapMode.get()) {
-            case SilentHotbar -> !InvUtils.findInHotbar(item).found();
-            case SilentSwap -> !InvUtils.find(item).found();
-            case None -> mc.player.getMainHandStack().getItem() != item;
-        }) {
-            return false;
-        }
-
         if (System.currentTimeMillis() < endPlaceCooldown) {
             return false;
         }
@@ -66,42 +53,16 @@ public class BlockPlacementManager {
             return false;
         }
 
-        locked = true;
-        silentInvSlot = InvUtils.find(item).slot();
-        selectedSlot = mc.player.getInventory().selectedSlot;
-        didSilentSwap = false;
-
-        boolean inHotbar = InvUtils.findInHotbar(item).found();
-
-        switch (antiCheatConfig.blockPlaceItemSwapMode.get()) {
-            case SilentHotbar -> {
-                InvUtils.swap(InvUtils.findInHotbar(item).slot(), true);
-            }
-            case SilentSwap -> {
-                // If the block is in our hotbar, don't SilentSwap, just SilentHotbar
-                if (inHotbar) {
-                    InvUtils.swap(InvUtils.findInHotbar(item).slot(), true);
-                } else if (silentInvSlot != mc.player.getInventory().selectedSlot) {
-                    InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
-                    didSilentSwap = true;
-                }
-            }
-            case None -> {
-                // Fall
-            }
+        if (!MeteorClient.SWAP.beginSwap(item, true)) {
+            return false;
         }
+
+        locked = true;
 
         return true;
     }
 
     public boolean beginPlacement(List<BlockPos> positions, Item item) {
-        if (switch (antiCheatConfig.blockPlaceItemSwapMode.get()) {
-            case SilentHotbar -> !InvUtils.findInHotbar(item).found();
-            case SilentSwap -> !InvUtils.find(item).found();
-            case None -> mc.player.getMainHandStack().getItem() != item;
-        }) {
-            return false;
-        }
 
         if (System.currentTimeMillis() < endPlaceCooldown) {
             return false;
@@ -116,31 +77,11 @@ public class BlockPlacementManager {
             return false;
         }
 
-        locked = true;
-        silentInvSlot = InvUtils.find(item).slot();
-        selectedSlot = mc.player.getInventory().selectedSlot;
-        didSilentSwap = false;
-
-        boolean inHotbar = InvUtils.findInHotbar(item).found();
-
-        switch (antiCheatConfig.blockPlaceItemSwapMode.get()) {
-            case SilentHotbar -> {
-                InvUtils.swap(InvUtils.findInHotbar(item).slot(), true);
-            }
-            case SilentSwap -> {
-                // If the block is in our hotbar, don't SilentSwap, just SilentHotbar
-                if (inHotbar) {
-                    InvUtils.swap(InvUtils.findInHotbar(item).slot(), true);
-                } else if (silentInvSlot != mc.player.getInventory().selectedSlot) {
-                    InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
-                    didSilentSwap = true;
-                }
-            }
-            case None -> {
-                // Fall
-            }
+        if (!MeteorClient.SWAP.beginSwap(item, true)) {
+            return false;
         }
 
+        locked = true;
         return true;
     }
 
@@ -255,20 +196,7 @@ public class BlockPlacementManager {
 
         locked = false;
 
-        switch (antiCheatConfig.blockPlaceItemSwapMode.get()) {
-            case SilentHotbar -> InvUtils.swapBack();
-            case SilentSwap -> {
-                // If the block is in our hotbar, don't SilentSwap, just SilentHotbar
-                if (didSilentSwap) {
-                    InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
-                } else {
-                    InvUtils.swapBack();
-                }
-            }
-            case None -> {
-                // Fall
-            }
-        }
+        MeteorClient.SWAP.endSwap(true);
     }
 
     // Decently high priority?
@@ -327,9 +255,5 @@ public class BlockPlacementManager {
 
         // Len squared for optimization
         return dist.lengthSquared();
-    }
-
-    public enum ItemSwapMode {
-        None, SilentHotbar, SilentSwap
     }
 }

@@ -19,6 +19,7 @@ import meteordevelopment.meteorclient.systems.config.Config;
 import meteordevelopment.meteorclient.systems.managers.BlockPlacementManager;
 import meteordevelopment.meteorclient.systems.managers.InformationManager;
 import meteordevelopment.meteorclient.systems.managers.RotationManager;
+import meteordevelopment.meteorclient.systems.managers.SwapManager;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.misc.DiscordPresence;
@@ -64,6 +65,7 @@ public class MeteorClient implements ClientModInitializer {
     public static RotationManager ROTATION;
     public static BlockPlacementManager BLOCK;
     public static InformationManager INFO;
+    public static SwapManager SWAP;
 
     static {
         MOD_META = FabricLoader.getInstance().getModContainer(MOD_ID).orElseThrow().getMetadata();
@@ -149,6 +151,7 @@ public class MeteorClient implements ClientModInitializer {
         ROTATION = new RotationManager();
         BLOCK = new BlockPlacementManager();
         INFO = new InformationManager();
+        SWAP = new SwapManager();
         // BOAT_PATH_FINDER = new NetherPathFindManager();
     }
 

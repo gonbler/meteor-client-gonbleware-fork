@@ -1,10 +1,15 @@
 package meteordevelopment.meteorclient.systems.config;
 
 import meteordevelopment.meteorclient.MeteorClient;
-import meteordevelopment.meteorclient.settings.*;
+import meteordevelopment.meteorclient.settings.BoolSetting;
+import meteordevelopment.meteorclient.settings.DoubleSetting;
+import meteordevelopment.meteorclient.settings.EnumSetting;
+import meteordevelopment.meteorclient.settings.Setting;
+import meteordevelopment.meteorclient.settings.SettingGroup;
+import meteordevelopment.meteorclient.settings.Settings;
 import meteordevelopment.meteorclient.systems.System;
 import meteordevelopment.meteorclient.systems.Systems;
-import meteordevelopment.meteorclient.systems.managers.BlockPlacementManager;
+import meteordevelopment.meteorclient.systems.managers.SwapManager;
 import net.minecraft.nbt.NbtCompound;
 
 public class AntiCheatConfig extends System<AntiCheatConfig> {
@@ -12,9 +17,9 @@ public class AntiCheatConfig extends System<AntiCheatConfig> {
 
         private final SettingGroup sgRotations = settings.createGroup("Rotations");
         private final SettingGroup sgBlockPlacement = settings.createGroup("Block Placement");
+        private final SettingGroup sgSwap = settings.createGroup("Swap");
 
-        // Visual
-
+        // Rotations
         public final Setting<Boolean> tickSync = sgRotations.add(new BoolSetting.Builder()
                         .name("tick-sync")
                         .description("Lets rotations be rotated. Should always be on.")
@@ -32,8 +37,8 @@ public class AntiCheatConfig extends System<AntiCheatConfig> {
 
         public final Setting<Boolean> blockRotatePlace =
                         sgBlockPlacement.add(new BoolSetting.Builder().name("block-rotate-place")
-                                        .description("Rotates to place blcks")
-                                        .defaultValue(false).build());
+                                        .description("Rotates to place blcks").defaultValue(false)
+                                        .build());
 
         public final Setting<Boolean> blockPlaceAirPlace =
                         sgBlockPlacement.add(new BoolSetting.Builder().name("grim-air-place")
@@ -44,14 +49,6 @@ public class AntiCheatConfig extends System<AntiCheatConfig> {
                         .name("force-air-place").description("Only air-places blocks")
                         .defaultValue(true).build());
 
-        public final Setting<BlockPlacementManager.ItemSwapMode> blockPlaceItemSwapMode =
-                        sgBlockPlacement.add(
-                                        new EnumSetting.Builder<BlockPlacementManager.ItemSwapMode>()
-                                                        .name("item-swap-mode")
-                                                        .description("How to swap to items")
-                                                        .defaultValue(BlockPlacementManager.ItemSwapMode.SilentSwap)
-                                                        .build());
-
         public final Setting<Double> blockPlacePerBlockCooldown = sgBlockPlacement
                         .add(new DoubleSetting.Builder().name("block-place-cooldown").description(
                                         "Amount of time to retry placing blocks in the same place")
@@ -61,6 +58,11 @@ public class AntiCheatConfig extends System<AntiCheatConfig> {
                         .add(new DoubleSetting.Builder().name("blocks-per-second").description(
                                         "Maximum number of blocks that can be placed every second")
                                         .defaultValue(20).min(0).sliderMax(30).build());
+
+        public final Setting<SwapManager.SwapMode> itemSwapMode =
+                        sgSwap.add(new EnumSetting.Builder<SwapManager.SwapMode>()
+                                        .name("item-swap-mode").description("How to swap to items")
+                                        .defaultValue(SwapManager.SwapMode.Auto).build());
 
         public AntiCheatConfig() {
                 super("anti-cheat-config");
