@@ -16,6 +16,7 @@ import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.item.Items;
+import net.minecraft.util.Hand;
 
 public class EXPThrower extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -31,24 +32,19 @@ public class EXPThrower extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        FindItemResult exp = InvUtils.findInHotbar(Items.EXPERIENCE_BOTTLE);
-        if (!exp.found() || mc.player.isUsingItem())
+        FindItemResult result = InvUtils.find(Items.EXPERIENCE_BOTTLE);
+
+        if (!result.found() || mc.player.isUsingItem())
             return;
 
-        MeteorClient.ROTATION.requestRotation(mc.player.getYaw(), 90, 0);
-
-        if (exp.getHand() != null) {
-            for (int i = 0; i < throwsPerTick.get(); i++) {
-                mc.interactionManager.interactItem(mc.player, exp.getHand());
-            }
-        } else {
-            InvUtils.swap(exp.slot(), true);
+        if (MeteorClient.SWAP.beginSwap(result, true)) {
+            MeteorClient.ROTATION.requestRotation(mc.player.getYaw(), 90, 0);
 
             for (int i = 0; i < throwsPerTick.get(); i++) {
-                mc.interactionManager.interactItem(mc.player, exp.getHand());
+                mc.interactionManager.interactItem(mc.player, Hand.MAIN_HAND);
             }
 
-            InvUtils.swapBack();
+            MeteorClient.SWAP.endSwap(true);
         }
     }
 }
