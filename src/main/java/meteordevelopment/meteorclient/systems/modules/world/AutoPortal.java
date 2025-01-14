@@ -109,26 +109,14 @@ public class AutoPortal extends Module {
 
         if (placesLeft.isEmpty()) {
             if (lightPortal.get()) {
-                if (!InvUtils.find(Items.FLINT_AND_STEEL).found()) {
-                    deactivate(true);
-                    info("No flint and steel to light portal");
-                    return;
-                }
+                if (MeteorClient.SWAP.beginSwap(Items.FLINT_AND_STEEL, true)) {
+                    mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND,
+                            new BlockHitResult(ignitionPos.down().toCenterPos(), Direction.UP,
+                                    ignitionPos.down(), false));
 
-                int invSlot = InvUtils.find(Items.FLINT_AND_STEEL).slot();
-                int selectedSlot = mc.player.getInventory().selectedSlot;
-                boolean didSilentSwap = false;
-
-                if (invSlot != mc.player.getInventory().selectedSlot) {
-                    InvUtils.quickSwap().fromId(selectedSlot).to(invSlot);
-                    didSilentSwap = true;
-                }
-
-                mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, new BlockHitResult(
-                        ignitionPos.down().toCenterPos(), Direction.UP, ignitionPos.down(), false));
-
-                if (didSilentSwap) {
-                    InvUtils.quickSwap().fromId(selectedSlot).to(invSlot);
+                    MeteorClient.SWAP.endSwap(true);
+                } else {
+                    info("Failed to light portal");
                 }
 
                 deactivate(true);
@@ -180,7 +168,8 @@ public class AutoPortal extends Module {
                 for (int z = -10; z <= 10; z++) {
                     BlockPos pos = startPos.add(x, y, z);
                     if (canBuildPortalAtPosition(pos)) {
-                        int distance = pos.add(1, 2, 0).getManhattanDistance(mc.player.getBlockPos());
+                        int distance =
+                                pos.add(1, 2, 0).getManhattanDistance(mc.player.getBlockPos());
 
                         double score = 1 / (double) distance;
 
