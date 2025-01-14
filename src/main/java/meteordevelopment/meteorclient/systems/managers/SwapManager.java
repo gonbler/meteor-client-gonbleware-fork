@@ -189,6 +189,10 @@ public class SwapManager {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
+        if (mc.world == null || mc.player == null) {
+            return;
+        }
+
         // Ensure that the selected slot hasn't changed
         if (multiTickSwapState.isSwapped) {
             if (multiTickSwapState.didSilentSwap) {
