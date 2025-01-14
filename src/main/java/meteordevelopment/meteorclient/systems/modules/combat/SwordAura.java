@@ -14,12 +14,12 @@ import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.friends.Friends;
+import meteordevelopment.meteorclient.systems.managers.SwapManager.SwapMode;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
-import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.component.DataComponentTypes;
@@ -34,7 +34,6 @@ import net.minecraft.entity.mob.ZombifiedPiglinEntity;
 import net.minecraft.entity.passive.WolfEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
@@ -51,15 +50,12 @@ public class SwordAura extends Module {
             .description("The maximum range the entity can be to attack it.").defaultValue(2.85)
             .min(0).sliderMax(6).build());
 
-    private final Setting<SwitchMode> switchMode =
-            sgGeneral.add(new EnumSetting.Builder<SwitchMode>().name("switch-mode")
-                    .description("How to swap to the sword").defaultValue(SwitchMode.Auto).build());
-
     private final Setting<Boolean> silentSwapOverrideDelay = sgGeneral.add(new BoolSetting.Builder()
             .name("silent-swap-override-delay")
             .description(
                     "Whether or not to use the held items delay when attacking with silent swap")
-            .defaultValue(true).visible(() -> switchMode.get() != SwitchMode.None).build());
+            .defaultValue(true).visible(() -> MeteorClient.SWAP.getItemSwapMode() != SwapMode.None)
+            .build());
 
     private final Setting<Boolean> rotate = sgGeneral.add(new BoolSetting.Builder().name("rotate")
             .description("Whether or not to rotate to the entity to attack it.").defaultValue(true)
@@ -111,10 +107,6 @@ public class SwordAura extends Module {
     private Entity target = null;
     private Entity lastAttackedEntity = null;
 
-    private int silentInvSlot;
-    private int selectedSlot;
-    private boolean didSilentSwap;
-
     public SwordAura() {
         super(Categories.Combat, "sword-aura", "Automatically attacks entities with your sword");
     }
@@ -136,19 +128,13 @@ public class SwordAura extends Module {
             return;
         }
 
-        Item mainHandItem = mc.player.getInventory().getMainHandStack().getItem();
-
-        if (switchMode.get() == SwitchMode.None && mainHandItem != Items.DIAMOND_SWORD
-                && mainHandItem != Items.NETHERITE_SWORD) {
-            return;
-        }
-
-        FindItemResult result = InvUtils.find(Items.NETHERITE_SWORD);
+        // Priorizie finding a netherite sword
+        FindItemResult result = MeteorClient.SWAP.getSlot(Items.NETHERITE_SWORD);
         if (!result.found()) {
-            result = InvUtils.find(Items.DIAMOND_SWORD);
+            result = MeteorClient.SWAP.getSlot(Items.DIAMOND_SWORD);
         }
 
-        if (!result.found() || (switchMode.get() == SwitchMode.SilentHotbar && !result.isHotbar())) {
+        if (!result.found()) {
             return;
         }
 
@@ -188,16 +174,13 @@ public class SwordAura extends Module {
             return true;
         }, priority.get());
 
-        if (target == null) {
+        if (target == null || !target.isAlive()) {
             return;
         }
 
-        if (!target.isAlive())
-            return;
-
         int delayCheckSlot = result.slot();
 
-        if (switchMode.get() != SwitchMode.None && silentSwapOverrideDelay.get()) {
+        if (silentSwapOverrideDelay.get()) {
             delayCheckSlot = mc.player.getInventory().selectedSlot;
         }
 
@@ -211,54 +194,11 @@ public class SwordAura extends Module {
                 }
             }
 
-            silentInvSlot = result.slot();
-            selectedSlot = mc.player.getInventory().selectedSlot;
-            didSilentSwap = false;
-            switch (switchMode.get()) {
-                case SilentHotbar -> {
-                    InvUtils.swap(result.slot(), true);
-                }
-                case Auto -> {
-                    // If we're eating from our main hand, force silent swap
-                    if (mc.player.isUsingItem() && mc.player.getActiveHand() == Hand.MAIN_HAND) {
-                        InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
-                        didSilentSwap = true;
-                    } else {
-                        // Otherwise, hotbar swap if it's in our hotbar, and only silent swap when it's not
-                        if (result.isHotbar()) {
-                            InvUtils.swap(result.slot(), true);
-                        } else if (silentInvSlot != mc.player.getInventory().selectedSlot) {
-                            InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
-                            didSilentSwap = true;
-                        }
-                    }
-                }
-                case SilentSwap -> {
-                    if (silentInvSlot != mc.player.getInventory().selectedSlot) {
-                        InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
-                        didSilentSwap = true;
-                    }
-                }
-                case None -> {
-                    // Fall
-                }
+            if (MeteorClient.SWAP.beginSwap(result, true)) {
+                attack();
+
+                MeteorClient.SWAP.endSwap(true);
             }
-
-            attack();
-
-            switch (switchMode.get()) {
-                case SilentHotbar -> InvUtils.swapBack();
-                case None -> { }
-                default -> {
-                    if (didSilentSwap) {
-                        InvUtils.quickSwap().fromId(selectedSlot).to(silentInvSlot);
-                    } else {
-                        InvUtils.swapBack();
-                    }
-                }
-            }
-
-            
         }
     }
 

@@ -42,6 +42,19 @@ public class SwapManager {
             return false;
         }
 
+        return beginSwap(result, instant);
+    }
+
+    public boolean beginSwap(FindItemResult result, boolean instant) {
+        if (!result.found()) {
+            return false;
+        }
+
+        // If the mode is none, we just give up if it's not in our main hand
+        if (getItemSwapMode() == SwapMode.None && !result.isMainHand()) {
+            return false;
+        }
+
         // Ues a mutex to swap to support multithreaded calls (idk like from network thread or
         // something)
         synchronized (swapLock) {
@@ -101,6 +114,30 @@ public class SwapManager {
         return true;
     }
 
+    public FindItemResult getSlot(Item item) {
+        FindItemResult result = InvUtils.findInHotbar(item);
+
+        // If the mode is none, we just give up if it's not in our main hand
+        if (getItemSwapMode() == SwapMode.None && !result.isMainHand()) {
+            return new FindItemResult(-1, 0);
+        }
+
+        // If the mode is silent hotbar, we can only swap to items in the hotbar
+        if (getItemSwapMode() == SwapMode.SilentHotbar && !result.found()) {
+            return new FindItemResult(-1, 0);
+        }
+
+        if (!result.found()) {
+            result = InvUtils.find(item);
+        }
+
+        if (!result.found()) {
+            return new FindItemResult(-1, 0);
+        }
+
+        return result;
+    }
+    
     public void endSwap(boolean instantSwap) {
         synchronized (swapLock) {
             if (instantSwap && !getSwapState(instantSwap).isSwapped) {
