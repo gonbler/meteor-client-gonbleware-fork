@@ -55,10 +55,10 @@ public class AntiCheatConfig extends System<AntiCheatConfig> {
                     .description("Maximum number of blocks that can be placed every second")
                     .defaultValue(20).min(0).sliderMax(30).build());
 
-    public final Setting<Boolean> swapAntiScreenClose = sgBlockPlacement
-                        .add(new BoolSetting.Builder().name("anti-screen-close").description(
-                                        "Pauses certain methods of swapping when certain screens are open")
-                                        .defaultValue(true).build());
+    public final Setting<Boolean> swapAntiScreenClose =
+            sgSwap.add(new BoolSetting.Builder().name("anti-screen-close")
+                    .description("Pauses certain methods of swapping when certain screens are open")
+                    .defaultValue(true).build());
 
     public final Setting<SwapManager.SwapMode> swapMode =
             sgSwap.add(new EnumSetting.Builder<SwapManager.SwapMode>().name("item-swap-mode")
