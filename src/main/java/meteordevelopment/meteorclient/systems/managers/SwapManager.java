@@ -5,6 +5,7 @@ import meteordevelopment.meteorclient.mixininterface.IClientPlayerInteractionMan
 import meteordevelopment.meteorclient.systems.config.AntiCheatConfig;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
+import net.minecraft.client.gui.screen.GameMenuScreen;
 import net.minecraft.item.Item;
 import net.minecraft.util.Hand;
 import static meteordevelopment.meteorclient.MeteorClient.mc;
@@ -55,6 +56,8 @@ public class SwapManager {
             return false;
         }
 
+
+
         // Ues a mutex to swap to support multithreaded calls (idk like from network thread or
         // something)
         synchronized (swapLock) {
@@ -75,6 +78,7 @@ public class SwapManager {
         switch (getItemSwapMode()) {
             case SilentHotbar -> {
                 swapState.previousSlot = mc.player.getInventory().selectedSlot;
+                swapState.didSilentSwap = false;
 
                 mc.player.getInventory().selectedSlot = result.slot();
                 ((IClientPlayerInteractionManager) mc.interactionManager).meteor$syncSelected();
@@ -85,6 +89,13 @@ public class SwapManager {
                         || (mc.player.isUsingItem() && mc.player.getActiveHand() == Hand.MAIN_HAND);
 
                 if (shouldSilentSwap) {
+                    if (antiCheatConfig.swapAntiScreenClose.get()) {
+                        if (mc.currentScreen instanceof GameMenuScreen) {
+                            getSwapState(instant).isSwapped = false;
+                            return false;
+                        }
+                    }
+
                     swapState.silentSwapInventorySlot = result.slot();
                     swapState.silentSwapSelectedSlot = mc.player.getInventory().selectedSlot;
                     swapState.didSilentSwap = true;
@@ -92,6 +103,7 @@ public class SwapManager {
                     InvUtils.quickSwap().fromId(mc.player.getInventory().selectedSlot)
                             .to(result.slot());
                 } else {
+                    swapState.didSilentSwap = false;
                     swapState.previousSlot = mc.player.getInventory().selectedSlot;
 
                     mc.player.getInventory().selectedSlot = result.slot();
@@ -99,6 +111,13 @@ public class SwapManager {
                 }
             }
             case SilentSwap -> {
+                if (antiCheatConfig.swapAntiScreenClose.get()) {
+                    if (mc.currentScreen instanceof GameMenuScreen) {
+                        getSwapState(instant).isSwapped = false;
+                        return false;
+                    }
+                }
+
                 swapState.silentSwapInventorySlot = result.slot();
                 swapState.silentSwapSelectedSlot = mc.player.getInventory().selectedSlot;
                 swapState.didSilentSwap = true;
@@ -137,7 +156,7 @@ public class SwapManager {
 
         return result;
     }
-    
+
     public void endSwap(boolean instantSwap) {
         synchronized (swapLock) {
             if (instantSwap && !getSwapState(instantSwap).isSwapped) {
@@ -159,7 +178,7 @@ public class SwapManager {
     }
 
     public SwapMode getItemSwapMode() {
-        return antiCheatConfig.itemSwapMode.get();
+        return antiCheatConfig.swapMode.get();
     }
 
     private SwapState getSwapState(boolean instantSwap) {

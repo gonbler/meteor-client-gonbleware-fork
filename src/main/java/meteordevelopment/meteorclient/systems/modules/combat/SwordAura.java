@@ -22,6 +22,8 @@ import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
+import net.minecraft.client.gui.screen.ingame.AbstractInventoryScreen;
+import net.minecraft.client.gui.screen.ingame.GenericContainerScreen;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.AttributeModifiersComponent;
 import net.minecraft.entity.Entity;
@@ -80,6 +82,12 @@ public class SwordAura extends Module {
 
     private final Setting<Boolean> pauseInAir = sgGeneral.add(new BoolSetting.Builder()
             .name("pause-in-air").description("Does not attack while jumping or falling")
+            .defaultValue(false).build());
+
+    private final Setting<Boolean> pauseInventoryOepn = sgGeneral.add(new BoolSetting.Builder()
+            .name("pause-on-inventory")
+            .description(
+                    "Does not attack when the inventory is open. Disabling this may cause unhappiness.")
             .defaultValue(true).build());
 
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("render")
@@ -185,6 +193,11 @@ public class SwordAura extends Module {
         }
 
         if (delayCheck(delayCheckSlot)) {
+            if (pauseInventoryOepn.get() && (mc.currentScreen instanceof AbstractInventoryScreen
+                    || mc.currentScreen instanceof GenericContainerScreen)) {
+                return;
+            }
+
             if (rotate.get()) {
                 MeteorClient.ROTATION.requestRotation(
                         getClosestPointOnBox(target.getBoundingBox(), mc.player.getEyePos()), 9);
