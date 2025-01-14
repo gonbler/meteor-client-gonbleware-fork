@@ -160,36 +160,15 @@ public class PearlPhase extends Module {
     }
 
     private void throwPearl(float yaw, float pitch) {
-        int invSlot = InvUtils.find(Items.ENDER_PEARL).slot();
-        int selectedSlot = mc.player.getInventory().selectedSlot;
-        boolean didSilentSwap = false;
+        if (MeteorClient.SWAP.beginSwap(Items.ENDER_PEARL, true)) {
+            int sequence = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
 
-        switch (switchMode.get()) {
-            case SilentHotbar -> {
-                InvUtils.swap(InvUtils.findInHotbar(Items.ENDER_PEARL).slot(), true);
-            }
-            case SilentSwap -> {
-                if (invSlot != mc.player.getInventory().selectedSlot) {
-                    InvUtils.quickSwap().fromId(selectedSlot).to(invSlot);
-                    didSilentSwap = true;
-                }
-            }
-        }
+            mc.getNetworkHandler().sendPacket(
+                    new PlayerInteractItemC2SPacket(Hand.MAIN_HAND, sequence, yaw, pitch));
 
-        int sequence = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
+            deactivate(true);
 
-        mc.getNetworkHandler()
-                .sendPacket(new PlayerInteractItemC2SPacket(Hand.MAIN_HAND, sequence, yaw, pitch));
-
-        deactivate(true);
-
-        switch (switchMode.get()) {
-            case SilentHotbar -> InvUtils.swapBack();
-            case SilentSwap -> {
-                if (didSilentSwap) {
-                    InvUtils.quickSwap().fromId(selectedSlot).to(invSlot);
-                }
-            }
+            MeteorClient.SWAP.endSwap(true);
         }
     }
 
