@@ -23,8 +23,11 @@ public class MovementFix extends Module {
 
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    private final Setting<Boolean> grim = sgGeneral.add(new BoolSetting.Builder().name("grim")
-            .description("Mode for grim.").defaultValue(true).build());
+    private final Setting<Boolean> grimStrict = sgGeneral.add(new BoolSetting.Builder()
+            .name("grim-strict")
+            .description(
+                    "Strict mode for Grim. Should be off for 2b2t.org and on for other Grim servers.")
+            .defaultValue(false).build());
 
     private final Setting<Boolean> grimCobwebSprintJump =
             sgGeneral.add(new BoolSetting.Builder().name("grim-cobweb-sprint-jump-fix")
@@ -47,7 +50,7 @@ public class MovementFix extends Module {
     public static float prevYaw;
     public static float prevPitch;
 
-    public static boolean setRot = false; 
+    public static boolean setRot = false;
 
     private boolean preJumpSprint = false;
 
@@ -64,7 +67,8 @@ public class MovementFix extends Module {
 
     @EventHandler
     public void onPreJump(PlayerJumpEvent.Pre e) {
-        if (!grim.get() || mc.player.isRiding() || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation()) {
+        if (mc.player.isRiding()
+                || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation()) {
             return;
         }
 
@@ -82,7 +86,8 @@ public class MovementFix extends Module {
 
     @EventHandler
     public void onPostJump(PlayerJumpEvent.Post e) {
-        if (!grim.get() || mc.player.isRiding() || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation()) {
+        if (mc.player.isRiding()
+                || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation()) {
             return;
         }
 
@@ -97,7 +102,8 @@ public class MovementFix extends Module {
 
     @EventHandler
     public void onPreTravel(PlayerTravelEvent.Pre e) {
-        if (!grim.get() || !travel.get() || mc.player.isRiding() || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation()) {
+        if (!travel.get() || mc.player.isRiding()
+                || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation()) {
             return;
         }
         prevYaw = mc.player.getYaw();
@@ -109,7 +115,8 @@ public class MovementFix extends Module {
 
     @EventHandler
     public void onPostTravel(PlayerTravelEvent.Post e) {
-        if (!grim.get() || !travel.get() || mc.player.isRiding() || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation()) {
+        if (!travel.get() || mc.player.isRiding()
+                || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation()) {
             return;
         }
 
@@ -120,7 +127,8 @@ public class MovementFix extends Module {
 
     @EventHandler
     public void onPlayerMove(UpdatePlayerVelocity event) {
-        if (!grim.get() || mc.player.isRiding() || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation())
+        if (mc.player.isRiding()
+                || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation())
             return;
 
         event.cancel();
@@ -131,8 +139,9 @@ public class MovementFix extends Module {
 
     @EventHandler(priority = EventPriority.LOW)
     public void onKeyInput(KeyboardInputEvent e) {
-        if (!grim.get() || mc.player.isRiding() || Modules.get().get(Freecam.class).isActive()
-                || mc.player.isFallFlying() || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation())
+        if (mc.player.isRiding() || Modules.get().get(Freecam.class).isActive()
+                || mc.player.isFallFlying()
+                || Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation())
             return;
 
         float mF = mc.player.input.movementForward;
@@ -140,8 +149,14 @@ public class MovementFix extends Module {
         float delta = (mc.player.getYaw() - fixYaw) * MathHelper.RADIANS_PER_DEGREE;
         float cos = MathHelper.cos(delta);
         float sin = MathHelper.sin(delta);
-        mc.player.input.movementSideways = Math.round(mS * cos - mF * sin);
-        mc.player.input.movementForward = Math.round(mF * cos + mS * sin);
+        
+        if (grimStrict.get()) {
+            mc.player.input.movementSideways = Math.round(mS * cos - mF * sin);
+            mc.player.input.movementForward = Math.round(mF * cos + mS * sin);
+        } else {
+            mc.player.input.movementSideways = mS * cos - mF * sin;
+            mc.player.input.movementForward = mF * cos + mS * sin;
+        }
     }
 
     public enum UpdateMode {
