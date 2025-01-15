@@ -524,4 +524,8 @@ public class PlayerUtils {
         return mc.world.getBlockCollisions(mc.player, mc.player.getBoundingBox()).iterator()
                 .hasNext();
     }
+
+    public static boolean isPlayerPhased(PlayerEntity player) {
+        return mc.world.getBlockCollisions(player, player.getBoundingBox()).iterator().hasNext();
+    }
 }
