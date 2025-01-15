@@ -204,12 +204,8 @@ public class Surround extends Module {
 
                 Predicate<Entity> entityPredicate = entity -> entity instanceof EndCrystalEntity;
 
-                Entity blocking = null;
-
-                for (Entity crystal : mc.world.getOtherEntities(null, box, entityPredicate)) {
-                    blocking = crystal;
-                    break;
-                }
+                Entity blocking = mc.world.getOtherEntities(null, box, entityPredicate).stream()
+                        .findFirst().orElse(null);
 
                 if (blocking != null && System.currentTimeMillis() - lastAttackTime >= 50) {
                     MeteorClient.ROTATION.requestRotation(blocking.getPos(), 11);
