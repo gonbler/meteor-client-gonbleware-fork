@@ -29,7 +29,6 @@ public class BlockPlacementManager {
         MeteorClient.EVENT_BUS.subscribe(this);
     }
 
-
     private final AntiCheatConfig antiCheatConfig = AntiCheatConfig.get();
 
     private final Map<BlockPos, Long> placeCooldowns = new ConcurrentHashMap<>();
@@ -199,11 +198,15 @@ public class BlockPlacementManager {
         MeteorClient.SWAP.endSwap(true);
     }
 
+    public void forceResetPlaceCooldown(BlockPos blockPos) {
+        placeCooldowns.remove(blockPos);
+    }
+
     // Decently high priority?
     @EventHandler(priority = 100)
     private void onPostTick(TickEvent.Pre pre) {
         if (placesThisTick > 2) {
-            endPlaceCooldown = System.currentTimeMillis() + placesThisTick * 38;
+            endPlaceCooldown = System.currentTimeMillis() + placesThisTick * 39;
         }
 
         placesThisTick = 0;
@@ -212,7 +215,7 @@ public class BlockPlacementManager {
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
         if (event.packet instanceof BlockUpdateS2CPacket packet) {
-            if (placeCooldowns.containsKey(packet.getPos()) && !packet.getState().isAir()) {
+            if (!packet.getState().isAir()) {
                 placeCooldowns.remove(packet.getPos());
             }
         }

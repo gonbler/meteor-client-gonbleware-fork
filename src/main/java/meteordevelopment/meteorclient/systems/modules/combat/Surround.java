@@ -51,6 +51,11 @@ public class Surround extends Module {
                     "Attempts to break crystals around surround positions to prevent surround break.")
             .defaultValue(true).build());
 
+    private final Setting<Boolean> protectOverrideBlockCooldown = sgGeneral
+            .add(new BoolSetting.Builder().name("protect-override-block-cooldown").description(
+                    "Overrides the cooldown for block placements when you break a crystal. May result in more packet kicks")
+                    .visible(() -> protect.get()).defaultValue(true).build());
+
     private final Setting<Boolean> selfTrapEnabled = sgGeneral.add(new BoolSetting.Builder()
             .name("self-trap").description("Enables self trap").defaultValue(true).build());
 
@@ -149,13 +154,9 @@ public class Surround extends Module {
                                 facePlacePos.getY() + 1, facePlacePos.getZ() + 1);
 
                         if (autoSelfTrapMode.get() == SelfTrapMode.Smart) {
-                            Predicate<Entity> entityPredicate =
-                                    entity -> entity instanceof EndCrystalEntity;
-
-                            for (Entity crystal : mc.world.getOtherEntities(null, box,
-                                    entityPredicate)) {
+                            if (mc.world.getOtherEntities(null, box, entity -> entity instanceof EndCrystalEntity).iterator()
+                                    .hasNext()) {
                                 lastTimeOfCrystalNearHead = currentTime;
-                                break;
                             }
 
                             if ((currentTime - lastTimeOfCrystalNearHead) / 1000.0 < 1.0) {
@@ -219,6 +220,10 @@ public class Surround extends Module {
                         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket
                                 .attack(blocking, mc.player.isSneaking()));
                         blocking.discard();
+
+                        if (protectOverrideBlockCooldown.get()) {
+                            MeteorClient.BLOCK.forceResetPlaceCooldown(blockPos);
+                        }
                     }
                 }
             });
