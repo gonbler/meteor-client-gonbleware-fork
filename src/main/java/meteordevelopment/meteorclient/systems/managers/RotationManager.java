@@ -246,8 +246,12 @@ public class RotationManager {
             event.pitch = rotateEvent.getPitch();
         }
 
-        if (antiCheatConfig.grimRotation.get()) {
+        if (antiCheatConfig.grimSync.get()) {
             event.forceFull = true;
+        }
+
+        if (antiCheatConfig.grimRotation.get()) {
+            event.forceFullOnRotate = true;
         }
     }
 

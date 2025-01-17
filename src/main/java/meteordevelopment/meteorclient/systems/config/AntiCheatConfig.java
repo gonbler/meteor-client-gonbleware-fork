@@ -24,9 +24,14 @@ public class AntiCheatConfig extends System<AntiCheatConfig> {
             .name("tick-sync").description("Lets rotations be rotated. Should always be on.")
             .defaultValue(true).build());
 
-    public final Setting<Boolean> grimRotation = sgRotations.add(new BoolSetting.Builder()
-            .name("grim-rotation").description("Sends a full movement packet every tick")
+    public final Setting<Boolean> grimSync = sgRotations.add(new BoolSetting.Builder()
+            .name("grim-sync").description("Sends a full movement packet every tick")
             .defaultValue(false).visible(() -> tickSync.get()).build());
+
+    public final Setting<Boolean> grimRotation =
+            sgRotations.add(new BoolSetting.Builder().name("grim-rotation")
+                    .description("Sends a full movement packet when your player look changes")
+                    .defaultValue(true).visible(() -> tickSync.get()).build());
 
     public final Setting<Boolean> grimSnapRotation =
             sgRotations.add(new BoolSetting.Builder().name("grim-snap-rotation")

@@ -315,7 +315,7 @@ public class Notifier extends Module {
 
                 if (visualRangeIgnoreNakeds.get()
                         && player.getInventory().armor.stream().allMatch(x -> x.isEmpty())) {
-                    return;
+                    continue;
                 }
 
                 ChatUtils.sendMsg(player.getId() + 100, Formatting.GRAY,
@@ -346,7 +346,7 @@ public class Notifier extends Module {
 
                 if (visualRangeIgnoreNakeds.get()
                         && player.getInventory().armor.stream().allMatch(x -> x.isEmpty())) {
-                    return;
+                    continue;
                 }
                 ChatUtils.sendMsg(player.getId() + 100, Formatting.GRAY,
                         "(highlight)%s(default) has left your visual range!",

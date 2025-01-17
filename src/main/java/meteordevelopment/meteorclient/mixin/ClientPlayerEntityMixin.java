@@ -261,6 +261,10 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
             float sendYaw = yaw;
             boolean forceFull = movementPacketsEvent.forceFull;
 
+            if (rotationChanged && movementPacketsEvent.forceFullOnRotate) {
+                forceFull = true;
+            }
+
             if (Modules.get().get(GrimDisabler.class).shouldSetYawOverflowRotation()) {
                 sendYaw = encodeDegrees(yaw, 100000);
 

@@ -18,6 +18,7 @@ public class SendMovementPacketsEvent {
         public float yaw;
         public float pitch;
         public boolean forceFull;
+        public boolean forceFullOnRotate;
 
         public Rotation(float yaw, float pitch) {
             this.yaw = yaw;
