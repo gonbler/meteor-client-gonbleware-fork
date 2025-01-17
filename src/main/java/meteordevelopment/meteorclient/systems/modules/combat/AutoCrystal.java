@@ -325,7 +325,7 @@ public class AutoCrystal extends Module {
         }
     }
 
-    private void update(Render3DEvent event) {
+    private void update() {
         if (mc.player == null || mc.world == null || mc.world.getPlayers().isEmpty())
             return;
 
@@ -891,7 +891,7 @@ public class AutoCrystal extends Module {
         if (!isActive())
             return;
 
-        update(event);
+        update();
 
         switch (renderMode.get()) {
             case Simple -> drawSimple(event);

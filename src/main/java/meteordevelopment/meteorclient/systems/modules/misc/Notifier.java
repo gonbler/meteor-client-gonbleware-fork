@@ -21,6 +21,7 @@ import meteordevelopment.meteorclient.utils.entity.fakeplayer.FakePlayerEntity;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
+import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.player.PlayerEntity;
@@ -34,9 +35,9 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.collection.ArrayListDeque;
 import net.minecraft.util.math.Vec3d;
-
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Collectors;
+
 import static meteordevelopment.meteorclient.utils.player.ChatUtils.formatCoords;
 
 public class Notifier extends Module {
@@ -147,7 +148,8 @@ public class Notifier extends Module {
     private final Object2IntMap<UUID> chatIdMap = new Object2IntOpenHashMap<>();
     private final Map<Integer, Vec3d> pearlStartPosMap = new HashMap<>();
     private final ArrayListDeque<Text> messageQueue = new ArrayListDeque<>();
-    private final Queue<PlayerEntity> visualRangeEnterQueue = new ConcurrentLinkedQueue<>();
+
+    private Set<AbstractClientPlayerEntity> lastPlayerVisualRangeList = new HashSet<>();
 
     private final Random random = new Random();
 
@@ -162,16 +164,7 @@ public class Notifier extends Module {
         if (!event.entity.getUuid().equals(mc.player.getUuid())
                 && entities.get().contains(event.entity.getType()) && visualRange.get()
                 && this.event.get() != Event.Despawn) {
-            if (event.entity instanceof PlayerEntity player) {
-                if ((!visualRangeIgnoreFriends.get()
-                        || !Friends.get().isFriend(((PlayerEntity) event.entity)))
-                        && (!visualRangeIgnoreFakes.get()
-                                || !(event.entity instanceof FakePlayerEntity))) {
-
-                    visualRangeEnterQueue.add(player);
-
-                }
-            } else {
+            if (!(event.entity instanceof PlayerEntity)) {
                 MutableText text = Text.literal(event.entity.getType().getName().getString())
                         .formatted(Formatting.WHITE);
                 text.append(Text.literal(" has spawned at ").formatted(Formatting.GRAY));
@@ -192,30 +185,7 @@ public class Notifier extends Module {
         if (!event.entity.getUuid().equals(mc.player.getUuid())
                 && entities.get().contains(event.entity.getType()) && visualRange.get()
                 && this.event.get() != Event.Spawn) {
-            if (event.entity instanceof PlayerEntity player) {
-                if ((!visualRangeIgnoreFriends.get()
-                        || !Friends.get().isFriend(((PlayerEntity) event.entity)))
-                        && (!visualRangeIgnoreFakes.get()
-                                || !(event.entity instanceof FakePlayerEntity))) {
-
-                    if (visualRangeIgnoreNakeds.get()) {
-                        if (player.getInventory().armor.get(0).isEmpty()
-                                && player.getInventory().armor.get(1).isEmpty()
-                                && player.getInventory().armor.get(2).isEmpty()
-                                && player.getInventory().armor.get(3).isEmpty())
-                            return;
-                    }
-
-                    ChatUtils.sendMsg(event.entity.getId() + 100, Formatting.GRAY,
-                            "(highlight)%s(default) has left your visual range!",
-                            event.entity.getName().getString());
-
-                    if (visualMakeSound.get())
-                        mc.world.playSoundFromEntity(mc.player, mc.player,
-                                SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, SoundCategory.AMBIENT,
-                                3.0F, 1.0F);
-                }
-            } else {
+            if (!(event.entity instanceof PlayerEntity)) {
                 MutableText text = Text.literal(event.entity.getType().getName().getString())
                         .formatted(Formatting.WHITE);
                 text.append(Text.literal(" has despawned at ").formatted(Formatting.GRAY));
@@ -325,34 +295,71 @@ public class Notifier extends Module {
             }
         }
 
-        while (!visualRangeEnterQueue.isEmpty()) {
-            PlayerEntity player = visualRangeEnterQueue.peek();
+        Set<AbstractClientPlayerEntity> currentPlayers =
+                mc.world.getPlayers().stream().collect(Collectors.toSet());
 
-            if (player.age > 0) {
-                visualRangeEnterQueue.remove();
-
-                if (visualRangeIgnoreNakeds.get()) {
-                    if (player.getInventory().armor.get(0).isEmpty()
-                            && player.getInventory().armor.get(1).isEmpty()
-                            && player.getInventory().armor.get(2).isEmpty()
-                            && player.getInventory().armor.get(3).isEmpty())
-                        return;
+        // Basically just detecting if they were added to the current player list vs last tick
+        if (this.event.get() != Event.Despawn) {
+            for (AbstractClientPlayerEntity player : currentPlayers) {
+                if (lastPlayerVisualRangeList.contains(player)) {
+                    continue;
                 }
 
+                if (visualRangeIgnoreFriends.get() && Friends.get().isFriend(player)) {
+                    continue;
+                }
+
+                if (visualRangeIgnoreFakes.get() && player instanceof FakePlayerEntity) {
+                    continue;
+                }
+
+                if (visualRangeIgnoreNakeds.get()
+                        && player.getInventory().armor.stream().allMatch(x -> x.isEmpty())) {
+                    return;
+                }
 
                 ChatUtils.sendMsg(player.getId() + 100, Formatting.GRAY,
                         "(highlight)%s(default) has entered your visual range!",
                         player.getName().getString());
-
                 if (visualMakeSound.get()) {
                     mc.world.playSoundFromEntity(mc.player, mc.player,
                             SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, SoundCategory.AMBIENT, 3.0F,
                             1.0F);
                 }
-            } else {
-                break;
             }
         }
+
+        // Other way around from the last one
+        if (this.event.get() != Event.Spawn) {
+            for (AbstractClientPlayerEntity player : lastPlayerVisualRangeList) {
+                if (currentPlayers.contains(player)) {
+                    continue;
+                }
+
+                if (visualRangeIgnoreFriends.get() && Friends.get().isFriend(player)) {
+                    continue;
+                }
+
+                if (visualRangeIgnoreFakes.get() && player instanceof FakePlayerEntity) {
+                    continue;
+                }
+
+                if (visualRangeIgnoreNakeds.get()
+                        && player.getInventory().armor.stream().allMatch(x -> x.isEmpty())) {
+                    return;
+                }
+                ChatUtils.sendMsg(player.getId() + 100, Formatting.GRAY,
+                        "(highlight)%s(default) has left your visual range!",
+                        player.getName().getString());
+                if (visualMakeSound.get()) {
+                    mc.world.playSoundFromEntity(mc.player, mc.player,
+                            SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, SoundCategory.AMBIENT, 3.0F,
+                            1.0F);
+                }
+            }
+        }
+
+        lastPlayerVisualRangeList = currentPlayers;
     }
 
     private int getChatId(Entity entity) {
