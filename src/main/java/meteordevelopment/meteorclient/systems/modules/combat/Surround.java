@@ -29,6 +29,7 @@ import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.item.Items;
@@ -69,6 +70,14 @@ public class Surround extends Module {
             .description("Places a block above your head to prevent you from velo failing upwards")
             .visible(() -> selfTrapEnabled.get()).defaultValue(true).build());
 
+    private final Setting<Boolean> extendEnabled = sgGeneral.add(new BoolSetting.Builder()
+            .name("extend").description("Enables extend placing").defaultValue(true).build());
+
+    private final Setting<ExtendMode> extendMode =
+            sgGeneral.add(new EnumSetting.Builder<ExtendMode>().name("extend-mode")
+                    .description("When to place extend blocks").defaultValue(ExtendMode.Smart)
+                    .visible(() -> extendEnabled.get()).build());
+
     private final Setting<Boolean> render = sgRender.add(new BoolSetting.Builder().name("render")
             .description("Renders a block overlay when you try to place obsidian.")
             .defaultValue(true).build());
@@ -96,6 +105,7 @@ public class Surround extends Module {
     private Map<BlockPos, Long> renderLastPlacedBlock = new HashMap<>();
 
     private long lastTimeOfCrystalNearHead = 0;
+    private long lastTimeOfExtendCrystal = 0;
     private long lastAttackTime = 0;
 
     public Surround() {
@@ -134,6 +144,8 @@ public class Surround extends Module {
                             continue;
                         }
 
+                        Direction dir = Direction.fromVector(offsetX, 0, offsetZ);
+
                         BlockPos adjacentPos = feetPos.add(offsetX, 0, offsetZ);
                         BlockState adjacentState = mc.world.getBlockState(adjacentPos);
 
@@ -141,35 +153,12 @@ public class Surround extends Module {
                             placePoses.add(adjacentPos);
                         }
 
-                        if (autoSelfTrapMode.get() == SelfTrapMode.None || !selfTrapEnabled.get()) {
-                            continue;
+                        if (autoSelfTrapMode.get() != SelfTrapMode.None && selfTrapEnabled.get()) {
+                            checkSelfTrap(placePoses, adjacentPos);
                         }
 
-                        BlockPos facePlacePos = adjacentPos.add(0, 1, 0);
-                        boolean shouldBuildDoubleHigh =
-                                autoSelfTrapMode.get() == SelfTrapMode.Always;
-
-                        Box box = new Box(facePlacePos.getX() - 1, facePlacePos.getY() - 1,
-                                facePlacePos.getZ() - 1, facePlacePos.getX() + 1,
-                                facePlacePos.getY() + 1, facePlacePos.getZ() + 1);
-
-                        if (autoSelfTrapMode.get() == SelfTrapMode.Smart) {
-                            if (mc.world.getOtherEntities(null, box, entity -> entity instanceof EndCrystalEntity).iterator()
-                                    .hasNext()) {
-                                lastTimeOfCrystalNearHead = currentTime;
-                            }
-
-                            if ((currentTime - lastTimeOfCrystalNearHead) / 1000.0 < 1.0) {
-                                shouldBuildDoubleHigh = true;
-                            }
-                        }
-
-                        if (shouldBuildDoubleHigh) {
-                            BlockState facePlaceState = mc.world.getBlockState(facePlacePos);
-
-                            if (facePlaceState.isAir() || facePlaceState.isReplaceable()) {
-                                placePoses.add(facePlacePos);
-                            }
+                        if (extendMode.get() != ExtendMode.None && extendEnabled.get()) {
+                            checkExtend(placePoses, feetPos, dir);
                         }
                     }
                 }
@@ -248,6 +237,70 @@ public class Surround extends Module {
         MeteorClient.BLOCK.endPlacement();
     }
 
+    private void checkSelfTrap(List<BlockPos> placePoses, BlockPos adjacentPos) {
+        long currentTime = System.currentTimeMillis();
+
+        BlockPos facePlacePos = adjacentPos.add(0, 1, 0);
+        boolean shouldBuildDoubleHigh = autoSelfTrapMode.get() == SelfTrapMode.Always;
+
+        Box box = new Box(facePlacePos.getX() - 1, facePlacePos.getY() - 1, facePlacePos.getZ() - 1,
+                facePlacePos.getX() + 1, facePlacePos.getY() + 1, facePlacePos.getZ() + 1);
+
+        if (autoSelfTrapMode.get() == SelfTrapMode.Smart) {
+            if (mc.world.getOtherEntities(null, box, entity -> entity instanceof EndCrystalEntity)
+                    .iterator().hasNext()) {
+                lastTimeOfCrystalNearHead = currentTime;
+            }
+
+            if ((currentTime - lastTimeOfCrystalNearHead) / 1000.0 < 1.0) {
+                shouldBuildDoubleHigh = true;
+            }
+        }
+
+        if (shouldBuildDoubleHigh) {
+            BlockState facePlaceState = mc.world.getBlockState(facePlacePos);
+
+            if (facePlaceState.isAir() || facePlaceState.isReplaceable()) {
+                placePoses.add(facePlacePos);
+            }
+        }
+    }
+
+    private void checkExtend(List<BlockPos> placePoses, BlockPos feetPos, Direction dir) {
+        long currentTime = System.currentTimeMillis();
+
+        BlockPos extendPos = feetPos.offset(dir, 2);
+        boolean shouldPlaceExtend = extendMode.get() == ExtendMode.Always;
+
+        Box box = Box.of(extendPos.toCenterPos(), 0.1, 0.1, 0.1);
+
+        if (extendMode.get() == ExtendMode.Smart) {
+            if (mc.world.getOtherEntities(null, box, entity -> entity instanceof EndCrystalEntity)
+                    .iterator().hasNext()) {
+                lastTimeOfExtendCrystal = currentTime;
+            }
+
+            if ((currentTime - lastTimeOfExtendCrystal) / 1000.0 < 1.0) {
+                shouldPlaceExtend = true;
+            }
+        }
+
+        if (shouldPlaceExtend) {
+            BlockState extendState = mc.world.getBlockState(extendPos);
+
+            if (isCrystalBlock(extendPos.down())
+                    && (extendState.isAir() || extendState.isReplaceable())) {
+                placePoses.add(extendPos);
+            }
+        }
+    }
+
+    private boolean isCrystalBlock(BlockPos blockPos) {
+        BlockState blockState = mc.world.getBlockState(blockPos);
+
+        return blockState.isOf(Blocks.OBSIDIAN) || blockState.isOf(Blocks.BEDROCK);
+    }
+
     // Render
     @EventHandler
     private void onRender3D(Render3DEvent event) {
@@ -278,6 +331,10 @@ public class Surround extends Module {
     }
 
     public enum SelfTrapMode {
+        None, Smart, Always
+    }
+
+    public enum ExtendMode {
         None, Smart, Always
     }
 }

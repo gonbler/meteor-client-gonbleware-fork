@@ -295,6 +295,10 @@ public class Notifier extends Module {
             }
         }
 
+        if (!visualRange.get()) {
+            return;
+        }
+
         Set<AbstractClientPlayerEntity> currentPlayers =
                 mc.world.getPlayers().stream().collect(Collectors.toSet());
 
