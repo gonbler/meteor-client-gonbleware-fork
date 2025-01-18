@@ -5,7 +5,6 @@
 
 package meteordevelopment.meteorclient.systems.modules.movement;
 
-import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
@@ -14,9 +13,6 @@ import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.world.Timer;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Blocks;
-import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
 
 public class NoSlow extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -27,11 +23,6 @@ public class NoSlow extends Module {
     private final Setting<WebMode> web = sgGeneral.add(new EnumSetting.Builder<WebMode>()
             .name("web").description("Whether or not cobwebs will not slow you down.")
             .defaultValue(WebMode.Vanilla).build());
-
-    private final Setting<Boolean> webGrimRubberbandFix =
-            sgGeneral.add(new BoolSetting.Builder().name("web-grim-rubberband-fix")
-                    .description("Stops chain-rubberbanding in webs when using Grim mode.")
-                    .defaultValue(true).visible(() -> web.get() == WebMode.Grim).build());
 
     private final Setting<Double> webTimer = sgGeneral.add(new DoubleSetting.Builder()
             .name("web-timer").description("The timer value for WebMode Timer.").defaultValue(10)
@@ -115,11 +106,6 @@ public class NoSlow extends Module {
     }
 
     public boolean cobwebGrim() {
-        // Pause no-slow for 3 ticks
-        if (System.currentTimeMillis() - lastCobwebRubberband < 150) {
-            return false;
-        }
-
         return isActive() && web.get() == WebMode.Grim;
     }
 
@@ -147,8 +133,6 @@ public class NoSlow extends Module {
         return isActive() && slowness.get();
     }
 
-    private long lastCobwebRubberband = 0;
-
     @EventHandler
     private void onPreTick(TickEvent.Pre event) {
         if (web.get() == WebMode.Timer) {
@@ -165,31 +149,6 @@ public class NoSlow extends Module {
         if (web.get() == WebMode.Grim) {
 
         }
-    }
-
-    @EventHandler
-    public void onReceivePacket(PacketEvent.Receive event) {
-        if (event.packet instanceof PlayerPositionLookS2CPacket packet) {
-            if (isPlayerInCobweb() && webGrimRubberbandFix.get()) {
-                lastCobwebRubberband = System.currentTimeMillis();
-            }
-        }
-    }
-
-    public boolean isPlayerInCobweb() {
-        Box entityBox = mc.player.getBoundingBox();
-
-        for (BlockPos blockPos : BlockPos.iterate((int) Math.floor(entityBox.minX),
-                (int) Math.floor(entityBox.minY), (int) Math.floor(entityBox.minZ),
-                (int) Math.ceil(entityBox.maxX), (int) Math.ceil(entityBox.maxY),
-                (int) Math.ceil(entityBox.maxZ))) {
-
-            // Check if the block at the position is a cobweb
-            if (mc.world.getBlockState(blockPos).isOf(Blocks.COBWEB)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public enum WebMode {
