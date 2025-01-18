@@ -447,7 +447,6 @@ public class Modules extends System<Modules> {
         add(new Offhand());
         add(new Quiver());
         add(new SelfAnvil());
-        add(new SelfTrap());
         add(new SelfWeb());
         add(new Surround());
 
