@@ -5,95 +5,61 @@
 
 package meteordevelopment.meteorclient.systems.modules.combat;
 
-import meteordevelopment.meteorclient.events.meteor.MouseButtonEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.systems.modules.Modules;
-import meteordevelopment.meteorclient.utils.misc.input.KeyAction;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
+import meteordevelopment.meteorclient.utils.player.SlotUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.component.DataComponentTypes;
+import net.minecraft.block.AbstractChestBlock;
+import net.minecraft.block.AbstractFurnaceBlock;
+import net.minecraft.block.BlastFurnaceBlock;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.DropperBlock;
+import net.minecraft.block.EnderChestBlock;
+import net.minecraft.block.FurnaceBlock;
+import net.minecraft.block.ShulkerBoxBlock;
+import net.minecraft.block.TrappedChestBlock;
+import net.minecraft.block.entity.Hopper;
+import net.minecraft.client.gui.screen.ChatScreen;
+import net.minecraft.client.gui.screen.GameMenuScreen;
+import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.item.*;
+import net.minecraft.item.Items;
+import net.minecraft.item.SwordItem;
+import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.HitResult;
 import static meteordevelopment.orbit.EventPriority.HIGHEST;
-import static org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_RIGHT;
 
 public class Offhand extends Module {
-    private final SettingGroup sgCombat = settings.createGroup("Combat");
     private final SettingGroup sgTotem = settings.createGroup("Totem");
-
-    // Combat
-
-    private final Setting<Integer> delayTicks = sgCombat.add(new IntSetting.Builder()
-            .name("item-switch-delay").description("The delay in ticks between slot movements.")
-            .defaultValue(0).min(0).sliderMax(20).build());
-    private final Setting<Item> preferreditem = sgCombat.add(new EnumSetting.Builder<Item>()
-            .name("item").description("Which item to hold in your offhand.")
-            .defaultValue(Item.Crystal).build());
-
-    private final Setting<Boolean> hotbar = sgCombat.add(new BoolSetting.Builder().name("hotbar")
-            .description("Whether to use items from your hotbar.").defaultValue(false).build());
-
-    private final Setting<Boolean> rightgapple = sgCombat.add(new BoolSetting.Builder()
-            .name("right-gapple")
-            .description(
-                    "Will switch to a gapple when holding right click.(DO NOT USE WITH POTION ON)")
-            .defaultValue(false).build());
-
-
-    private final Setting<Boolean> SwordGap =
-            sgCombat.add(new BoolSetting.Builder().name("sword-gapple")
-                    .description("Will switch to a gapple when holding a sword and right click.")
-                    .defaultValue(false).visible(rightgapple::get).build());
-
-    private final Setting<Boolean> alwaysSwordGap =
-            sgCombat.add(new BoolSetting.Builder().name("always-gap-on-sword")
-                    .description("Holds an Enchanted Golden Apple when you are holding a sword.")
-                    .defaultValue(false).visible(() -> !rightgapple.get()).build());
-
-
-    private final Setting<Boolean> alwaysPot =
-            sgCombat.add(new BoolSetting.Builder().name("always-pot-on-sword")
-                    .description("Will switch to a potion when holding a sword").defaultValue(false)
-                    .visible(() -> !rightgapple.get() && !alwaysSwordGap.get()).build());
-    private final Setting<Boolean> potionClick =
-            sgCombat.add(new BoolSetting.Builder().name("sword-pot")
-                    .description("Will switch to a potion when holding a sword and right click.")
-                    .defaultValue(false)
-                    .visible(() -> !rightgapple.get() && !alwaysPot.get() && !alwaysSwordGap.get())
-                    .build());
+    private final SettingGroup sgCombat = settings.createGroup("Combat");
 
     // Totem
+    private final Setting<Integer> totemOffhandHealth = sgTotem.add(new IntSetting.Builder()
+            .name("offhand-totem-health").description("The health to force hold a totem at.")
+            .defaultValue(10).range(0, 36).sliderMax(36).build());
 
-    private final Setting<Double> minHealth = sgTotem.add(new DoubleSetting.Builder()
-            .name("min-health").description("Will hold a totem when below this amount of health.")
-            .defaultValue(10).range(0, 36).sliderRange(0, 36).build());
-
-    private final Setting<Boolean> elytra = sgTotem.add(new BoolSetting.Builder().name("elytra")
-            .description("Will always hold a totem while flying with an elytra.")
-            .defaultValue(false).build());
-
-    private final Setting<Boolean> falling = sgTotem.add(new BoolSetting.Builder().name("falling")
-            .description("Will hold a totem if fall damage could kill you.").defaultValue(false)
-            .build());
-
-    private final Setting<Boolean> explosion =
-            sgTotem.add(new BoolSetting.Builder().name("explosion")
-                    .description("Will hold a totem when explosion damage could kill you.")
+    private final Setting<Boolean> mainHandTotem =
+            sgTotem.add(new BoolSetting.Builder().name("main-hand-totem")
+                    .description("Whether or not to hold a totem in your main hand.")
                     .defaultValue(true).build());
 
+    private final Setting<Integer> mainHandTotemSlot =
+            sgTotem.add(new IntSetting.Builder().name("main-hand-totem-slot")
+                    .description("The slot in your hotbar to hold your main hand totem.")
+                    .defaultValue(3).range(1, 9).visible(() -> mainHandTotem.get()).build());
 
-    private boolean isClicking;
-    private boolean sentMessage;
-
-    private Item currentItem;
-    public boolean locked;
-
-    private int totems, ticks;
+    // Combat
+    private final Setting<Boolean> swordGapple = sgCombat.add(new BoolSetting.Builder()
+            .name("sword-gapple")
+            .description("Lets you right click while holding a sword to eat a golden apple.")
+            .defaultValue(true).build());
 
     public Offhand() {
         super(Categories.Combat, "offhand", "Allows you to hold specified items in your offhand.");
@@ -101,149 +67,129 @@ public class Offhand extends Module {
 
     @Override
     public void onActivate() {
-        ticks = 0;
-        sentMessage = false;
-        isClicking = false;
-        currentItem = preferreditem.get();
+
     }
 
     @EventHandler(priority = HIGHEST + 999)
     private void onTick(TickEvent.Pre event) {
-        FindItemResult result = InvUtils.find(Items.TOTEM_OF_UNDYING);
-        totems = result.count();
-
-        if (totems <= 0)
-            locked = false;
-        else if (ticks > delayTicks.get()) {
-            boolean low = mc.player.getHealth() + mc.player.getAbsorptionAmount() - PlayerUtils
-                    .possibleHealthReductions(explosion.get(), falling.get()) <= minHealth.get();
-            boolean ely = elytra.get()
-                    && mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem() == Items.ELYTRA
-                    && mc.player.isFallFlying();
-            FindItemResult item =
-                    InvUtils.find(itemStack -> itemStack.getItem() == currentItem.item, 0, 35);
-
-            // Calculates Damage from Falling, Explosions + Elyta
-            locked = (low || ely);
-
-            if (locked && mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
-                InvUtils.move().from(result.slot()).toOffhand();
-            }
-
-            ticks = 0;
+        if (mc.currentScreen != null && !(mc.currentScreen instanceof ChatScreen)
+                && !(mc.currentScreen instanceof InventoryScreen)
+                && !(mc.currentScreen instanceof GameMenuScreen)) {
             return;
         }
-        ticks++;
 
-        AutoTotem autoTotem = Modules.get().get(AutoTotem.class);
+        if (mainHandTotem.get()) {
+            updateMainHandTotem();
+        }
 
-        // Returns to the original Item
-        currentItem = preferreditem.get();
+        updateOffhandSlot();
+    }
 
-        // Sword Gap & Right Gap
-        if (rightgapple.get()) {
-            if (!locked) {
-                if (SwordGap.get() && mc.player.getMainHandStack().getItem() instanceof SwordItem) {
-                    if (isClicking) {
-                        currentItem = Item.EGap;
-                    }
-                }
-                if (!SwordGap.get()) {
-                    if (isClicking) {
-                        currentItem = Item.EGap;
-                    }
-                }
+    private void updateMainHandTotem() {
+        FindItemResult totemResult = InvUtils.find(Items.TOTEM_OF_UNDYING);
+
+        if (!totemResult.found()) {
+            return;
+        }
+
+        if (mc.player.getInventory().getStack(mainHandTotemSlot.get() - 1)
+                .getItem() != Items.TOTEM_OF_UNDYING) {
+            mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                    SlotUtils.indexToId(totemResult.slot()), mainHandTotemSlot.get() - 1, SlotActionType.SWAP,
+                    mc.player);
+        }
+    }
+
+    private void updateOffhandSlot() {
+        boolean isLowHealth = mc.player.getHealth() + mc.player.getAbsorptionAmount()
+                - PlayerUtils.possibleHealthReductions(true, true) <= totemOffhandHealth.get();
+
+        boolean flying =
+                true && mc.player.getEquippedStack(EquipmentSlot.CHEST).getItem() == Items.ELYTRA
+                        && mc.player.isFallFlying();
+
+        // If we're flying or low health, hold totem
+        if (isLowHealth || flying) {
+            moveTotemToOffhand();
+        } else if (swordGapple.get() && mc.player.getMainHandStack().getItem() instanceof SwordItem
+                && mc.options.useKey.isPressed()) {
+            moveGappleToOffhand();
+        } else {
+            // Hold totem if we're not doing anything else
+            moveTotemToOffhand();
+        }
+    }
+
+    private void moveTotemToOffhand() {
+        if (mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) {
+            return;
+        }
+
+        FindItemResult hotbarTotemResult = InvUtils.findInHotbar(Items.TOTEM_OF_UNDYING);
+        FindItemResult inventoryTotemResult = InvUtils.find(Items.TOTEM_OF_UNDYING);
+
+        if (hotbarTotemResult.found()) {
+            mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, SlotUtils.OFFHAND,
+                    hotbarTotemResult.slot(), SlotActionType.SWAP, mc.player);
+
+            updateMainHandTotem();
+        } else if (inventoryTotemResult.found()) {
+            int selectedSlot = mc.player.getInventory().selectedSlot;
+
+            mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                    inventoryTotemResult.slot(), selectedSlot, SlotActionType.SWAP, mc.player);
+            mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, SlotUtils.OFFHAND,
+                    selectedSlot, SlotActionType.SWAP, mc.player);
+            mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                    inventoryTotemResult.slot(), selectedSlot, SlotActionType.SWAP, mc.player);
+        }
+    }
+
+    private void moveGappleToOffhand() {
+        if (mc.player.getOffHandStack().getItem() == Items.ENCHANTED_GOLDEN_APPLE) {
+            return;
+        }
+
+        if (willInteractWithChestBlock()) {
+            return;
+        }
+
+        FindItemResult inventoryGappleResult = InvUtils.find(Items.ENCHANTED_GOLDEN_APPLE);
+
+        if (inventoryGappleResult.found()) {
+            // We can instantly move it if it's in our hotbar
+            if (inventoryGappleResult.isHotbar()) {
+                mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                        SlotUtils.OFFHAND, inventoryGappleResult.slot(), SlotActionType.SWAP,
+                        mc.player);
+            } else {
+                int selectedSlot = mc.player.getInventory().selectedSlot;
+
+                mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                        inventoryGappleResult.slot(), selectedSlot, SlotActionType.SWAP, mc.player);
+                mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                        SlotUtils.OFFHAND, selectedSlot, SlotActionType.SWAP, mc.player);
+                mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
+                        inventoryGappleResult.slot(), selectedSlot, SlotActionType.SWAP, mc.player);
             }
         }
+    }
 
-        // Always Gap
-        else if ((mc.player.getMainHandStack().getItem() instanceof SwordItem
-                || mc.player.getMainHandStack().getItem() instanceof AxeItem)
-                && alwaysSwordGap.get())
-            currentItem = Item.EGap;
+    private boolean willInteractWithChestBlock() {
+        if (mc.crosshairTarget != null && mc.crosshairTarget.getType() == HitResult.Type.BLOCK) {
+            BlockHitResult blockHitResult = (BlockHitResult) mc.crosshairTarget;
+            BlockState blockState = mc.world.getBlockState(blockHitResult.getBlockPos());
+            Block block = blockState.getBlock();
 
-        // Potion Click
-        else if (potionClick.get()) {
-            if (!locked) {
-                if (mc.player.getMainHandStack().getItem() instanceof SwordItem) {
-                    if (isClicking) {
-                        currentItem = Item.Potion;
-                    }
-                }
+            // TODO: Find a less shit way to do this
+            if (block instanceof ShulkerBoxBlock || block instanceof AbstractChestBlock
+                    || block instanceof EnderChestBlock || block instanceof TrappedChestBlock
+                    || block instanceof FurnaceBlock || block instanceof AbstractFurnaceBlock
+                    || block instanceof BlastFurnaceBlock || block instanceof DropperBlock
+                    || block instanceof Hopper) {
+                return true;
             }
         }
-
-        // Always Pot
-        else if ((mc.player.getMainHandStack().getItem() instanceof SwordItem
-                || mc.player.getMainHandStack().getItem() instanceof AxeItem) && alwaysPot.get())
-            currentItem = Item.Potion;
-
-
-        else
-            currentItem = preferreditem.get();
-
-        // Checking offhand item
-        if (mc.player.getOffHandStack().getItem() != currentItem.item) {
-            if (ticks >= delayTicks.get()) {
-                if (!locked) {
-                    FindItemResult item =
-                            InvUtils.find(itemStack -> itemStack.getItem() == currentItem.item,
-                                    hotbar.get() ? 0 : 9, 35);
-
-                    // No offhand item
-                    if (!item.found()) {
-                        if (!sentMessage) {
-                            warning("Chosen item not found.");
-                            sentMessage = true;
-                        }
-                    }
-
-                    // Swap to offhand
-                    else if ((isClicking || !item.isOffhand())) {
-                        InvUtils.move().from(item.slot()).toOffhand();
-                        sentMessage = false;
-                    }
-                    ticks = 0;
-                    return;
-                }
-                ticks++;
-            }
-        }
+        return false;
     }
-
-    @EventHandler
-    private void onMouseButton(MouseButtonEvent event) {
-        // Detects if the User is right-clicking
-        isClicking = mc.currentScreen == null
-                && !usableItem() && !mc.player.isUsingItem() && event.action == KeyAction.Press
-                && event.button == GLFW_MOUSE_BUTTON_RIGHT;
-    }
-
-    private boolean usableItem() {
-        // What counts as a Usable Item
-        return mc.player.getMainHandStack().getItem() == Items.BOW
-                || mc.player.getMainHandStack().getItem() == Items.TRIDENT
-                || mc.player.getMainHandStack().getItem() == Items.CROSSBOW
-                || mc.player.getMainHandStack().getItem().getComponents()
-                        .contains(DataComponentTypes.FOOD);
-    }
-
-    @Override
-    public String getInfoString() {
-        return preferreditem.get().name();
-    }
-
-    public enum Item {
-        // Items the module could put on your offhand
-        EGap(Items.ENCHANTED_GOLDEN_APPLE), Gap(Items.GOLDEN_APPLE), Crystal(
-                Items.END_CRYSTAL), Totem(
-                        Items.TOTEM_OF_UNDYING), Shield(Items.SHIELD), Potion(Items.POTION);
-
-        final net.minecraft.item.Item item;
-
-        Item(net.minecraft.item.Item item) {
-            this.item = item;
-        }
-    }
-
 }
