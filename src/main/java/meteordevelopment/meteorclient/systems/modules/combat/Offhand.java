@@ -86,17 +86,17 @@ public class Offhand extends Module {
     }
 
     private void updateMainHandTotem() {
-        FindItemResult totemResult = InvUtils.find(Items.TOTEM_OF_UNDYING);
+        FindItemResult totemResult = findTotem();
 
-        if (!totemResult.found()) {
+        if (!totemResult.found() || totemResult.isOffhand()) {
             return;
         }
 
         if (mc.player.getInventory().getStack(mainHandTotemSlot.get() - 1)
                 .getItem() != Items.TOTEM_OF_UNDYING) {
             mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
-                    SlotUtils.indexToId(totemResult.slot()), mainHandTotemSlot.get() - 1, SlotActionType.SWAP,
-                    mc.player);
+                    SlotUtils.indexToId(totemResult.slot()), mainHandTotemSlot.get() - 1,
+                    SlotActionType.SWAP, mc.player);
         }
     }
 
@@ -125,23 +125,22 @@ public class Offhand extends Module {
             return;
         }
 
-        FindItemResult hotbarTotemResult = InvUtils.findInHotbar(Items.TOTEM_OF_UNDYING);
-        FindItemResult inventoryTotemResult = InvUtils.find(Items.TOTEM_OF_UNDYING);
+        FindItemResult totemResult = findTotem();
 
-        if (hotbarTotemResult.found()) {
+        if (totemResult.isHotbar()) {
             mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, SlotUtils.OFFHAND,
-                    hotbarTotemResult.slot(), SlotActionType.SWAP, mc.player);
+                    totemResult.slot(), SlotActionType.SWAP, mc.player);
 
             updateMainHandTotem();
-        } else if (inventoryTotemResult.found()) {
+        } else if (totemResult.found()) {
             int selectedSlot = mc.player.getInventory().selectedSlot;
 
             mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
-                    inventoryTotemResult.slot(), selectedSlot, SlotActionType.SWAP, mc.player);
+                    totemResult.slot(), selectedSlot, SlotActionType.SWAP, mc.player);
             mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, SlotUtils.OFFHAND,
                     selectedSlot, SlotActionType.SWAP, mc.player);
             mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId,
-                    inventoryTotemResult.slot(), selectedSlot, SlotActionType.SWAP, mc.player);
+                    totemResult.slot(), selectedSlot, SlotActionType.SWAP, mc.player);
         }
     }
 
@@ -191,5 +190,15 @@ public class Offhand extends Module {
             }
         }
         return false;
+    }
+
+    private FindItemResult findTotem() {
+        return InvUtils.find(x -> {
+            if (x.getItem().equals(Items.TOTEM_OF_UNDYING)) {
+                return true;
+            }
+
+            return false;
+        }, 0, 35);
     }
 }
