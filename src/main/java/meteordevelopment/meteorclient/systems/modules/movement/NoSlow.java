@@ -71,7 +71,7 @@ public class NoSlow extends Module {
 
     private final Setting<Boolean> climbing = sgGeneral.add(new BoolSetting.Builder()
             .name("climbing").description("Whether or not climbing will slow you down.")
-            .defaultValue(true).build());
+            .defaultValue(false).build());
 
     private boolean resetTimer;
 
