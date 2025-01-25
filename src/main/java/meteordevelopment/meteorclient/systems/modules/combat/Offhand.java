@@ -5,6 +5,7 @@
 
 package meteordevelopment.meteorclient.systems.modules.combat;
 
+import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
@@ -14,6 +15,7 @@ import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.meteorclient.utils.player.SlotUtils;
 import meteordevelopment.orbit.EventHandler;
+import meteordevelopment.orbit.EventPriority;
 import net.minecraft.block.AbstractChestBlock;
 import net.minecraft.block.AbstractFurnaceBlock;
 import net.minecraft.block.BlastFurnaceBlock;
@@ -28,9 +30,11 @@ import net.minecraft.block.entity.Hopper;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.gui.screen.GameMenuScreen;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.item.Items;
 import net.minecraft.item.SwordItem;
+import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
@@ -44,6 +48,10 @@ public class Offhand extends Module {
     private final Setting<Integer> totemOffhandHealth = sgTotem.add(new IntSetting.Builder()
             .name("offhand-totem-health").description("The health to force hold a totem at.")
             .defaultValue(10).range(0, 36).sliderMax(36).build());
+
+    private final Setting<Boolean> antiGhost = sgTotem.add(new BoolSetting.Builder()
+            .name("anti-ghost").description("Deletes your totem client side when you pop.")
+            .defaultValue(true).build());
 
     private final Setting<Boolean> mainHandTotem =
             sgTotem.add(new BoolSetting.Builder().name("main-hand-totem")
@@ -83,6 +91,24 @@ public class Offhand extends Module {
         }
 
         updateOffhandSlot();
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    private void onReceivePacket(PacketEvent.Receive event) {
+        if (!(event.packet instanceof EntityStatusS2CPacket p))
+            return;
+        if (p.getStatus() != 35)
+            return;
+
+        Entity entity = p.getEntity(mc.world);
+        if (entity == null || !(entity.equals(mc.player)))
+            return;
+
+        if (antiGhost.get()) {
+            mc.player.getInventory().removeStack(SlotUtils.OFFHAND);
+
+            updateOffhandSlot();
+        }
     }
 
     private void updateMainHandTotem() {
