@@ -69,6 +69,10 @@ public class NoSlow extends Module {
             .name("slowness").description("Whether or not slowness will not slow you down.")
             .defaultValue(false).build());
 
+    private final Setting<Boolean> climbing = sgGeneral.add(new BoolSetting.Builder()
+            .name("climbing").description("Whether or not climbing will slow you down.")
+            .defaultValue(true).build());
+
     private boolean resetTimer;
 
     public NoSlow() {
@@ -131,6 +135,10 @@ public class NoSlow extends Module {
 
     public boolean slowness() {
         return isActive() && slowness.get();
+    }
+
+    public boolean climbing() {
+        return isActive() && climbing.get();
     }
 
     @EventHandler

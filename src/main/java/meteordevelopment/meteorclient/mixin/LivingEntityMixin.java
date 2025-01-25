@@ -12,6 +12,7 @@ import meteordevelopment.meteorclient.events.entity.DamageEvent;
 import meteordevelopment.meteorclient.events.entity.player.CanWalkOnFluidEvent;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.movement.ElytraFakeFly;
+import meteordevelopment.meteorclient.systems.modules.movement.NoSlow;
 import meteordevelopment.meteorclient.systems.modules.movement.Sprint;
 import meteordevelopment.meteorclient.systems.modules.movement.Velocity;
 import meteordevelopment.meteorclient.systems.modules.movement.elytrafly.ElytraFlightModes;
@@ -218,6 +219,13 @@ public abstract class LivingEntityMixin extends Entity {
     private void disableKnockback(double strength, double x, double z, CallbackInfo info) {
         if ((Object) this == mc.player
                 && Modules.get().get(Velocity.class).livingEntityKnockback.get()) {
+            info.cancel();
+        }
+    }
+
+    @Inject(method = "isClimbing", at = @At("HEAD"), cancellable = true)
+    private void overrideIsClimbing(CallbackInfoReturnable<Boolean> info) {
+        if ((Object) this == mc.player && Modules.get().get(NoSlow.class).climbing()) {
             info.cancel();
         }
     }
