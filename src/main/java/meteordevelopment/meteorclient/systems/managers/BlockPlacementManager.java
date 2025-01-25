@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
-import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.systems.config.AntiCheatConfig;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
@@ -33,13 +32,13 @@ public class BlockPlacementManager {
 
     private final Map<BlockPos, Long> placeCooldowns = new ConcurrentHashMap<>();
 
-    private long endPlaceCooldown = 0;
-    private int placesThisTick = 0;
-
     private boolean locked = false;
 
+    private int packetsSent;
+    private long lastSentPacketTimestamp = -1;
+
     public boolean beginPlacement(BlockPos position, BlockState state, Item item) {
-        if (System.currentTimeMillis() < endPlaceCooldown) {
+        if (!checkLimit(System.currentTimeMillis(), false)) {
             return false;
         }
 
@@ -62,8 +61,7 @@ public class BlockPlacementManager {
     }
 
     public boolean beginPlacement(List<BlockPos> positions, Item item) {
-
-        if (System.currentTimeMillis() < endPlaceCooldown) {
+        if (!checkLimit(System.currentTimeMillis(), false)) {
             return false;
         }
 
@@ -91,10 +89,6 @@ public class BlockPlacementManager {
     public boolean placeBlock(Item item, BlockPos blockPos, BlockState state) {
         long currentTime = System.currentTimeMillis();
 
-        if (placesThisTick > 9) {
-            return false;
-        }
-
         if (placeCooldowns.values().stream().filter(x -> currentTime - x <= 1000)
                 .count() >= antiCheatConfig.blocksPerSecondCap.get()) {
             return false;
@@ -105,11 +99,7 @@ public class BlockPlacementManager {
         }
 
         BlockPos neighbour;
-        Direction dir = null;
-
-        if (!antiCheatConfig.forceAirPlace.get()) {
-            dir = BlockUtils.getPlaceSide(blockPos);
-        }
+        Direction dir = BlockUtils.getPlaceSide(blockPos);
 
         Vec3d hitPos = blockPos.toCenterPos();
         if (dir == null) {
@@ -131,10 +121,17 @@ public class BlockPlacementManager {
             }
         }
 
+        if (!checkLimit(currentTime, true)) {
+            return false;
+        }
+
         placeCooldowns.put(blockPos, currentTime);
 
+        boolean grimAirPlaceSwap = antiCheatConfig.blockPlaceAirPlace.get()
+                && (dir == null || antiCheatConfig.forceAirPlace.get());
+
         Hand placeHand = Hand.MAIN_HAND;
-        if (dir == null && antiCheatConfig.blockPlaceAirPlace.get()) {
+        if (grimAirPlaceSwap) {
             mc.getNetworkHandler()
                     .sendPacket(new PlayerActionC2SPacket(
                             PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND, BlockPos.ORIGIN,
@@ -148,14 +145,12 @@ public class BlockPlacementManager {
                         (dir == null ? Direction.DOWN : dir.getOpposite()), neighbour, false),
                         mc.world.getPendingUpdateManager().incrementSequence().getSequence()));
 
-        if (dir == null && antiCheatConfig.blockPlaceAirPlace.get()) {
+        if (grimAirPlaceSwap) {
             mc.getNetworkHandler()
                     .sendPacket(new PlayerActionC2SPacket(
                             PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND, BlockPos.ORIGIN,
                             Direction.DOWN));
         }
-
-        placesThisTick++;
 
         return true;
     }
@@ -200,16 +195,6 @@ public class BlockPlacementManager {
 
     public void forceResetPlaceCooldown(BlockPos blockPos) {
         placeCooldowns.remove(blockPos);
-    }
-
-    // Decently high priority?
-    @EventHandler(priority = 100)
-    private void onPostTick(TickEvent.Pre pre) {
-        if (placesThisTick > 2) {
-            endPlaceCooldown = System.currentTimeMillis() + placesThisTick * 39;
-        }
-
-        placesThisTick = 0;
     }
 
     @EventHandler
@@ -258,5 +243,26 @@ public class BlockPlacementManager {
 
         // Len squared for optimization
         return dist.lengthSquared();
+    }
+
+    private boolean checkLimit(long timestamp, boolean incrementLimit) {
+        if (lastSentPacketTimestamp != -1
+                && timestamp - lastSentPacketTimestamp < antiCheatConfig.blockPacketLimit.get()
+                && packetsSent >= 8) {
+            return false;
+        }
+
+        if (incrementLimit) {
+            packetsSent++;
+        }
+
+        if (lastSentPacketTimestamp == -1
+                || timestamp - lastSentPacketTimestamp >= antiCheatConfig.blockPacketLimit.get()) {
+            lastSentPacketTimestamp = timestamp;
+            packetsSent = 0;
+            return true;
+        }
+
+        return true;
     }
 }
