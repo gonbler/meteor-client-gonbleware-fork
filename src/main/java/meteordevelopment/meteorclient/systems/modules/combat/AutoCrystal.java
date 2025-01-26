@@ -7,22 +7,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.LongBidirectionalIterator;
-import it.unimi.dsi.fastutil.longs.LongSortedSet;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.EntityAddedEvent;
 import meteordevelopment.meteorclient.events.entity.PlayerDeathEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.mixin.EntityTrackingSectionAccessor;
-import meteordevelopment.meteorclient.mixin.SectionedEntityCacheAccessor;
-import meteordevelopment.meteorclient.mixin.SimpleEntityLookupAccessor;
-import meteordevelopment.meteorclient.mixin.WorldAccessor;
 import meteordevelopment.meteorclient.mixininterface.IBox;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.BoolSetting;
@@ -38,6 +29,7 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
 import meteordevelopment.meteorclient.utils.entity.DamageUtils;
+import meteordevelopment.meteorclient.utils.entity.EntityUtils;
 import meteordevelopment.meteorclient.utils.misc.Keybind;
 import meteordevelopment.meteorclient.utils.misc.Pool;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
@@ -63,13 +55,8 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
-import net.minecraft.util.math.ChunkSectionPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.entity.EntityLookup;
-import net.minecraft.world.entity.EntityTrackingSection;
-import net.minecraft.world.entity.SectionedEntityCache;
-import net.minecraft.world.entity.SimpleEntityLookup;
 
 public class AutoCrystal extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -280,7 +267,6 @@ public class AutoCrystal extends Module {
 
     private final Set<UUID> deadPlayers = new HashSet<>();
 
-    private long lastSlowPlaceTimeMS = 0;
     private long lastPlaceTimeMS = 0;
     private long lastBreakTimeMS = 0;
 
@@ -382,24 +368,9 @@ public class AutoCrystal extends Module {
 
                 long currentTime = System.currentTimeMillis();
 
-                if (bestPlacePos != null) {
-                    if (bestPlacePos.isSlowPlace) {
-                        if (((double) (currentTime - lastSlowPlaceTimeMS)) / 1000.0 > 1.0
-                                / slowPlaceSpeed.get()) {
-                            if (placeCrystal(bestPlacePos.blockPos.down(),
-                                    bestPlacePos.placeDirection)) {
-                                lastSlowPlaceTimeMS = currentTime;
-                            }
-                        }
-                    } else {
-                        if (breakSpeedLimit.get() == 0 || ((double) (currentTime - lastPlaceTimeMS))
-                                / 1000.0 > 1.0 / placeSpeedLimit.get()) {
-
-                            if (placeCrystal(bestPlacePos.blockPos.down(),
-                                    bestPlacePos.placeDirection)) {
-                                lastPlaceTimeMS = currentTime;
-                            }
-                        }
+                if (bestPlacePos != null && placeSpeedCheck(bestPlacePos.isSlowPlace)) {
+                    if (placeCrystal(bestPlacePos.blockPos.down(), bestPlacePos.placeDirection)) {
+                        lastPlaceTimeMS = currentTime;
                     }
                 }
             }
@@ -417,13 +388,7 @@ public class AutoCrystal extends Module {
                         continue;
                     }
 
-                    long currentTime = System.currentTimeMillis();
-
-                    boolean speedCheck =
-                            breakSpeedLimit.get() == 0 || ((double) (currentTime - lastBreakTimeMS))
-                                    / 1000.0 > 1.0 / breakSpeedLimit.get();
-
-                    if (!speedCheck) {
+                    if (!breakSpeedCheck()) {
                         break;
                     }
 
@@ -446,8 +411,7 @@ public class AutoCrystal extends Module {
         Box box = new Box(crystaBlockPos.getX(), crystaBlockPos.getY(), crystaBlockPos.getZ(),
                 crystaBlockPos.getX() + 1, crystaBlockPos.getY() + 2, crystaBlockPos.getZ() + 1);
 
-        if (intersectsWithEntity(box,
-                entity -> !entity.isSpectator() && !explodedCrystals.contains(entity.getId()))) {
+        if (intersectsWithEntities(box)) {
             return false;
         }
 
@@ -505,15 +469,11 @@ public class AutoCrystal extends Module {
     }
 
     public boolean breakCrystal(Entity entity) {
-        return breakCrystal(entity, false);
-    }
-
-    public boolean breakCrystal(Entity entity, boolean overrideRotate) {
         if (mc.player == null) {
             return false;
         }
 
-        if (!overrideRotate && rotateBreak.get()) {
+        if (rotateBreak.get()) {
             MeteorClient.ROTATION.requestRotation(entity.getPos(), 10);
 
             if (!MeteorClient.ROTATION.lookingAt(entity.getBoundingBox())) {
@@ -872,13 +832,7 @@ public class AutoCrystal extends Module {
                 return;
             }
 
-            long currentTime = System.currentTimeMillis();
-
-            boolean speedCheck =
-                    breakSpeedLimit.get() == 0 || ((double) (currentTime - lastBreakTimeMS))
-                            / 1000.0 > 1.0 / breakSpeedLimit.get();
-
-            if (!speedCheck) {
+            if (!breakSpeedCheck()) {
                 return;
             }
 
@@ -1005,73 +959,24 @@ public class AutoCrystal extends Module {
     }
 
     private boolean intersectsWithEntities(Box box) {
-        return intersectsWithEntity(box,
+        return EntityUtils.intersectsWithEntity(box,
                 entity -> !entity.isSpectator() && !explodedCrystals.contains(entity.getId()));
     }
 
-    public boolean intersectsWithEntity(Box box, Predicate<Entity> predicate) {
-        EntityLookup<Entity> entityLookup = ((WorldAccessor) mc.world).getEntityLookup();
+    private boolean breakSpeedCheck() {
+        long currentTime = System.currentTimeMillis();
 
-        // Fast implementation using SimpleEntityLookup that returns on the first
-        // intersecting
-        // entity
-        if (entityLookup instanceof SimpleEntityLookup<Entity> simpleEntityLookup) {
-            SectionedEntityCache<Entity> cache =
-                    ((SimpleEntityLookupAccessor) simpleEntityLookup).getCache();
-            LongSortedSet trackedPositions =
-                    ((SectionedEntityCacheAccessor) cache).getTrackedPositions();
-            Long2ObjectMap<EntityTrackingSection<Entity>> trackingSections =
-                    ((SectionedEntityCacheAccessor) cache).getTrackingSections();
+        return breakSpeedLimit.get() == 0 || ((double) (currentTime - lastBreakTimeMS))
+                / 1000.0 > 1.0 / breakSpeedLimit.get();
+    }
 
-            int i = ChunkSectionPos.getSectionCoord(box.minX - 2);
-            int j = ChunkSectionPos.getSectionCoord(box.minY - 2);
-            int k = ChunkSectionPos.getSectionCoord(box.minZ - 2);
-            int l = ChunkSectionPos.getSectionCoord(box.maxX + 2);
-            int m = ChunkSectionPos.getSectionCoord(box.maxY + 2);
-            int n = ChunkSectionPos.getSectionCoord(box.maxZ + 2);
+    private boolean placeSpeedCheck(boolean slowPlace) {
+        long currentTime = System.currentTimeMillis();
 
-            for (int o = i; o <= l; o++) {
-                long p = ChunkSectionPos.asLong(o, 0, 0);
-                long q = ChunkSectionPos.asLong(o, -1, -1);
-                LongBidirectionalIterator longIterator =
-                        trackedPositions.subSet(p, q + 1).iterator();
+        double placeSpeed = slowPlace ? slowPlaceSpeed.get() : placeSpeedLimit.get();
 
-                while (longIterator.hasNext()) {
-                    long r = longIterator.nextLong();
-                    int s = ChunkSectionPos.unpackY(r);
-                    int t = ChunkSectionPos.unpackZ(r);
-
-                    if (s >= j && s <= m && t >= k && t <= n) {
-                        EntityTrackingSection<Entity> entityTrackingSection =
-                                trackingSections.get(r);
-
-                        if (entityTrackingSection != null
-                                && entityTrackingSection.getStatus().shouldTrack()) {
-                            for (Entity entity : ((EntityTrackingSectionAccessor) entityTrackingSection)
-                                    .<Entity>getCollection()) {
-                                if (entity.getBoundingBox().intersects(box)
-                                        && predicate.test(entity))
-                                    return true;
-                            }
-                        }
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        // Slow implementation that loops every entity if for some reason the
-        // EntityLookup
-        // implementation is changed
-        AtomicBoolean found = new AtomicBoolean(false);
-
-        entityLookup.forEachIntersects(box, entity -> {
-            if (!found.get() && predicate.test(entity))
-                found.set(true);
-        });
-
-        return found.get();
+        return placeSpeed == 0
+                || ((double) (currentTime - lastPlaceTimeMS)) / 1000.0 > 1.0 / placeSpeed;
     }
 
     public static Direction getPlaceOnDirection(BlockPos pos) {
