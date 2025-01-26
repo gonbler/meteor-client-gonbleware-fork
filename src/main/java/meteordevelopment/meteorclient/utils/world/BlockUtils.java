@@ -367,7 +367,7 @@ public class BlockUtils {
         float hardness = state.getHardness(null, null);
         if (hardness == -1) return 0;
         else {
-            return getBlockBreakingSpeed(slot, state) / hardness / (!state.isToolRequired() || mc.player.getInventory().main.get(slot).isSuitableFor(state) ? 30 : 100);
+            return getBlockBreakingSpeed(slot, state, mc.player.isOnGround()) / hardness / (!state.isToolRequired() || mc.player.getInventory().main.get(slot).isSuitableFor(state) ? 30 : 100);
         }
     }
 
@@ -382,7 +382,7 @@ public class BlockUtils {
     /**
      * @see net.minecraft.entity.player.PlayerEntity#getBlockBreakingSpeed(BlockState)
      */
-    public static double getBlockBreakingSpeed(int slot, BlockState block) {
+    public static double getBlockBreakingSpeed(int slot, BlockState block, boolean isOnGround) {
         double speed = mc.player.getInventory().main.get(slot).getMiningSpeedMultiplier(block);
 
         if (speed > 1) {
@@ -412,37 +412,8 @@ public class BlockUtils {
             speed *= mc.player.getAttributeValue(EntityAttributes.PLAYER_SUBMERGED_MINING_SPEED);
         }
 
-        if (!mc.player.isOnGround()) {
+        if (!isOnGround) {
             speed /= 5.0F;
-        }
-
-        return speed;
-    }
-
-    public static double getBlockBreakingSpeedNoOnGround(int slot, BlockState block) {
-        double speed = mc.player.getInventory().main.get(slot).getMiningSpeedMultiplier(block);
-
-        if (speed > 1) {
-            ItemStack tool = mc.player.getInventory().getStack(slot);
-
-            int efficiency = Utils.getEnchantmentLevel(tool, Enchantments.EFFICIENCY);
-
-            if (efficiency > 0 && !tool.isEmpty()) speed += efficiency * efficiency + 1;
-        }
-
-        if (StatusEffectUtil.hasHaste(mc.player)) {
-            speed *= 1 + (StatusEffectUtil.getHasteAmplifier(mc.player) + 1) * 0.2F;
-        }
-
-        if (mc.player.hasStatusEffect(StatusEffects.MINING_FATIGUE)) {
-            float k = switch (mc.player.getStatusEffect(StatusEffects.MINING_FATIGUE).getAmplifier()) {
-                case 0 -> 0.3F;
-                case 1 -> 0.09F;
-                case 2 -> 0.0027F;
-                default -> 8.1E-4F;
-            };
-
-            speed *= k;
         }
 
         return speed;

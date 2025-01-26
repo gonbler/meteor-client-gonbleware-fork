@@ -19,6 +19,7 @@ import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.IntSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
+import meteordevelopment.meteorclient.systems.managers.RotationManager;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
@@ -146,7 +147,7 @@ public class SilentMine extends Module {
                 && delayedDestroyBlock.ticksHeldPickaxe <= singleBreakFailTicks.get()) {
             BlockState blockState = mc.world.getBlockState(delayedDestroyBlock.blockPos);
 
-            if (delayedDestroyBlock.isReady(false)) {
+            if (delayedDestroyBlock.isReady()) {
                 FindItemResult result = InvUtils.findFastestTool(blockState);
 
                 if (result.found() && mc.player.getInventory().selectedSlot != result.slot()) {
@@ -165,7 +166,7 @@ public class SilentMine extends Module {
         if (rebreakBlock != null) {
             BlockState blockState = mc.world.getBlockState(rebreakBlock.blockPos);
 
-            if (rebreakBlock.isReady(true)) {
+            if (rebreakBlock.isReady()) {
                 if (inBreakRange(rebreakBlock.blockPos)) {
                     FindItemResult result = InvUtils.findFastestTool(blockState);
 
@@ -203,8 +204,7 @@ public class SilentMine extends Module {
             }
         }
 
-        boolean delayedDestroyFinished =
-                !(hasDelayedDestroy() && delayedDestroyBlock.isReady(false));
+        boolean delayedDestroyFinished = !(hasDelayedDestroy() && delayedDestroyBlock.isReady());
 
         if (needDelayedDestroySwapBack && delayedDestroyFinished) {
             MeteorClient.SWAP.endSwap(false);
@@ -244,7 +244,7 @@ public class SilentMine extends Module {
 
             // Little leeway
             currentGameTickCalculated -= 0.1;
-            delayedDestroyBlock = new SilentMineBlock(blockPos, direction, priority);
+            delayedDestroyBlock = new SilentMineBlock(blockPos, direction, priority, false);
 
             delayedDestroyBlock.startBreaking(true);
 
@@ -266,7 +266,7 @@ public class SilentMine extends Module {
         }
 
         if (rebreakBlock == null) {
-            rebreakBlock = new SilentMineBlock(blockPos, direction, priority);
+            rebreakBlock = new SilentMineBlock(blockPos, direction, priority, true);
 
             rebreakBlock.startBreaking(false);
         }
@@ -282,7 +282,7 @@ public class SilentMine extends Module {
     public boolean canSwapBack() {
         boolean result = needDelayedDestroySwapBack;
 
-        if (hasDelayedDestroy() && delayedDestroyBlock.isReady(false)) {
+        if (hasDelayedDestroy() && delayedDestroyBlock.isReady()) {
             result = false;
         }
 
@@ -411,15 +411,20 @@ public class SilentMine extends Module {
 
         private double priority = 0;
 
-        public SilentMineBlock(BlockPos blockPos, Direction direction, double priority) {
+        private boolean isRebreak;
+
+        public SilentMineBlock(BlockPos blockPos, Direction direction, double priority,
+                boolean isRebreak) {
             this.blockPos = blockPos;
 
             this.direction = direction;
 
             this.priority = priority;
+
+            this.isRebreak = isRebreak;
         }
 
-        public boolean isReady(boolean isRebreak) {
+        public boolean isReady() {
             if (!BlockUtils.canBreak(blockPos)) {
                 return false;
             }
@@ -510,8 +515,35 @@ public class SilentMine extends Module {
 
             FindItemResult slot = InvUtils.findFastestToolHotbar(mc.world.getBlockState(blockPos));
 
+
+            Box boundingBox = mc.player.getBoundingBox();
+
+            double playerFeetY = boundingBox.minY;
+
+            Box groundBox = new Box(boundingBox.minX, playerFeetY - 0.2, boundingBox.minZ,
+                    boundingBox.maxX, playerFeetY, boundingBox.maxZ);
+
+            boolean willBeOnGround = false;
+
+            for (BlockPos pos : BlockUtils.iterate(groundBox)) {
+                BlockState blockState = mc.world.getBlockState(pos);
+
+                // Skip air or non-solid blocks
+                if (!blockState.isSolidBlock(mc.world, pos)) {
+                    continue;
+                }
+
+                double blockTopY = pos.getY() + 1.0;
+                double distanceToBlock = playerFeetY - blockTopY;
+
+                if (distanceToBlock >= 0 && distanceToBlock < Math.abs(mc.player.getVelocity().y * 2)) {
+                    willBeOnGround = true;
+                }
+            }
+
             double breakingSpeed = BlockUtils.getBlockBreakingSpeed(
-                    slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot, state);
+                    slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot, state,
+                    RotationManager.lastGround || (willBeOnGround && !isRebreak));
 
             return Math.min(BlockUtils.getBreakDelta(breakingSpeed, state)
                     * (double) (gameTick - destroyProgressStart), 1.0);
