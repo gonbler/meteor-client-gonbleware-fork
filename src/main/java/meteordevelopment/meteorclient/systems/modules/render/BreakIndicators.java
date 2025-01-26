@@ -246,7 +246,7 @@ public class BreakIndicators extends Module {
             FindItemResult slot = InvUtils.findFastestToolHotbar(mc.world.getBlockState(blockPos));
 
             double breakingSpeed = BlockUtils.getBlockBreakingSpeed(
-                    slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot, state, false);
+                    slot.found() ? slot.slot() : mc.player.getInventory().selectedSlot, state, true);
 
             return BlockUtils.getBreakDelta(breakingSpeed, state)
                     * (double) (currentTick - startTick);
