@@ -6,7 +6,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 import meteordevelopment.meteorclient.MeteorClient;
@@ -200,8 +199,6 @@ public class AutoCrystal extends Module {
 
     public final List<Boolean> cachedValidSpots = new ArrayList<>();
 
-    private final Set<UUID> deadPlayers = new HashSet<>();
-
     private long lastPlaceTimeMS = 0;
     private long lastBreakTimeMS = 0;
 
@@ -222,25 +219,11 @@ public class AutoCrystal extends Module {
         crystalBreakDelays.clear();
         crystalPlaceDelays.clear();
 
-        deadPlayers.clear();
-
         renderer.onActivate();
     }
 
     @EventHandler
-    private void onTick(TickEvent.Post event) {
-        synchronized (deadPlayers) {
-            deadPlayers.removeIf(uuid -> {
-                PlayerEntity entity = mc.world.getPlayerByUuid(uuid);
-
-                if (entity == null || entity.isDead()) {
-                    return false;
-                }
-
-                return true;
-            });
-        }
-    }
+    private void onTick(TickEvent.Post event) {}
 
     private void update() {
         if (mc.player == null || mc.world == null || mc.world.getPlayers().isEmpty())
@@ -256,77 +239,71 @@ public class AutoCrystal extends Module {
         _placePositions.clear();
 
         PlacePosition bestPlacePos = null;
-        synchronized (deadPlayers) {
-            if (placeCrystals.get() && !(pauseEatPlace.get() && mc.player.isUsingItem())) {
-                cachedValidPlaceSpots();
+        if (placeCrystals.get() && !(pauseEatPlace.get() && mc.player.isUsingItem())) {
+            cachedValidPlaceSpots();
 
-                for (PlayerEntity player : mc.world.getPlayers()) {
-                    if (player == mc.player) {
-                        continue;
-                    }
-
-                    if (deadPlayers.contains(player.getUuid())) {
-                        continue;
-                    }
-
-                    if (Friends.get().isFriend(player)) {
-                        continue;
-                    }
-
-                    if (player.isDead()) {
-                        continue;
-                    }
-
-                    if (ignoreNakeds.get()) {
-                        if (player.getInventory().armor.get(0).isEmpty()
-                                && player.getInventory().armor.get(1).isEmpty()
-                                && player.getInventory().armor.get(2).isEmpty()
-                                && player.getInventory().armor.get(3).isEmpty())
-                            continue;
-                    }
-
-                    if (player.squaredDistanceTo(mc.player.getEyePos()) > 12 * 12) {
-                        continue;
-                    }
-
-                    PlacePosition testPos = findBestPlacePosition(player);
-
-                    if (testPos != null
-                            && (bestPlacePos == null || testPos.damage > bestPlacePos.damage)) {
-                        bestPlacePos = testPos;
-                    }
+            for (PlayerEntity player : mc.world.getPlayers()) {
+                if (player == mc.player) {
+                    continue;
                 }
 
-                long currentTime = System.currentTimeMillis();
+                if (Friends.get().isFriend(player)) {
+                    continue;
+                }
 
-                if (bestPlacePos != null && placeSpeedCheck(bestPlacePos.isSlowPlace)) {
-                    if (placeCrystal(bestPlacePos.blockPos.down())) {
-                        lastPlaceTimeMS = currentTime;
-                    }
+                if (player.isDead()) {
+                    continue;
+                }
+
+                if (ignoreNakeds.get()) {
+                    if (player.getInventory().armor.get(0).isEmpty()
+                            && player.getInventory().armor.get(1).isEmpty()
+                            && player.getInventory().armor.get(2).isEmpty()
+                            && player.getInventory().armor.get(3).isEmpty())
+                        continue;
+                }
+
+                if (player.squaredDistanceTo(mc.player.getEyePos()) > 12 * 12) {
+                    continue;
+                }
+
+                PlacePosition testPos = findBestPlacePosition(player);
+
+                if (testPos != null
+                        && (bestPlacePos == null || testPos.damage > bestPlacePos.damage)) {
+                    bestPlacePos = testPos;
                 }
             }
 
-            if (breakCrystals.get() && !(pauseEatBreak.get() && mc.player.isUsingItem())) {
-                for (Entity entity : mc.world.getEntities()) {
-                    if (!(entity instanceof EndCrystalEntity))
-                        continue;
+            long currentTime = System.currentTimeMillis();
 
-                    if (!inBreakRange(entity.getPos())) {
-                        continue;
-                    }
+            if (bestPlacePos != null && placeSpeedCheck(bestPlacePos.isSlowPlace)) {
+                if (placeCrystal(bestPlacePos.blockPos.down())) {
+                    lastPlaceTimeMS = currentTime;
+                }
+            }
+        }
 
-                    if (!shouldBreakCrystal(entity)) {
-                        continue;
-                    }
+        if (breakCrystals.get() && !(pauseEatBreak.get() && mc.player.isUsingItem())) {
+            for (Entity entity : mc.world.getEntities()) {
+                if (!(entity instanceof EndCrystalEntity))
+                    continue;
 
-                    if (!breakSpeedCheck()) {
-                        break;
-                    }
+                if (!inBreakRange(entity.getPos())) {
+                    continue;
+                }
 
-                    if (!breakCrystal(entity) && rotateBreak.get()
-                            && !MeteorClient.ROTATION.lookingAt(entity.getBoundingBox())) {
-                        break;
-                    }
+                if (!shouldBreakCrystal(entity)) {
+                    continue;
+                }
+
+                if (!breakSpeedCheck()) {
+                    break;
+                }
+
+                if (!breakCrystal(entity) && rotateBreak.get()
+                        && !MeteorClient.ROTATION.lookingAt(entity.getBoundingBox())) {
+                    break;
                 }
             }
         }
@@ -662,10 +639,6 @@ public class AutoCrystal extends Module {
                 continue;
             }
 
-            if (deadPlayers.contains(player.getUuid())) {
-                continue;
-            }
-
             if (player.isDead()) {
                 continue;
             }
@@ -741,10 +714,6 @@ public class AutoCrystal extends Module {
     private void onPlayerDeath(PlayerDeathEvent.Death event) {
         if (event.getPlayer() == null || event.getPlayer() == mc.player)
             return;
-
-        synchronized (deadPlayers) {
-            deadPlayers.add(event.getPlayer().getUuid());
-        }
     }
 
     private boolean intersectsWithEntities(Box box) {
