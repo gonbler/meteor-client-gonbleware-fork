@@ -37,7 +37,9 @@ public class AutoCrystalUtil {
     }
 
     private static Vec3d getPosForDir(BlockPos blockPos, Direction dir) {
-        return new Vec3d(blockPos.getX() + dir.getOffsetX() / 2f,
-                blockPos.getY() + dir.getOffsetY() / 2f, blockPos.getZ() + dir.getOffsetZ() / 2f);
+        Vec3d offset =
+                new Vec3d(dir.getOffsetX() / 2.0, dir.getOffsetY() / 2.0, dir.getOffsetZ() / 2.0);
+
+        return blockPos.toCenterPos().add(offset);
     }
 }

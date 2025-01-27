@@ -49,7 +49,6 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 
 public class AutoCrystal extends Module {
@@ -333,12 +332,12 @@ public class AutoCrystal extends Module {
         }
     }
 
-    public boolean placeCrystal(BlockPos pos) {
-        if (pos == null || mc.player == null) {
+    public boolean placeCrystal(BlockPos blockPos) {
+        if (blockPos == null || mc.player == null) {
             return false;
         }
 
-        BlockPos crystaBlockPos = pos.up();
+        BlockPos crystaBlockPos = blockPos.up();
 
         Box box = new Box(crystaBlockPos.getX(), crystaBlockPos.getY(), crystaBlockPos.getZ(),
                 crystaBlockPos.getX() + 1, crystaBlockPos.getY() + 2, crystaBlockPos.getZ() + 1);
@@ -354,17 +353,17 @@ public class AutoCrystal extends Module {
         }
 
         if (rotatePlace.get()) {
-            MeteorClient.ROTATION.requestRotation(pos.toCenterPos().add(0, 0.5, 0), 10);
+            MeteorClient.ROTATION.requestRotation(blockPos.toCenterPos(), 10);
 
-            if (!MeteorClient.ROTATION.lookingAt(new Box(pos))) {
+            if (!MeteorClient.ROTATION.lookingAt(new Box(blockPos))) {
                 return false;
             }
         }
 
         long currentTime = System.currentTimeMillis();
 
-        if (crystalPlaceDelays.containsKey(pos)) {
-            if ((currentTime - crystalPlaceDelays.get(pos)) / 1000.0 < placeDelay.get()) {
+        if (crystalPlaceDelays.containsKey(blockPos)) {
+            if ((currentTime - crystalPlaceDelays.get(blockPos)) / 1000.0 < placeDelay.get()) {
                 return false;
             }
         }
@@ -373,9 +372,10 @@ public class AutoCrystal extends Module {
             return false;
         }
 
-        crystalPlaceDelays.put(pos, currentTime);
+        crystalPlaceDelays.put(blockPos, currentTime);
+        renderer.onPlaceCrystal(blockPos);
 
-        BlockHitResult calculatedHitResult = AutoCrystalUtil.getPlaceBlockHitResult(pos);
+        BlockHitResult calculatedHitResult = AutoCrystalUtil.getPlaceBlockHitResult(blockPos);
 
         Hand hand = Hand.MAIN_HAND;
 
