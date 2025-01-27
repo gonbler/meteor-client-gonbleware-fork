@@ -614,46 +614,25 @@ public class AutoCrystal extends Module {
         }
     }
 
-    private Set<BlockPos> _preplaceSet = new HashSet<>();
+    public void preplaceCrystal(BlockPos crystalBlockPos, boolean snapAt) {
+        BlockPos blockPos = crystalBlockPos.down();
 
-    public void preplaceCrystal(BlockPos pos) {
-        if (!mc.world.getBlockState(pos).isAir()) {
+        crystalPlaceDelays.remove(blockPos);
+
+        Box box = new Box(crystalBlockPos.getX(), crystalBlockPos.getY(), crystalBlockPos.getZ(),
+                crystalBlockPos.getX() + 1, crystalBlockPos.getY() + 2, crystalBlockPos.getZ() + 1);
+
+        if (intersectsWithEntities(box)) {
             return;
         }
 
-        BlockPos downPos = pos.down();
-        BlockState downState = mc.world.getBlockState(downPos);
-        Block downBlock = downState.getBlock();
-
-        // We can only place on obsidian and bedrock
-        if (downState.isAir() || (downBlock != Blocks.OBSIDIAN && downBlock != Blocks.BEDROCK)) {
-            return;
+        // Also don't snap if we're already looking there
+        if (rotatePlace.get() && snapAt
+                && !MeteorClient.ROTATION.lookingAt(new Box(crystalBlockPos))) {
+            MeteorClient.ROTATION.snapAt(crystalBlockPos.toCenterPos());
         }
 
-        // Range check
-        if (!inPlaceRange(downPos)
-                || !inBreakRange(new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5))) {
-            return;
-        }
-
-        // Check if the crystal intersects with any players/crystals/whatever
-        Box box = new Box(pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 1, pos.getY() + 2,
-                pos.getZ() + 1);
-
-        if (intersectsWithEntities(box))
-            return;
-
-        _preplaceSet.clear();
-        _preplaceSet.add(pos);
-
-        double selfDamage = DamageUtils.newCrystalDamage(mc.player, mc.player.getBoundingBox(),
-                new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5), _preplaceSet);
-
-        if (selfDamage > maxPlace.get()) {
-            return;
-        }
-
-        placeCrystal(downPos);
+        placeCrystal(blockPos);
     }
 
     public boolean inPlaceRange(BlockPos blockPos) {

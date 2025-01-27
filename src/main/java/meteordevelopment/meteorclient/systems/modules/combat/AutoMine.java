@@ -68,14 +68,17 @@ public class AutoMine extends Module {
                             "Starts mining your head block when the enemy starts mining your feet")
                     .defaultValue(AntiSwimMode.OnMine).build());
 
-    private final Setting<Double> antiSurroundInnerTime = sgGeneral.add(new DoubleSetting.Builder()
-            .name("anti-surround-inner-spam-time").description("Max range to target")
-            .defaultValue(0.1).min(0).sliderMax(0.3).build());
-
     private final Setting<AntiSurroundMode> antiSurroundMode =
             sgGeneral.add(new EnumSetting.Builder<AntiSurroundMode>().name("anti-surround-mode")
                     .description("Places crystals in places to prevent surround")
                     .defaultValue(AntiSurroundMode.Auto).build());
+
+    private final Setting<Boolean> antiSurroundInnerSnap = sgGeneral.add(new BoolSetting.Builder()
+            .name("anti-surround-inner-snap")
+            .description("Instantly snaps the camera when it needs to for inner place")
+            .defaultValue(true).visible(() -> antiSurroundMode.get() == AntiSurroundMode.Auto
+                    || antiSurroundMode.get() == AntiSurroundMode.Inner)
+            .build());
 
     private final Setting<Boolean> renderDebugScores =
             sgRender.add(new BoolSetting.Builder().name("render-debug-scores")
@@ -89,10 +92,6 @@ public class AutoMine extends Module {
     private CityBlock target1 = null;
     private CityBlock target2 = null;
     private BlockPos ignorePos = null;
-
-    private Map<BlockPos, Long> crystalSpamTargets = new HashMap<>();
-
-    private List<BlockPos> removePoses = new ArrayList<>();
 
     public AutoMine() {
         super(Categories.Combat, "auto-mine",
@@ -108,34 +107,12 @@ public class AutoMine extends Module {
         if (silentMine == null) {
             silentMine = (SilentMine) Modules.get().get(SilentMine.class);
         }
-
-        crystalSpamTargets.clear();
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (silentMine == null) {
             silentMine = (SilentMine) Modules.get().get(SilentMine.class);
-        }
-
-        Long currentTime = System.currentTimeMillis();
-        removePoses.clear();
-
-        synchronized (crystalSpamTargets) {
-            for (Map.Entry<BlockPos, Long> spamTarget : crystalSpamTargets.entrySet()) {
-                double difference = (currentTime - spamTarget.getValue()) / 1000.0;
-
-                if (difference > antiSurroundInnerTime.get()) {
-                    removePoses.add(spamTarget.getKey());
-                }
-
-                Modules.get().get(AutoCrystal.class).preplaceCrystal(spamTarget.getKey());
-                info("Placed?");
-            }
-
-            for (BlockPos removePos : removePoses) {
-                crystalSpamTargets.remove(removePos);
-            }
         }
     }
 
@@ -155,25 +132,32 @@ public class AutoMine extends Module {
             for (Direction dir : Direction.HORIZONTAL) {
                 BlockPos playerSurroundBlock = targetPlayer.getBlockPos().offset(dir);
 
-                for (Direction outerDir : Direction.HORIZONTAL) {
-                    BlockPos outerCrystalPos = playerSurroundBlock.offset(outerDir);
+                if (event.getBlockPos().equals(playerSurroundBlock)) {
+                    BlockPos outerPos = targetPlayer.getBlockPos().offset(dir, 2);
 
-                    Modules.get().get(AutoCrystal.class).preplaceCrystal(outerCrystalPos);
+                    if (mc.world.isAir(outerPos)) {
+                        Modules.get().get(AutoCrystal.class).preplaceCrystal(outerPos, false);
+                    } else {
+                        for (Direction dir2 : Direction.HORIZONTAL) {
+                            BlockPos outerAroundPos = playerSurroundBlock.offset(dir2);
 
-                    mode = AntiSurroundMode.Outer;
+                            if (mc.world.isAir(outerAroundPos)) {
+                                Modules.get().get(AutoCrystal.class).preplaceCrystal(outerAroundPos,
+                                        false);
+
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        synchronized (crystalSpamTargets) {
-            if (mode == AntiSurroundMode.Auto || mode == AntiSurroundMode.Inner) {
-                for (Direction dir : Direction.HORIZONTAL) {
-                    BlockPos playerSurroundBlock = targetPlayer.getBlockPos().offset(dir);
+        if (mode == AntiSurroundMode.Auto || mode == AntiSurroundMode.Inner) {
+            for (Direction dir : Direction.HORIZONTAL) {
+                BlockPos playerSurroundBlock = targetPlayer.getBlockPos().offset(dir);
 
-                    if (playerSurroundBlock.equals(event.getBlockPos())) {
-                        // Modules.get().get(AutoCrystal.class).preplaceCrystal(playerSurroundBlock);
-                        crystalSpamTargets.put(playerSurroundBlock, System.currentTimeMillis());
-                    }
+                if (playerSurroundBlock.equals(event.getBlockPos())) {
+                    Modules.get().get(AutoCrystal.class).preplaceCrystal(playerSurroundBlock, antiSurroundInnerSnap.get());
                 }
             }
         }
