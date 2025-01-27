@@ -26,6 +26,8 @@ public interface IPathManager {
     void moveTo(BlockPos pos, boolean ignoreY);
     void moveInDirection(float yaw);
 
+    void moveToBlockPos(BlockPos pos);
+
     void mine(Block... blocks);
 
     void follow(Predicate<Entity> entity);

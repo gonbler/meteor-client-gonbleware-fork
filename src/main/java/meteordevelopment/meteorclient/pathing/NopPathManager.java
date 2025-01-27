@@ -40,6 +40,9 @@ public class NopPathManager implements IPathManager {
     public void moveTo(BlockPos pos, boolean ignoreY) {}
 
     @Override
+    public void moveToBlockPos(BlockPos pos) {}
+
+    @Override
     public void moveInDirection(float yaw) {}
 
     @Override

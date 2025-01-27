@@ -2,12 +2,11 @@ package meteordevelopment.meteorclient.systems.modules.world;
 
 import java.util.ArrayList;
 import java.util.List;
-import baritone.api.BaritoneAPI;
-import baritone.api.pathing.goals.GoalBlock;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.pathing.BaritoneUtils;
+import meteordevelopment.meteorclient.pathing.PathManagers;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.KeybindSetting;
@@ -120,7 +119,7 @@ public class AutoPortal extends Module {
                     MeteorClient.SWAP.endSwap(true);
 
                     if (baritonePathToPortal.get() && BaritoneUtils.IS_AVAILABLE) {
-                        BaritoneAPI.getProvider().getBaritoneForPlayer(mc.player).getCustomGoalProcess().setGoalAndPath(new GoalBlock(ignitionPos));
+                        PathManagers.get().moveToBlockPos(ignitionPos);
                     }
                 } else {
                     info("Failed to light portal");
