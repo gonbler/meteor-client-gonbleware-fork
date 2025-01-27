@@ -457,10 +457,10 @@ public class AutoCrystal extends Module {
         mc.player.networkHandler.sendPacket(new PlayerInteractBlockC2SPacket(hand,
                 new BlockHitResult(pos.toCenterPos(), dir, pos, inside), s));
 
-        if (placeSwingMode.get().client())
+        if (placeSwingMode.get() == SwingMode.Client)
             mc.player.swingHand(hand);
 
-        if (placeSwingMode.get().packet())
+        if (placeSwingMode.get() == SwingMode.Packet)
             mc.getNetworkHandler().sendPacket(new HandSwingC2SPacket(hand));
 
         MeteorClient.SWAP.endSwap(true);
@@ -502,10 +502,10 @@ public class AutoCrystal extends Module {
 
         mc.getNetworkHandler().sendPacket(packet);
 
-        if (breakSwingMode.get().client())
+        if (breakSwingMode.get() == SwingMode.Client)
             mc.player.swingHand(Hand.MAIN_HAND);
 
-        if (breakSwingMode.get().packet())
+        if (breakSwingMode.get() == SwingMode.Packet)
             mc.getNetworkHandler().sendPacket(new HandSwingC2SPacket(Hand.MAIN_HAND));
 
         explodedCrystals.add(entity.getId());
@@ -1044,15 +1044,7 @@ public class AutoCrystal extends Module {
     }
 
     public enum SwingMode {
-        Both, Packet, Client, None;
-
-        public boolean packet() {
-            return this == Packet || this == Both;
-        }
-
-        public boolean client() {
-            return this == Client || this == Both;
-        }
+        Packet, Client, None
     }
 
     private enum RenderMode {
