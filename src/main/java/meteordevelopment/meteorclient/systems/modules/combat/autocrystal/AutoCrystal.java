@@ -196,7 +196,6 @@ public class AutoCrystal extends Module {
     private final Pool<PlacePosition> placePositionPool = new Pool<>(PlacePosition::new);
     private final List<PlacePosition> _placePositions = new ArrayList<>();
     private final BlockPos.Mutable mutablePos = new BlockPos.Mutable();
-    private final BlockPos.Mutable downMutablePos = new BlockPos.Mutable();
 
     private final IntSet explodedCrystals = new IntOpenHashSet();
     private final Map<Integer, Long> crystalBreakDelays = new HashMap<>();
@@ -466,8 +465,8 @@ public class AutoCrystal extends Module {
         }
 
         for (int x = -r; x <= r; x++) {
-            for (int z = -r; z <= r; z++) {
-                for (int y = -r; y <= r; y++) {
+            for (int y = -r; y <= r; y++) {
+                for (int z = -r; z <= r; z++) {
                     if (!cachedValidSpots
                             .get((x + r) * ((2 * r) * (2 * r)) + (y + r) * (2 * r) + (z + r))) {
                         continue;
@@ -541,17 +540,14 @@ public class AutoCrystal extends Module {
         }
 
         for (int x = -r; x <= r; x++) {
-            for (int z = -r; z <= r; z++) {
-                for (int y = -r; y <= r; y++) {
-                    BlockPos pos = mutablePos.set(ex + x, ey + y, ez + z);
-                    BlockState state = mc.world.getBlockState(pos);
-
+            for (int y = -r; y <= r; y++) {
+                for (int z = -r; z <= r; z++) {
                     // Check if there's an air block to place the crystal in
-                    if (!state.isAir()) {
+                    if (!mc.world.isAir(mutablePos.set(ex + x, ey + y, ez + z))) {
                         continue;
                     }
 
-                    BlockPos downPos = downMutablePos.set(ex + x, ey + y - 1, ez + z);
+                    BlockPos downPos = mutablePos.set(ex + x, ey + y - 1, ez + z);
                     BlockState downState = mc.world.getBlockState(downPos);
                     Block downBlock = downState.getBlock();
 
@@ -567,8 +563,8 @@ public class AutoCrystal extends Module {
                     }
 
                     // Check if the crystal intersects with any players/crystals/whatever
-                    ((IBox) box).set(pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 1,
-                            pos.getY() + 2, pos.getZ() + 1);
+                    ((IBox) box).set(downPos.getX(), downPos.getY() + 1, downPos.getZ(), downPos.getX() + 1,
+                    downPos.getY() + 3, downPos.getZ() + 1);
 
                     if (intersectsWithEntities(box)) {
                         continue;
@@ -576,7 +572,7 @@ public class AutoCrystal extends Module {
 
                     double selfDamage =
                             DamageUtils.newCrystalDamage(mc.player, mc.player.getBoundingBox(),
-                                    new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5),
+                                    new Vec3d(downPos.getX() + 0.5, downPos.getY() + 1, downPos.getZ() + 0.5),
                                     _calcIgnoreSet);
 
                     if (selfDamage > maxPlace.get()) {
