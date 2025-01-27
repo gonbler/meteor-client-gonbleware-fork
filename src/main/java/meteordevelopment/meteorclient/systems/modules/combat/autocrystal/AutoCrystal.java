@@ -12,7 +12,6 @@ import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.EntityAddedEvent;
 import meteordevelopment.meteorclient.events.entity.PlayerDeathEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
-import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.mixininterface.IBox;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
@@ -82,6 +81,12 @@ public class AutoCrystal extends Module {
     private final Setting<Boolean> ignoreNakeds =
             sgGeneral.add(new BoolSetting.Builder().name("ignore-nakeds")
                     .description("Ignore players with no items.").defaultValue(true).build());
+
+    private final Setting<Boolean> setPlayerDead = sgGeneral.add(new BoolSetting.Builder()
+            .name("set-player-dead-instantly")
+            .description(
+                    "Tries to not blow up loot by instantly killing the player in the packet they die.")
+            .defaultValue(true).build());
 
     // -- Place -- //
     private final Setting<Double> placeSpeedLimit =
@@ -221,9 +226,6 @@ public class AutoCrystal extends Module {
 
         renderer.onActivate();
     }
-
-    @EventHandler
-    private void onTick(TickEvent.Post event) {}
 
     private void update() {
         if (mc.player == null || mc.world == null || mc.world.getPlayers().isEmpty())
@@ -714,6 +716,12 @@ public class AutoCrystal extends Module {
     private void onPlayerDeath(PlayerDeathEvent.Death event) {
         if (event.getPlayer() == null || event.getPlayer() == mc.player)
             return;
+
+        // Maybe more instantly kills the player?
+        // Needs more testing
+        if (setPlayerDead.get()) {
+            event.getPlayer().setHealth(0);
+        }
     }
 
     private boolean intersectsWithEntities(Box box) {
