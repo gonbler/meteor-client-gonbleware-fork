@@ -631,6 +631,7 @@ public class Modules extends System<Modules> {
         add(new Spam());
 
         add(new PacketSaver());
+        add(new DebugModule());
     }
 
     public static class ModuleRegistry extends SimpleRegistry<Module> {
