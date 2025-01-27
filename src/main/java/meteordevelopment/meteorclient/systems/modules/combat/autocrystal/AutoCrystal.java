@@ -474,6 +474,21 @@ public class AutoCrystal extends Module {
             }
         }
 
+        boolean shouldFacePlace = false;
+
+        if (facePlaceMissingArmor.get()) {
+            if (target.getInventory().armor.get(0).isEmpty()
+                    || target.getInventory().armor.get(1).isEmpty()
+                    || target.getInventory().armor.get(2).isEmpty()
+                    || target.getInventory().armor.get(3).isEmpty()) {
+                shouldFacePlace = true;
+            }
+        }
+
+        if (forceFacePlaceKeybind.get().isPressed()) {
+            shouldFacePlace = true;
+        }
+
         for (int x = -r; x <= r; x++) {
             for (int y = -r; y <= r; y++) {
                 for (int z = -r; z <= r; z++) {
@@ -488,21 +503,6 @@ public class AutoCrystal extends Module {
                             DamageUtils.newCrystalDamage(target, target.getBoundingBox(),
                                     new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5),
                                     _calcIgnoreSet);
-
-                    boolean shouldFacePlace = false;
-
-                    if (facePlaceMissingArmor.get()) {
-                        if (target.getInventory().armor.get(0).isEmpty()
-                                || target.getInventory().armor.get(1).isEmpty()
-                                || target.getInventory().armor.get(2).isEmpty()
-                                || target.getInventory().armor.get(3).isEmpty()) {
-                            shouldFacePlace = true;
-                        }
-                    }
-
-                    if (forceFacePlaceKeybind.get().isPressed()) {
-                        shouldFacePlace = true;
-                    }
 
                     boolean shouldSet = targetDamage >= (shouldFacePlace ? 1.0 : minPlace.get())
                             && targetDamage > bestPos.damage;
