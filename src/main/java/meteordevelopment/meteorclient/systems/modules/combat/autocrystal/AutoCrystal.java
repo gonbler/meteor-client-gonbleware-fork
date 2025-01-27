@@ -434,9 +434,6 @@ public class AutoCrystal extends Module {
         int ex = eyePos.getX();
         int ey = eyePos.getY();
         int ez = eyePos.getZ();
-        // BlockState obstate = Blocks.OBSIDIAN.getDefaultState();
-        // boolean airPlace = allowAirPlace.get().isPressed();
-
         boolean set = false;
 
         _calcIgnoreSet.clear();
@@ -469,8 +466,8 @@ public class AutoCrystal extends Module {
         }
 
         for (int x = -r; x <= r; x++) {
-            for (int y = -r; y <= r; y++) {
-                for (int z = -r; z <= r; z++) {
+            for (int z = -r; z <= r; z++) {
+                for (int y = -r; y <= r; y++) {
                     if (!cachedValidSpots
                             .get((x + r) * ((2 * r) * (2 * r)) + (y + r) * (2 * r) + (z + r))) {
                         continue;
@@ -544,8 +541,8 @@ public class AutoCrystal extends Module {
         }
 
         for (int x = -r; x <= r; x++) {
-            for (int y = -r; y <= r; y++) {
-                for (int z = -r; z <= r; z++) {
+            for (int z = -r; z <= r; z++) {
+                for (int y = -r; y <= r; y++) {
                     BlockPos pos = mutablePos.set(ex + x, ey + y, ez + z);
                     BlockState state = mc.world.getBlockState(pos);
 
