@@ -301,7 +301,7 @@ public class AutoCrystal extends Module {
                 long currentTime = System.currentTimeMillis();
 
                 if (bestPlacePos != null && placeSpeedCheck(bestPlacePos.isSlowPlace)) {
-                    if (placeCrystal(bestPlacePos.blockPos.down(), bestPlacePos.placeDirection)) {
+                    if (placeCrystal(bestPlacePos.blockPos.down())) {
                         lastPlaceTimeMS = currentTime;
                     }
                 }
@@ -333,7 +333,7 @@ public class AutoCrystal extends Module {
         }
     }
 
-    public boolean placeCrystal(BlockPos pos, Direction dir) {
+    public boolean placeCrystal(BlockPos pos) {
         if (pos == null || mc.player == null) {
             return false;
         }
@@ -375,15 +375,13 @@ public class AutoCrystal extends Module {
 
         crystalPlaceDelays.put(pos, currentTime);
 
+        BlockHitResult calculatedHitResult = AutoCrystalUtil.getPlaceBlockHitResult(pos);
+
         Hand hand = Hand.MAIN_HAND;
 
-        Vec3d eyes = mc.player.getEyePos();
-        boolean inside = eyes.x > pos.getX() && eyes.x < pos.getX() + 1 && eyes.y > pos.getY()
-                && eyes.y < pos.getY() + 1 && eyes.z > pos.getZ() && eyes.z < pos.getZ() + 1;
-
         int s = mc.world.getPendingUpdateManager().incrementSequence().getSequence();
-        mc.player.networkHandler.sendPacket(new PlayerInteractBlockC2SPacket(hand,
-                new BlockHitResult(pos.toCenterPos(), dir, pos, inside), s));
+        mc.player.networkHandler
+                .sendPacket(new PlayerInteractBlockC2SPacket(hand, calculatedHitResult, s));
 
         if (placeSwingMode.get() == SwingMode.Client)
             mc.player.swingHand(hand);
@@ -448,7 +446,6 @@ public class AutoCrystal extends Module {
         _placePositions.add(bestPos);
 
         bestPos.damage = 0.0;
-        bestPos.placeDirection = null;
         bestPos.blockPos = null;
         bestPos.isSlowPlace = false;
 
@@ -486,7 +483,6 @@ public class AutoCrystal extends Module {
                     }
 
                     BlockPos pos = mutablePos.set(ex + x, ey + y, ez + z);
-                    BlockPos downPos = downMutablePos.set(ex + x, ey + y - 1, ez + z);
 
                     double targetDamage =
                             DamageUtils.newCrystalDamage(target, target.getBoundingBox(),
@@ -520,15 +516,8 @@ public class AutoCrystal extends Module {
                         }
                     }
 
-                    Direction dir = getPlaceOnDirection(downPos);
-
-                    if (dir == null) {
-                        dir = Direction.UP;
-                    }
-
                     if (shouldSet) {
                         bestPos.blockPos = pos.toImmutable();
-                        bestPos.placeDirection = dir;
                         bestPos.damage = targetDamage;
                         bestPos.isSlowPlace = isSlowPlace;
 
@@ -641,12 +630,6 @@ public class AutoCrystal extends Module {
             return;
         }
 
-        Direction dir = getPlaceOnDirection(downPos);
-
-        if (dir == null) {
-            return;
-        }
-
         // Range check
         if (!inPlaceRange(downPos)
                 || !inBreakRange(new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5))) {
@@ -670,7 +653,7 @@ public class AutoCrystal extends Module {
             return;
         }
 
-        placeCrystal(downPos, dir);
+        placeCrystal(downPos);
     }
 
     public boolean inPlaceRange(BlockPos blockPos) {
@@ -806,45 +789,6 @@ public class AutoCrystal extends Module {
                 || ((double) (currentTime - lastPlaceTimeMS)) / 1000.0 > 1.0 / placeSpeed;
     }
 
-    public static Direction getPlaceOnDirection(BlockPos pos) {
-        if (pos == null) {
-            return null;
-        }
-
-        Direction best = null;
-        if (MeteorClient.mc.world != null && MeteorClient.mc.player != null) {
-            double cDist = -1;
-            for (Direction dir : Direction.values()) {
-
-                // Can't place on air lol
-                /*
-                 * if (MeteorClient.mc.world.getBlockState(pos.offset(dir)).isAir()) { continue; }
-                 */
-
-                // Only accepts if closer than last accepted direction
-                double dist = getDistanceForDir(pos, dir);
-                if (dist >= 0 && (cDist < 0 || dist < cDist)) {
-                    best = dir;
-                    cDist = dist;
-                }
-            }
-        }
-        return best;
-    }
-
-    private static double getDistanceForDir(BlockPos pos, Direction dir) {
-        if (MeteorClient.mc.player == null) {
-            return 0.0;
-        }
-
-        Vec3d vec = new Vec3d(pos.getX() + dir.getOffsetX() / 2f,
-                pos.getY() + dir.getOffsetY() / 2f, pos.getZ() + dir.getOffsetZ() / 2f);
-        Vec3d dist = MeteorClient.mc.player.getEyePos().add(-vec.x, -vec.y, -vec.z);
-
-        // Len squared for optimization
-        return dist.lengthSquared();
-    }
-
     @Override
     public String getInfoString() {
         long currentTime = System.currentTimeMillis();
@@ -854,8 +798,6 @@ public class AutoCrystal extends Module {
 
     private class PlacePosition {
         public BlockPos blockPos;
-
-        public Direction placeDirection;
 
         public double damage = 0.0;
 
