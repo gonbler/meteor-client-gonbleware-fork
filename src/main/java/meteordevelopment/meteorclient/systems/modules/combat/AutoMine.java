@@ -1,13 +1,9 @@
 package meteordevelopment.meteorclient.systems.modules.combat;
 
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import org.joml.Vector3d;
@@ -144,7 +140,6 @@ public class AutoMine extends Module {
                             if (mc.world.isAir(outerAroundPos)) {
                                 Modules.get().get(AutoCrystal.class).preplaceCrystal(outerAroundPos,
                                         false);
-
                             }
                         }
                     }
