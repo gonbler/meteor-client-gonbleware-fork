@@ -25,6 +25,7 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.player.SilentMine;
+import meteordevelopment.meteorclient.utils.entity.EntityUtils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
@@ -243,12 +244,11 @@ public class Surround extends Module {
         BlockPos facePlacePos = adjacentPos.add(0, 1, 0);
         boolean shouldBuildDoubleHigh = autoSelfTrapMode.get() == SelfTrapMode.Always;
 
-        Box box = new Box(facePlacePos.getX() - 1, facePlacePos.getY() - 1, facePlacePos.getZ() - 1,
-                facePlacePos.getX() + 1, facePlacePos.getY() + 1, facePlacePos.getZ() + 1);
+        // Do a 2x2 horiontal box
+        Box box = Box.of(facePlacePos.toCenterPos().add(0, 0.5, 0), 0.1, 0.1, 0.1);
 
         if (autoSelfTrapMode.get() == SelfTrapMode.Smart) {
-            if (mc.world.getOtherEntities(null, box, entity -> entity instanceof EndCrystalEntity)
-                    .iterator().hasNext()) {
+            if (EntityUtils.intersectsWithEntity(box, e -> e instanceof EndCrystalEntity)) {
                 lastTimeOfCrystalNearHead = currentTime;
             }
 
@@ -275,8 +275,7 @@ public class Surround extends Module {
         Box box = Box.of(extendPos.toCenterPos(), 0.1, 0.1, 0.1);
 
         if (extendMode.get() == ExtendMode.Smart) {
-            if (mc.world.getOtherEntities(null, box, entity -> entity instanceof EndCrystalEntity)
-                    .iterator().hasNext()) {
+            if (EntityUtils.intersectsWithEntity(box, e -> e instanceof EndCrystalEntity)) {
                 lastTimeOfExtendCrystal = currentTime;
             }
 
