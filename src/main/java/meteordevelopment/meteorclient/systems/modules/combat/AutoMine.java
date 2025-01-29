@@ -1,6 +1,5 @@
 package meteordevelopment.meteorclient.systems.modules.combat;
 
-
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -49,23 +48,22 @@ public class AutoMine extends Module {
     private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder().name("range")
             .description("Max range to target").defaultValue(6.5).min(0).sliderMax(7.0).build());
 
-    private final Setting<SortPriority> targetPriority =
-            sgGeneral.add(new EnumSetting.Builder<SortPriority>().name("target-priority")
+    private final Setting<SortPriority> targetPriority = sgGeneral
+            .add(new EnumSetting.Builder<SortPriority>().name("target-priority")
                     .description("How to choose the target").defaultValue(SortPriority.ClosestAngle)
                     .build());
 
-    private final Setting<Boolean> ignoreNakeds =
-            sgGeneral.add(new BoolSetting.Builder().name("ignore-nakeds")
-                    .description("Ignore players with no items.").defaultValue(true).build());
+    private final Setting<Boolean> ignoreNakeds = sgGeneral.add(new BoolSetting.Builder().name("ignore-nakeds")
+            .description("Ignore players with no items.").defaultValue(true).build());
 
-    private final Setting<AntiSwimMode> antiSwim =
-            sgGeneral.add(new EnumSetting.Builder<AntiSwimMode>().name("anti-swim-mode")
+    private final Setting<AntiSwimMode> antiSwim = sgGeneral
+            .add(new EnumSetting.Builder<AntiSwimMode>().name("anti-swim-mode")
                     .description(
                             "Starts mining your head block when the enemy starts mining your feet")
                     .defaultValue(AntiSwimMode.OnMine).build());
 
-    private final Setting<AntiSurroundMode> antiSurroundMode =
-            sgGeneral.add(new EnumSetting.Builder<AntiSurroundMode>().name("anti-surround-mode")
+    private final Setting<AntiSurroundMode> antiSurroundMode = sgGeneral
+            .add(new EnumSetting.Builder<AntiSurroundMode>().name("anti-surround-mode")
                     .description("Places crystals in places to prevent surround")
                     .defaultValue(AntiSurroundMode.Auto).build());
 
@@ -83,10 +81,16 @@ public class AutoMine extends Module {
                     || antiSurroundMode.get() == AntiSurroundMode.Outer)
             .build());
 
-    private final Setting<Boolean> renderDebugScores =
-            sgRender.add(new BoolSetting.Builder().name("render-debug-scores")
-                    .description("Renders scores and their blocks.").defaultValue(false).build());
+    private final Setting<Double> antiSurroundOuterCooldown = sgGeneral.add(new DoubleSetting.Builder()
+            .name("anti-surround-outer-cooldown")
+            .description("Time to wait between placing crystals")
+            .defaultValue(0.1).min(0).sliderMax(1.0).visible(() -> antiSurroundMode.get() == AntiSurroundMode.Auto
+                    || antiSurroundMode.get() == AntiSurroundMode.Outer)
+            .build());
 
+    private final Setting<Boolean> renderDebugScores = sgRender
+            .add(new BoolSetting.Builder().name("render-debug-scores")
+                    .description("Renders scores and their blocks.").defaultValue(false).build());
 
     private SilentMine silentMine = null;
 
@@ -95,6 +99,8 @@ public class AutoMine extends Module {
     private CityBlock target1 = null;
     private CityBlock target2 = null;
     private BlockPos ignorePos = null;
+
+    private long lastOuterPlaceTime = 0;
 
     public AutoMine() {
         super(Categories.Combat, "auto-mine",
@@ -135,11 +141,22 @@ public class AutoMine extends Module {
             for (Direction dir : Direction.HORIZONTAL) {
                 BlockPos playerSurroundBlock = targetPlayer.getBlockPos().offset(dir);
 
-                // Only try to anti surround if the current mine block is actually in their surround
+                // Only try to anti surround if the current mine block is actually in their
+                // surround
                 if (event.getBlockPos().equals(playerSurroundBlock)) {
-                    Box box = Box.of(playerSurroundBlock.toCenterPos(), 2.5, 3.0, 2.5);
+                    // Box to check for placements
+                    Box checkBox = Box.of(playerSurroundBlock.toCenterPos(), 2.5, 3.0, 2.5);
+                    Box blockHitbox = new Box(playerSurroundBlock);
 
-                    for (BlockPos blockPos : BlockUtils.iterate(box)) {
+                    boolean outerSpeedCheck = (System.currentTimeMillis()
+                            - lastOuterPlaceTime) > (antiSurroundOuterCooldown.get() * 1000.0);
+
+                    if (!outerSpeedCheck) {
+                        return;
+                    }
+
+                    for (BlockPos blockPos : BlockUtils.iterate(checkBox)) {
+                        // Normal crystal checks (mostly taken from AutoCrystal)
                         if (!mc.world.isAir(blockPos)) {
                             continue;
                         }
@@ -149,32 +166,40 @@ public class AutoMine extends Module {
                             continue;
                         }
 
-                        Box crystalPlaceHitbox = new Box(blockPos.getX(), blockPos.getY(), blockPos.getZ(), blockPos.getX() + 1, blockPos.getY() + 2, blockPos.getZ() + 1);
+                        Box crystalPlaceHitbox = new Box(blockPos.getX(), blockPos.getY(), blockPos.getZ(),
+                                blockPos.getX() + 1, blockPos.getY() + 2, blockPos.getZ() + 1);
 
                         if (EntityUtils.intersectsWithEntity(crystalPlaceHitbox, entity -> !entity.isSpectator())) {
                             continue;
                         }
 
+                        // Calculate the hitbox of the crystal if it were to be placed (1 block radius,
+                        // centered on top fo the block)
+                        // See EntityType.java:328
                         Vec3d crystalPos = new Vec3d(blockPos.getX() + 0.5, blockPos.getY(), blockPos.getZ() + 0.5);
-                        Box crystalHitbox = new Box(crystalPos.x - 1, crystalPos.y, crystalPos.z - 1, crystalPos.x + 1, crystalPos.y + 2, crystalPos.z + 1);
-                        Box blockHitbox = new Box(blockPos);
+                        Box crystalHitbox = new Box(crystalPos.x - 1, crystalPos.y, crystalPos.z - 1, crystalPos.x + 1,
+                                crystalPos.y + 2, crystalPos.z + 1);
 
-                        // Look for places that we can place a crystal that would intersect the block hitbox, causing them to need to break the crystal to surround >:D
+                        // Look for places that we can place a crystal that would intersect the block
+                        // hitbox, causing them to need to break the crystal to surround >:D
                         if (crystalHitbox.intersects(blockHitbox)) {
                             Modules.get().get(AutoCrystal.class).preplaceCrystal(blockPos, antiSurroundOuterSnap.get());
-                            break;
+                            return;
                         }
                     }
                 }
             }
         }
 
+        // Just tries to place a crystal in their surround on the packet sent to break
+        // the block
         if (mode == AntiSurroundMode.Auto || mode == AntiSurroundMode.Inner) {
             for (Direction dir : Direction.HORIZONTAL) {
                 BlockPos playerSurroundBlock = targetPlayer.getBlockPos().offset(dir);
 
                 if (playerSurroundBlock.equals(event.getBlockPos())) {
-                    Modules.get().get(AutoCrystal.class).preplaceCrystal(playerSurroundBlock, antiSurroundInnerSnap.get());
+                    Modules.get().get(AutoCrystal.class).preplaceCrystal(playerSurroundBlock,
+                            antiSurroundInnerSnap.get());
                 }
             }
         }
@@ -187,10 +212,9 @@ public class AutoMine extends Module {
 
         BlockState selfFeetBlock = mc.world.getBlockState(mc.player.getBlockPos());
         BlockState selfHeadBlock = mc.world.getBlockState(mc.player.getBlockPos().up());
-        boolean shouldBreakSelfHeadBlock =
-                BlockUtils.canBreak(mc.player.getBlockPos().up(), selfHeadBlock)
-                        && (selfHeadBlock.isOf(Blocks.OBSIDIAN)
-                                || selfHeadBlock.isOf(Blocks.CRYING_OBSIDIAN));
+        boolean shouldBreakSelfHeadBlock = BlockUtils.canBreak(mc.player.getBlockPos().up(), selfHeadBlock)
+                && (selfHeadBlock.isOf(Blocks.OBSIDIAN)
+                        || selfHeadBlock.isOf(Blocks.CRYING_OBSIDIAN));
 
         boolean prioHead = false;
 
@@ -291,7 +315,6 @@ public class AutoMine extends Module {
             targetBlocks.add(target2.blockPos);
         }
 
-
         if (!targetBlocks.isEmpty() && silentMine.hasDelayedDestroy()) {
             silentMine.silentBreakBlock(targetBlocks.remove(), 10);
         }
@@ -301,8 +324,6 @@ public class AutoMine extends Module {
             silentMine.silentBreakBlock(targetBlocks.remove(), 10);
         }
     }
-
-
 
     private void findTargetBlocks() {
         target1 = findCityBlock(null);
@@ -358,9 +379,7 @@ public class AutoMine extends Module {
                         }
                     }
 
-
-                    boolean canFacePlace =
-                            mc.world.getBlockState(targetPlayer.getBlockPos().up()).isAir();
+                    boolean canFacePlace = mc.world.getBlockState(targetPlayer.getBlockPos().up()).isAir();
 
                     // It's a good rebreak if it's a self trap block for their head or the block
                     // above their head (no velo meta)
@@ -387,7 +406,6 @@ public class AutoMine extends Module {
             if (!BlockUtils.canBreak(blockPos, block) && !isPosGoodRebreak) {
                 continue;
             }
-
 
             if (!silentMine.inBreakRange(blockPos)) {
                 continue;
@@ -523,13 +541,12 @@ public class AutoMine extends Module {
                 score += 50;
             }
         } else {
-            BlockState selfFeetBlock = mc.world.getBlockState(mc.player.getBlockPos());
-            BlockState selfHeadBlock = mc.world.getBlockState(mc.player.getBlockPos().up());
+            BlockState selfHeadState = mc.world.getBlockState(mc.player.getBlockPos().up());
 
             // We don't want to mine our selves out
             if (blockPos.equals(mc.player.getBlockPos())
-                    && (selfHeadBlock.getBlock().equals(Blocks.OBSIDIAN)
-                            || selfHeadBlock.getBlock().equals(Blocks.BEDROCK))) {
+                    && (selfHeadState.getBlock().equals(Blocks.OBSIDIAN)
+                            || selfHeadState.getBlock().equals(Blocks.BEDROCK))) {
                 return INVALID_SCORE;
             }
 
@@ -572,9 +589,9 @@ public class AutoMine extends Module {
         BlockPos blockPos = pos.blockPos;
 
         double score = 0;
-        BlockState block = mc.world.getBlockState(blockPos);
 
-        // Prioritize the blocks above and below them to either velo fail or make them fall down
+        // Prioritize the blocks above and below them to either velo fail or make them
+        // fall down
         if (blockPos.getY() == targetPlayer.getBlockY() + 2
                 || blockPos.getY() == targetPlayer.getBlockY() - 1) {
             score += 10;
@@ -613,7 +630,8 @@ public class AutoMine extends Module {
         }
 
         // The closer the block is, the higher score it gets
-        // This also prioritizes feet blocks (below them and stuff) since getPos returns their feet
+        // This also prioritizes feet blocks (below them and stuff) since getPos returns
+        // their feet
         // positions
         double d = targetPlayer.getPos().distanceTo(Vec3d.ofCenter(blockPos));
         score += 10 / d;
@@ -667,7 +685,8 @@ public class AutoMine extends Module {
         return target1 != null && target2 != null;
     }
 
-    private void onRender3d(Render3DEvent event) {
+    // Handles actual rendering
+    private void render3d(Render3DEvent event) {
         if (targetPlayer == null) {
             return;
         }
@@ -710,9 +729,7 @@ public class AutoMine extends Module {
                             }
                         }
 
-
-                        boolean canFacePlace =
-                                mc.world.getBlockState(targetPlayer.getBlockPos().up()).isAir();
+                        boolean canFacePlace = mc.world.getBlockState(targetPlayer.getBlockPos().up()).isAir();
 
                         // It's a good rebreak if it's a self trap block for their head or the block
                         // above their head (no velo meta)
@@ -738,7 +755,6 @@ public class AutoMine extends Module {
                     continue;
                 }
 
-
                 if (!silentMine.inBreakRange(blockPos)) {
                     continue;
                 }
@@ -760,7 +776,6 @@ public class AutoMine extends Module {
                 if (isPosGoodRebreak) {
                     score += 40;
                 }
-
 
                 if (score > bestScore) {
                     bestScore = score;
@@ -787,9 +802,7 @@ public class AutoMine extends Module {
                             }
                         }
 
-
-                        boolean canFacePlace =
-                                mc.world.getBlockState(targetPlayer.getBlockPos().up()).isAir();
+                        boolean canFacePlace = mc.world.getBlockState(targetPlayer.getBlockPos().up()).isAir();
 
                         // It's a good rebreak if it's a self trap block for their head or the block
                         // above their head (no velo meta)
@@ -814,7 +827,6 @@ public class AutoMine extends Module {
                 if (!BlockUtils.canBreak(blockPos, block) && !isPosGoodRebreak) {
                     continue;
                 }
-
 
                 if (!silentMine.inBreakRange(blockPos)) {
                     continue;
@@ -890,9 +902,7 @@ public class AutoMine extends Module {
                             }
                         }
 
-
-                        boolean canFacePlace =
-                                mc.world.getBlockState(targetPlayer.getBlockPos().up()).isAir();
+                        boolean canFacePlace = mc.world.getBlockState(targetPlayer.getBlockPos().up()).isAir();
 
                         // It's a good rebreak if it's a self trap block for their head or the block
                         // above their head (no velo meta)
@@ -917,7 +927,6 @@ public class AutoMine extends Module {
                 if (!BlockUtils.canBreak(blockPos, block) && !isPosGoodRebreak) {
                     continue;
                 }
-
 
                 if (!silentMine.inBreakRange(blockPos)) {
                     continue;
@@ -965,7 +974,8 @@ public class AutoMine extends Module {
             return;
 
         update();
-        onRender3d(event);
+
+        render3d(event);
     }
 
     @Override
