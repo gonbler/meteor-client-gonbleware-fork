@@ -162,6 +162,7 @@ public class AutoMine extends Module {
                         // Look for places that we can place a crystal that would intersect the block hitbox, causing them to need to break the crystal to surround >:D
                         if (crystalHitbox.intersects(blockHitbox)) {
                             Modules.get().get(AutoCrystal.class).preplaceCrystal(blockPos, antiSurroundOuterSnap.get());
+                            break;
                         }
                     }
                 }
