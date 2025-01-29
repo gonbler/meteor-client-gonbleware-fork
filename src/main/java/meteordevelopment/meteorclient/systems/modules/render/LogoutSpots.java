@@ -5,6 +5,7 @@
 
 package meteordevelopment.meteorclient.systems.modules.render;
 
+import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.EntityAddedEvent;
 import meteordevelopment.meteorclient.events.game.PlayerJoinLeaveEvent;
 import meteordevelopment.meteorclient.events.render.Render2DEvent;
@@ -18,21 +19,32 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.meteorclient.utils.render.NametagUtils;
+import meteordevelopment.meteorclient.utils.render.WireframeEntityRenderer;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.Dimension;
 import meteordevelopment.orbit.EventHandler;
+import meteordevelopment.orbit.EventPriority;
+import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Vector3d;
 
+import com.ibm.icu.text.SimpleDateFormat;
+
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class LogoutSpots extends Module {
     private static final Color GREEN = new Color(25, 225, 25);
@@ -44,17 +56,16 @@ public class LogoutSpots extends Module {
 
     // General
 
-    private final Setting<Boolean> notifyOnRejoin =
-            sgGeneral.add(new BoolSetting.Builder().name("notify-on-rejoin")
-                    .description("Notifies you when a player rejoins.").defaultValue(true).build());
+    private final Setting<Boolean> notifyOnRejoin = sgGeneral.add(new BoolSetting.Builder().name("notify-on-rejoin")
+            .description("Notifies you when a player rejoins.").defaultValue(true).build());
 
-    private final Setting<Boolean> notifyOnRejoinShowCoords =
-            sgGeneral.add(new BoolSetting.Builder().name("notify-on-show-coords")
+    private final Setting<Boolean> notifyOnRejoinShowCoords = sgGeneral
+            .add(new BoolSetting.Builder().name("notify-on-show-coords")
                     .description("Shows the coords of the player when they rejoin.")
                     .defaultValue(true).visible(() -> notifyOnRejoin.get()).build());
 
-    private final Setting<Boolean> notifyOnRejoinLimitDistance =
-            sgGeneral.add(new BoolSetting.Builder().name("notify-on-rejoin-limit-distance")
+    private final Setting<Boolean> notifyOnRejoinLimitDistance = sgGeneral
+            .add(new BoolSetting.Builder().name("notify-on-rejoin-limit-distance")
                     .description(
                             "Whether or not to limit distances for rejoin coord notifications.")
                     .defaultValue(true)
@@ -65,13 +76,6 @@ public class LogoutSpots extends Module {
             .defaultValue(5000).min(0).visible(() -> notifyOnRejoin.get()
                     && notifyOnRejoinShowCoords.get() && notifyOnRejoinLimitDistance.get())
             .build());
-
-    private final Setting<Double> scale = sgGeneral.add(new DoubleSetting.Builder().name("scale")
-            .description("The scale.").defaultValue(1).min(0).build());
-
-    private final Setting<Boolean> fullHeight = sgGeneral.add(new BoolSetting.Builder()
-            .name("full-height").description("Displays the height as the player's full height.")
-            .defaultValue(true).build());
 
     // Render
 
@@ -91,17 +95,24 @@ public class LogoutSpots extends Module {
             .add(new ColorSetting.Builder().name("name-color").description("The name color.")
                     .defaultValue(new SettingColor(255, 255, 255)).build());
 
-    private final Setting<SettingColor> nameBackgroundColor =
-            sgRender.add(new ColorSetting.Builder().name("name-background-color")
-                    .description("The name background color.")
+    private final Setting<SettingColor> timeColor = sgRender
+            .add(new ColorSetting.Builder().name("time-color").description("The time color.")
+                    .defaultValue(new SettingColor(255, 255, 255)).build());
+
+    private final Setting<SettingColor> totemPopsColor = sgRender.add(new ColorSetting.Builder()
+            .name("totem-pop-color")
+            .description("The color of the totem pops.")
+            .defaultValue(new SettingColor(225, 120, 20))
+            .build());
+
+    private final Setting<SettingColor> textBackgroundColor = sgRender
+            .add(new ColorSetting.Builder().name("text-background-color")
+                    .description("The text background color.")
                     .defaultValue(new SettingColor(0, 0, 0, 75)).build());
 
-    private final List<Entry> players = new ArrayList<>();
+    private final Map<UUID, GhostPlayer> loggedPlayers = new ConcurrentHashMap<>();
+    private final Map<UUID, PlayerTimedEntity> lastPlayers = new ConcurrentHashMap<>();
 
-    private final List<PlayerListEntry> lastPlayerList = new ArrayList<>();
-    private final List<PlayerEntity> lastPlayers = new ArrayList<>();
-
-    private int timer;
     private Dimension lastDimension;
 
     public LogoutSpots() {
@@ -112,82 +123,36 @@ public class LogoutSpots extends Module {
 
     @Override
     public void onActivate() {
-        lastPlayerList.addAll(mc.getNetworkHandler().getPlayerList());
-        updateLastPlayers();
 
-        timer = 10;
         lastDimension = PlayerUtils.getDimension();
     }
 
-    @Override
-    public void onDeactivate() {
-        synchronized (players) {
-            players.clear();
-        }
-        lastPlayerList.clear();
-    }
-
-    private void updateLastPlayers() {
-        lastPlayers.clear();
-        for (Entity entity : mc.world.getEntities()) {
-            if (entity instanceof PlayerEntity)
-                lastPlayers.add((PlayerEntity) entity);
-        }
-    }
-
-    @EventHandler
-    private void onEntityAdded(EntityAddedEvent event) {
-        if (event.entity instanceof PlayerEntity) {
-            int toRemove = -1;
-
-            synchronized (players) {
-                for (int i = 0; i < players.size(); i++) {
-                    if (players.get(i).uuid.equals(event.entity.getUuid())) {
-                        toRemove = i;
-                        break;
-                    }
-                }
-
-                if (toRemove != -1) {
-                    players.remove(toRemove);
-                }
-            }
-        }
-    }
-
-    @EventHandler
+    @EventHandler(priority = EventPriority.LOWEST)
     private void onTick(TickEvent.Post event) {
-        if (mc.getNetworkHandler().getPlayerList().size() != lastPlayerList.size()) {
-            for (PlayerListEntry entry : lastPlayerList) {
-                if (mc.getNetworkHandler().getPlayerList().stream().anyMatch(
-                        playerListEntry -> playerListEntry.getProfile().equals(entry.getProfile())))
-                    continue;
+        Dimension dimension = PlayerUtils.getDimension();
 
-                for (PlayerEntity player : lastPlayers) {
-                    if (player.getUuid().equals(entry.getProfile().getId())) {
-                        add(new Entry(player));
-                    }
-                }
+        if (dimension != lastDimension)
+            loggedPlayers.clear();
+
+        lastDimension = dimension;
+
+        long currentTime = System.currentTimeMillis();
+
+        lastPlayers.entrySet().removeIf(entry -> {
+            if (currentTime - entry.getValue().lastSeenTime > 150) {
+                return true;
             }
 
-            lastPlayerList.clear();
-            lastPlayerList.addAll(mc.getNetworkHandler().getPlayerList());
-            updateLastPlayers();
-        }
+            return false;
+        });
 
-        if (timer <= 0) {
-            updateLastPlayers();
-            timer = 10;
-        } else {
-            timer--;
-        }
+        for (PlayerEntity player : mc.world.getPlayers()) {
+            PlayerTimedEntity timedEntity = new PlayerTimedEntity();
+            timedEntity.lastSeenTime = currentTime;
+            timedEntity.playerEntity = player;
 
-        Dimension dimension = PlayerUtils.getDimension();
-        synchronized (players) {
-            if (dimension != lastDimension)
-                players.clear();
+            lastPlayers.put(player.getUuid(), timedEntity);
         }
-        lastDimension = dimension;
     }
 
     @EventHandler
@@ -195,151 +160,160 @@ public class LogoutSpots extends Module {
         if (event.getEntry().profileId() == null)
             return;
 
-        int toRemove = -1;
+        if (!loggedPlayers.containsKey(event.getEntry().profileId())) {
+            return;
+        }
 
-        synchronized (players) {
-            for (int i = 0; i < players.size(); i++) {
-                if (players.get(i).uuid.equals(event.getEntry().profileId())) {
-                    toRemove = i;
-                    break;
-                }
+        GhostPlayer ghost = loggedPlayers.remove(event.getEntry().profileId());
+
+        if (notifyOnRejoin.get()) {
+            boolean showCoords = notifyOnRejoinShowCoords.get();
+
+            if (notifyOnRejoinLimitDistance.get() && notifyOnRejoinDistance
+                    .get() < ghost.pos.distanceTo(Vec3d.ZERO)) {
+                showCoords = false;
             }
 
-            if (toRemove != -1) {
-                Entry player = players.get(toRemove);
-
-                if (notifyOnRejoin.get()) {
-                    boolean showCoords = notifyOnRejoinShowCoords.get();
-
-                    if (notifyOnRejoinLimitDistance.get() && notifyOnRejoinDistance
-                            .get() < new Vec3d(player.x, player.y, player.z)
-                                    .distanceTo(Vec3d.ZERO)) {
-                        showCoords = false;
-                    }
-
-                    if (showCoords) {
-                        info("(highlight)%s(default) rejoined at %d, %d, %d (highlight)(%.1fm away)(default).",
-                                player.name, (int) Math.floor(player.x), (int) Math.floor(player.y),
-                                (int) Math.floor(player.z), mc.player.getPos()
-                                        .distanceTo(new Vec3d(player.x, player.y, player.z)));
-                    } else {
-                        info("(highlight)%s(default) rejoined", player.name);
-                    }
-
-                    mc.world.playSoundFromEntity(mc.player, mc.player,
-                            SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, SoundCategory.AMBIENT, 3.0F,
-                            1.0F);
-                }
-
-                players.remove(toRemove);
+            if (showCoords) {
+                info("(highlight)%s(default) rejoined at %d, %d, %d (highlight)(%.1fm away)(default).",
+                        ghost.name, (int) Math.floor(ghost.pos.x), (int) Math.floor(ghost.pos.y),
+                        (int) Math.floor(ghost.pos.z), mc.player.getPos()
+                                .distanceTo(ghost.pos));
+            } else {
+                info("(highlight)%s(default) rejoined", ghost.name);
             }
+
+            mc.world.playSoundFromEntity(mc.player, mc.player,
+                    SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, SoundCategory.AMBIENT, 3.0F,
+                    1.0F);
         }
     }
 
-    private void add(Entry entry) {
-        synchronized (players) {
-            players.removeIf(player -> player.uuid.equals(entry.uuid));
-            players.add(entry);
+    @EventHandler
+    private void onPlayerLeave(PlayerJoinLeaveEvent.Leave event) {
+        if (event.getEntry().getProfile() == null)
+            return;
+
+        if (loggedPlayers.containsKey(event.getEntry().getProfile().getId())) {
+            return;
         }
+
+        if (!lastPlayers.containsKey(event.getEntry().getProfile().getId())) {
+            return;
+        }
+
+        PlayerTimedEntity player = lastPlayers.get(event.getEntry().getProfile().getId());
+
+        loggedPlayers.put(event.getEntry().getProfile().getId(), new GhostPlayer(player.playerEntity));
     }
 
     @EventHandler
     private void onRender3D(Render3DEvent event) {
-        synchronized (players) {
-            for (Entry player : players)
-                player.render3D(event);
-        }
+        loggedPlayers.values().forEach(player -> {
+            player.render3D(event);
+        });
     }
 
     @EventHandler
     private void onRender2D(Render2DEvent event) {
-        synchronized (players) {
-            for (Entry player : players)
-                player.render2D();
-        }
+        loggedPlayers.values().forEach(player -> {
+            player.render2D(event);
+        });
     }
 
     @Override
     public String getInfoString() {
-        return Integer.toString(players.size());
+        return Integer.toString(loggedPlayers.size());
     }
 
-    private static final Vector3d pos = new Vector3d();
+    private class PlayerTimedEntity {
+        private long lastSeenTime;
 
-    private class Entry {
-        public final double x, y, z;
-        public final double xWidth, zWidth, halfWidth, height;
+        private PlayerEntity playerEntity;
+    }
 
-        public final UUID uuid;
-        public final String name;
-        public final int health, maxHealth;
-        public final String healthText;
+    private class GhostPlayer {
+        private final UUID uuid;
+        private long logoutTime;
+        private String name;
 
-        public Entry(PlayerEntity entity) {
-            halfWidth = entity.getWidth() / 2;
-            x = entity.getX() - halfWidth;
-            y = entity.getY();
-            z = entity.getZ() - halfWidth;
+        private PlayerEntity _tempPlayerEntity;
 
-            xWidth = entity.getBoundingBox().getLengthX();
-            zWidth = entity.getBoundingBox().getLengthZ();
-            height = entity.getBoundingBox().getLengthY();
+        private Box hitbox;
 
-            uuid = entity.getUuid();
-            name = entity.getName().getString();
-            health = Math.round(entity.getHealth() + entity.getAbsorptionAmount());
-            maxHealth = Math.round(entity.getMaxHealth() + entity.getAbsorptionAmount());
+        private List<WireframeEntityRenderer.RenderablePart> parts;
+        private Vec3d pos;
 
-            healthText = " " + health;
+        public GhostPlayer(PlayerEntity player) {
+            uuid = player.getUuid();
+            logoutTime = System.currentTimeMillis();
+            name = player.getName().getString();
+
+            pos = new Vec3d(0, 0, 0);
+
+            _tempPlayerEntity = player;
+            hitbox = player.getBoundingBox();
         }
 
         public void render3D(Render3DEvent event) {
-            if (fullHeight.get())
-                event.renderer.box(x, y, z, x + xWidth, y + height, z + zWidth, sideColor.get(),
-                        lineColor.get(), shapeMode.get(), 0);
-            else
-                event.renderer.sideHorizontal(x, y, z, x + xWidth, z, sideColor.get(),
-                        lineColor.get(), shapeMode.get());
+            if (parts == null && _tempPlayerEntity != null) {
+                parts = WireframeEntityRenderer.cloneEntityForRendering(event, _tempPlayerEntity, pos);
+
+                _tempPlayerEntity = null;
+            }
+
+            WireframeEntityRenderer.render(event, pos, parts, 1.0, sideColor.get(), lineColor.get(), shapeMode.get());
         }
 
-        public void render2D() {
-            if (!PlayerUtils.isWithinCamera(x, y, z, mc.options.getViewDistance().getValue() * 16))
+        public void render2D(Render2DEvent event) {
+            if (!PlayerUtils.isWithinCamera(pos.x, pos.y, pos.z, mc.options.getViewDistance().getValue() * 16))
                 return;
 
             TextRenderer text = TextRenderer.get();
-            double scale = LogoutSpots.this.scale.get();
-            pos.set(x + halfWidth, y + height + 0.5, z + halfWidth);
+            double scale = 1.0;
 
-            if (!NametagUtils.to2D(pos, scale))
+            Vector3d nametagPos = new Vector3d((hitbox.minX + hitbox.maxX) / 2, hitbox.maxY + 0.5,
+                    (hitbox.minZ + hitbox.maxZ) / 2);
+
+            if (!NametagUtils.to2D(nametagPos, scale))
                 return;
 
-            NametagUtils.begin(pos);
+            NametagUtils.begin(nametagPos);
 
-            // Compute health things
-            double healthPercentage = (double) health / maxHealth;
+            _tempPlayerEntity = null;
 
-            // Get health color
-            Color healthColor;
-            if (healthPercentage <= 0.333)
-                healthColor = RED;
-            else if (healthPercentage <= 0.666)
-                healthColor = ORANGE;
-            else
-                healthColor = GREEN;
+            String timeText = " " + getTimeText();
+            String totemPopsText = " " + (-MeteorClient.INFO.getPops(uuid));
 
-            // Render background
-            double i = text.getWidth(name) / 2.0 + text.getWidth(healthText) / 2.0;
+            // i = half the length of the text
+            double i = text.getWidth(name) / 2.0 + text.getWidth(timeText) / 2.0 + text.getWidth(totemPopsText) / 2.0;
+
             Renderer2D.COLOR.begin();
-            Renderer2D.COLOR.quad(-i, 0, i * 2, text.getHeight(), nameBackgroundColor.get());
+            Renderer2D.COLOR.quad(-i, 0, i * 2, text.getHeight(), textBackgroundColor.get());
             Renderer2D.COLOR.render(null);
 
-            // Render name and health texts
+            // Render the actual text
             text.beginBig();
+
             double hX = text.render(name, -i, 0, nameColor.get());
-            text.render(healthText, hX, 0, healthColor);
+            hX = text.render(timeText, hX, 0, timeColor.get());
+            hX = text.render(totemPopsText, hX, 0, totemPopsColor.get());
+
             text.end();
 
             NametagUtils.end();
+        }
+
+        // Why the fuck doesn't have have a good time formatting system
+        private String getTimeText() {
+            double timeSinceLogout = (System.currentTimeMillis() - logoutTime) / 1000.0;
+
+            int totalSeconds = (int) timeSinceLogout;
+            int hours = totalSeconds / 3600;
+            int minutes = (totalSeconds % 3600) / 60;
+            int seconds = totalSeconds % 60;
+
+            return String.format("%02d:%02d:%02d", hours, minutes, seconds);
         }
     }
 }

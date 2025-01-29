@@ -102,4 +102,8 @@ public class InformationManager {
     public int getPops(Entity entity) {
         return totemPopMap.getOrDefault(entity.getUuid(), 0);
     }
+
+    public int getPops(UUID uuid) {
+        return totemPopMap.getOrDefault(uuid, 0);
+    }
 }
