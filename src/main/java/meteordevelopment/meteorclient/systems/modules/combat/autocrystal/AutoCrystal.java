@@ -600,8 +600,8 @@ public class AutoCrystal extends Module {
 
         // Also don't snap if we're already looking there
         if (rotatePlace.get() && snapAt
-                && !MeteorClient.ROTATION.lookingAt(new Box(crystalBlockPos))) {
-            MeteorClient.ROTATION.snapAt(crystalBlockPos.toCenterPos());
+                && !MeteorClient.ROTATION.lookingAt(new Box(blockPos))) {
+            MeteorClient.ROTATION.snapAt(blockPos.toCenterPos());
         }
 
         placeCrystal(blockPos);

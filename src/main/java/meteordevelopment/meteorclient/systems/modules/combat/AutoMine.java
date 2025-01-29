@@ -76,6 +76,13 @@ public class AutoMine extends Module {
                     || antiSurroundMode.get() == AntiSurroundMode.Inner)
             .build());
 
+    private final Setting<Boolean> antiSurroundOuterSnap = sgGeneral.add(new BoolSetting.Builder()
+            .name("anti-surround-outer-snap")
+            .description("Instantly snaps the camera when it needs to for outer place")
+            .defaultValue(true).visible(() -> antiSurroundMode.get() == AntiSurroundMode.Auto
+                    || antiSurroundMode.get() == AntiSurroundMode.Outer)
+            .build());
+
     private final Setting<Boolean> renderDebugScores =
             sgRender.add(new BoolSetting.Builder().name("render-debug-scores")
                     .description("Renders scores and their blocks.").defaultValue(false).build());
@@ -128,19 +135,33 @@ public class AutoMine extends Module {
             for (Direction dir : Direction.HORIZONTAL) {
                 BlockPos playerSurroundBlock = targetPlayer.getBlockPos().offset(dir);
 
+                // Only try to anti surround if the current mine block is actually in their surround
                 if (event.getBlockPos().equals(playerSurroundBlock)) {
-                    BlockPos outerPos = targetPlayer.getBlockPos().offset(dir, 2);
+                    Box box = Box.of(playerSurroundBlock.toCenterPos(), 2.5, 3.0, 2.5);
 
-                    if (mc.world.isAir(outerPos)) {
-                        Modules.get().get(AutoCrystal.class).preplaceCrystal(outerPos, false);
-                    } else {
-                        for (Direction dir2 : Direction.HORIZONTAL) {
-                            BlockPos outerAroundPos = playerSurroundBlock.offset(dir2);
+                    for (BlockPos blockPos : BlockUtils.iterate(box)) {
+                        if (!mc.world.isAir(blockPos)) {
+                            continue;
+                        }
 
-                            if (mc.world.isAir(outerAroundPos)) {
-                                Modules.get().get(AutoCrystal.class).preplaceCrystal(outerAroundPos,
-                                        false);
-                            }
+                        BlockState downState = mc.world.getBlockState(blockPos.down());
+                        if (!downState.isOf(Blocks.OBSIDIAN) && !downState.isOf(Blocks.BEDROCK)) {
+                            continue;
+                        }
+
+                        Box crystalPlaceHitbox = new Box(blockPos.getX(), blockPos.getY(), blockPos.getZ(), blockPos.getX() + 1, blockPos.getY() + 2, blockPos.getZ() + 1);
+
+                        if (EntityUtils.intersectsWithEntity(crystalPlaceHitbox, entity -> !entity.isSpectator())) {
+                            continue;
+                        }
+
+                        Vec3d crystalPos = new Vec3d(blockPos.getX() + 0.5, blockPos.getY(), blockPos.getZ() + 0.5);
+                        Box crystalHitbox = new Box(crystalPos.x - 1, crystalPos.y, crystalPos.z - 1, crystalPos.x + 1, crystalPos.y + 2, crystalPos.z + 1);
+                        Box blockHitbox = new Box(blockPos);
+
+                        // Look for places that we can place a crystal that would intersect the block hitbox, causing them to need to break the crystal to surround >:D
+                        if (crystalHitbox.intersects(blockHitbox)) {
+                            Modules.get().get(AutoCrystal.class).preplaceCrystal(blockPos, antiSurroundOuterSnap.get());
                         }
                     }
                 }

@@ -170,14 +170,14 @@ public class SilentMine extends Module {
                 if (inBreakRange(rebreakBlock.blockPos)) {
                     FindItemResult result = InvUtils.findFastestTool(blockState);
 
+                    MeteorClient.EVENT_BUS
+                            .post(new SilentMineFinishedEvent.Pre(rebreakBlock.blockPos, true));
+
                     if (result.found() && mc.player.getInventory().selectedSlot != result.slot()) {
                         if (MeteorClient.SWAP.beginSwap(result, true)) {
                             needRebreakSwapBack = true;
                         }
                     }
-
-                    MeteorClient.EVENT_BUS
-                            .post(new SilentMineFinishedEvent.Pre(rebreakBlock.blockPos, true));
 
                     rebreakBlock.tryBreak();
 
