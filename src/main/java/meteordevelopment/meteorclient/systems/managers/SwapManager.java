@@ -9,6 +9,7 @@ import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.gui.screen.GameMenuScreen;
 import net.minecraft.item.Item;
+import net.minecraft.item.Items;
 import net.minecraft.util.Hand;
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 
@@ -137,6 +138,10 @@ public class SwapManager {
         }
 
         return true;
+    }
+
+    public boolean canSwap(Item item) {
+        return getSlot(item).found();
     }
 
     public FindItemResult getSlot(Item item) {

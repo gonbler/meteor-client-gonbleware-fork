@@ -11,7 +11,6 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.movement.MovementFix;
 import meteordevelopment.meteorclient.utils.misc.Keybind;
-import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
 import net.minecraft.client.gui.screen.ChatScreen;
@@ -25,11 +24,6 @@ import net.minecraft.util.math.Vec3d;
 
 public class PearlPhase extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
-
-    private final Setting<SwitchMode> switchMode =
-            sgGeneral.add(new EnumSetting.Builder<SwitchMode>().name("Switch Mode")
-                    .description("Which method of switching should be used.")
-                    .defaultValue(SwitchMode.SilentHotbar).build());
 
     private final Setting<Keybind> phaseBind = sgGeneral.add(new KeybindSetting.Builder()
             .name("key-bind").description("Phase on keybind press").build());
@@ -85,16 +79,18 @@ public class PearlPhase extends Module {
             deactivate(false);
         }
 
-        if (switch (switchMode.get()) {
-            case SilentHotbar -> !InvUtils.findInHotbar(Items.ENDER_PEARL).found();
-            case SilentSwap -> !InvUtils.find(Items.ENDER_PEARL).found();
-        }) {
+        if (!MeteorClient.SWAP.canSwap(Items.ENDER_PEARL)) {
             deactivate(false);
             return;
         }
 
-        // Can't phase while sneaking
-        if (mc.options.sneakKey.isPressed()) {
+        if (mc.player.getItemCooldownManager().isCoolingDown(Items.ENDER_PEARL)) {
+            deactivate(false);
+            return;
+        }
+
+        // Can't phase while sneaking/crawling
+        if (mc.options.sneakKey.isPressed() || mc.player.isCrawling()) {
             deactivate(false);
             return;
         }
