@@ -16,6 +16,7 @@ import meteordevelopment.meteorclient.renderer.text.TextRenderer;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.entity.fakeplayer.FakePlayerEntity;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.meteorclient.utils.render.NametagUtils;
 import meteordevelopment.meteorclient.utils.render.WireframeEntityRenderer;
@@ -100,7 +101,8 @@ public class LogoutSpots extends Module {
             .build());
 
     private final Map<UUID, GhostPlayer> loggedPlayers = new ConcurrentHashMap<>();
-    private final Map<UUID, PlayerTimedEntity> lastPlayers = new ConcurrentHashMap<>();
+    private final Map<UUID, PlayerEntity> playerCache = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> ticksOnPlayerList = new ConcurrentHashMap<>();
 
     private Dimension lastDimension;
 
@@ -112,7 +114,6 @@ public class LogoutSpots extends Module {
 
     @Override
     public void onActivate() {
-
         lastDimension = PlayerUtils.getDimension();
     }
 
@@ -125,29 +126,28 @@ public class LogoutSpots extends Module {
 
         lastDimension = dimension;
 
-        long currentTime = System.currentTimeMillis();
-
-        lastPlayers.entrySet().removeIf(entry -> {
-            if (currentTime - entry.getValue().lastSeenTime > 150) {
-                return true;
-            }
-
-            return false;
-        });
-
         for (PlayerEntity player : mc.world.getPlayers()) {
-            PlayerTimedEntity timedEntity = new PlayerTimedEntity();
-            timedEntity.lastSeenTime = currentTime;
-            timedEntity.playerEntity = player;
-
-            lastPlayers.put(player.getUuid(), timedEntity);
+            if (player == null || player.equals(mc.player)) continue;
+            playerCache.put(player.getGameProfile().getId(), player);
         }
 
         loggedPlayers.entrySet().removeIf(entry -> {
             // If the playerList contains the UUID, remove them from the list, because
             // they've rejoined
             if (mc.getNetworkHandler().getPlayerListEntry(entry.getKey()) != null) {
-                return true;
+                // BUT only do this if they've been on the player list for *several ticks*
+                // If you don't do this (I think), you can have logout spots sometimes not appear, because the player list still contains the player even after they've left for a tick sometimes
+                int n = 0;
+
+                if (ticksOnPlayerList.containsKey(entry.getKey())) {
+                    n = ticksOnPlayerList.get(entry.getKey());
+                }
+
+                ticksOnPlayerList.put(entry.getKey(), n + 1);
+
+                if (n > 1) {
+                    return true;
+                }
             }
 
             return false;
@@ -193,15 +193,26 @@ public class LogoutSpots extends Module {
         if (event.getEntry().getProfile() == null)
             return;
 
-        if (loggedPlayers.containsKey(event.getEntry().getProfile().getId())) {
+        UUID leaveId = event.getEntry().getProfile().getId();
+
+        if (loggedPlayers.containsKey(leaveId)) {
             return;
         }
 
-        if (!lastPlayers.containsKey(event.getEntry().getProfile().getId())) {
+        if (!playerCache.containsKey(leaveId)) {
             return;
         }
 
-        PlayerTimedEntity player = lastPlayers.get(event.getEntry().getProfile().getId());
+        PlayerEntity player = playerCache.get(leaveId);
+
+        if (player == null) {
+            warning("player with id " + leaveId.toString() + " was null for some reason :(, couldn't save logout spot");
+            return;
+        }
+
+        if (player instanceof FakePlayerEntity) {
+            return;
+        }
 
         GhostPlayer ghost = new GhostPlayer(player);
 
@@ -210,10 +221,6 @@ public class LogoutSpots extends Module {
 
     @EventHandler
     private void onRender3D(Render3DEvent event) {
-        lastPlayers.values().forEach(player -> {
-            player.cacheRenderParts(event);
-        });
-
         loggedPlayers.values().forEach(player -> {
             player.render3D(event);
         });
@@ -231,20 +238,6 @@ public class LogoutSpots extends Module {
         return Integer.toString(loggedPlayers.size());
     }
 
-    private class PlayerTimedEntity {
-        private long lastSeenTime;
-
-        private PlayerEntity playerEntity;
-
-        private Vec3d pos = new Vec3d(0, 0, 0);
-
-        private List<WireframeEntityRenderer.RenderablePart> parts = null;
-
-        public void cacheRenderParts(Render3DEvent event) {
-            parts = WireframeEntityRenderer.cloneEntityForRendering(event, playerEntity, pos);
-        }
-    }
-
     private class GhostPlayer {
         private final UUID uuid;
         private long logoutTime;
@@ -252,21 +245,27 @@ public class LogoutSpots extends Module {
 
         private Box hitbox;
 
+        private PlayerEntity playerEntity;
+
         private List<WireframeEntityRenderer.RenderablePart> parts;
         private Vec3d pos;
 
-        public GhostPlayer(PlayerTimedEntity player) {
-            uuid = player.playerEntity.getUuid();
-            name = player.playerEntity.getName().getString();
-            hitbox = player.playerEntity.getBoundingBox();
+        public GhostPlayer(PlayerEntity player) {
+            playerEntity = player;
 
-            parts = player.parts;
-            pos = player.pos;
+            uuid = player.getUuid();
+            name = player.getName().getString();
+            hitbox = player.getBoundingBox();
+            pos = player.getPos();
 
             logoutTime = System.currentTimeMillis();
         }
 
         public void render3D(Render3DEvent event) {
+            if (parts == null && playerEntity != null) {
+                parts = WireframeEntityRenderer.cloneEntityForRendering(event, playerEntity, pos);
+            }
+
             if (parts == null) {
                 return;
             }
@@ -275,7 +274,7 @@ public class LogoutSpots extends Module {
         }
 
         public void render2D(Render2DEvent event) {
-            if (!PlayerUtils.isWithinCamera(pos.x, pos.y, pos.z, mc.options.getViewDistance().getValue() * 16))
+            if (!PlayerUtils.isWithinCamera(pos.x, pos.y, pos.z, mc.options.getViewDistance().getValue() * 32))
                 return;
 
             TextRenderer text = TextRenderer.get();
