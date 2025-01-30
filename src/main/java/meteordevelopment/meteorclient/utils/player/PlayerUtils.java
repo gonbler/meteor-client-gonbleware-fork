@@ -54,6 +54,10 @@ public class PlayerUtils {
             return color.set(Config.get().friendColor.get()).a(defaultColor.a);
         }
 
+        if (Friends.get().isEnemy(entity)) {
+            return color.set(Config.get().enemyColor.get()).a(defaultColor.a);
+        }
+
         if (Config.get().useTeamColor.get() && !color
                 .set(TextUtils.getMostPopularColor(entity.getDisplayName())).equals(WHITE)) {
             return color.a(defaultColor.a);
