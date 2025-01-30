@@ -6,7 +6,6 @@
 package meteordevelopment.meteorclient.systems.modules.render;
 
 import meteordevelopment.meteorclient.MeteorClient;
-import meteordevelopment.meteorclient.events.entity.EntityAddedEvent;
 import meteordevelopment.meteorclient.events.game.PlayerJoinLeaveEvent;
 import meteordevelopment.meteorclient.events.render.Render2DEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
@@ -20,14 +19,10 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.meteorclient.utils.render.NametagUtils;
 import meteordevelopment.meteorclient.utils.render.WireframeEntityRenderer;
-import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.Dimension;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.network.PlayerListEntry;
-import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
@@ -35,27 +30,16 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Vector3d;
 
-import com.ibm.icu.text.SimpleDateFormat;
-
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 public class LogoutSpots extends Module {
-    private static final Color GREEN = new Color(25, 225, 25);
-    private static final Color ORANGE = new Color(225, 105, 25);
-    private static final Color RED = new Color(225, 25, 25);
-
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgRender = settings.createGroup("Render");
 
     // General
-
     private final Setting<Boolean> notifyOnRejoin = sgGeneral.add(new BoolSetting.Builder().name("notify-on-rejoin")
             .description("Notifies you when a player rejoins.").defaultValue(true).build());
 
@@ -110,6 +94,11 @@ public class LogoutSpots extends Module {
                     .description("The text background color.")
                     .defaultValue(new SettingColor(0, 0, 0, 75)).build());
 
+    private final Setting<Double> nametageScale = sgRender.add(new DoubleSetting.Builder()
+            .name("text-scale").description("The scale for text.")
+            .defaultValue(1.0).min(0.1).sliderMax(2.0)
+            .build());
+
     private final Map<UUID, GhostPlayer> loggedPlayers = new ConcurrentHashMap<>();
     private final Map<UUID, PlayerTimedEntity> lastPlayers = new ConcurrentHashMap<>();
 
@@ -153,6 +142,16 @@ public class LogoutSpots extends Module {
 
             lastPlayers.put(player.getUuid(), timedEntity);
         }
+
+        loggedPlayers.entrySet().removeIf(entry -> {
+            // If the playerList contains the UUID, remove them from the list, because
+            // they've rejoined
+            if (mc.getNetworkHandler().getPlayerListEntry(entry.getKey()) != null) {
+                return true;
+            }
+
+            return false;
+        });
     }
 
     @EventHandler
@@ -204,11 +203,17 @@ public class LogoutSpots extends Module {
 
         PlayerTimedEntity player = lastPlayers.get(event.getEntry().getProfile().getId());
 
-        loggedPlayers.put(event.getEntry().getProfile().getId(), new GhostPlayer(player.playerEntity));
+        GhostPlayer ghost = new GhostPlayer(player);
+
+        loggedPlayers.put(event.getEntry().getProfile().getId(), ghost);
     }
 
     @EventHandler
     private void onRender3D(Render3DEvent event) {
+        lastPlayers.values().forEach(player -> {
+            player.cacheRenderParts(event);
+        });
+
         loggedPlayers.values().forEach(player -> {
             player.render3D(event);
         });
@@ -230,6 +235,14 @@ public class LogoutSpots extends Module {
         private long lastSeenTime;
 
         private PlayerEntity playerEntity;
+
+        private Vec3d pos = new Vec3d(0, 0, 0);
+
+        private List<WireframeEntityRenderer.RenderablePart> parts = null;
+
+        public void cacheRenderParts(Render3DEvent event) {
+            parts = WireframeEntityRenderer.cloneEntityForRendering(event, playerEntity, pos);
+        }
     }
 
     private class GhostPlayer {
@@ -237,29 +250,25 @@ public class LogoutSpots extends Module {
         private long logoutTime;
         private String name;
 
-        private PlayerEntity _tempPlayerEntity;
-
         private Box hitbox;
 
         private List<WireframeEntityRenderer.RenderablePart> parts;
         private Vec3d pos;
 
-        public GhostPlayer(PlayerEntity player) {
-            uuid = player.getUuid();
+        public GhostPlayer(PlayerTimedEntity player) {
+            uuid = player.playerEntity.getUuid();
+            name = player.playerEntity.getName().getString();
+            hitbox = player.playerEntity.getBoundingBox();
+
+            parts = player.parts;
+            pos = player.pos;
+
             logoutTime = System.currentTimeMillis();
-            name = player.getName().getString();
-
-            pos = new Vec3d(0, 0, 0);
-
-            _tempPlayerEntity = player;
-            hitbox = player.getBoundingBox();
         }
 
         public void render3D(Render3DEvent event) {
-            if (parts == null && _tempPlayerEntity != null) {
-                parts = WireframeEntityRenderer.cloneEntityForRendering(event, _tempPlayerEntity, pos);
-
-                _tempPlayerEntity = null;
+            if (parts == null) {
+                return;
             }
 
             WireframeEntityRenderer.render(event, pos, parts, 1.0, sideColor.get(), lineColor.get(), shapeMode.get());
@@ -270,7 +279,7 @@ public class LogoutSpots extends Module {
                 return;
 
             TextRenderer text = TextRenderer.get();
-            double scale = 1.0;
+            double scale = nametageScale.get();
 
             Vector3d nametagPos = new Vector3d((hitbox.minX + hitbox.maxX) / 2, hitbox.maxY + 0.5,
                     (hitbox.minZ + hitbox.maxZ) / 2);
@@ -279,8 +288,6 @@ public class LogoutSpots extends Module {
                 return;
 
             NametagUtils.begin(nametagPos);
-
-            _tempPlayerEntity = null;
 
             String timeText = " " + getTimeText();
             String totemPopsText = " " + (-MeteorClient.INFO.getPops(uuid));
